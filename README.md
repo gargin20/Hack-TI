@@ -1,119 +1,607 @@
-# DigitalTwin
+LifeTwin — AI Powered Digital Twin Platform
+🚀 Overview
 
-DigitalTwin is a hackathon MVP for building a behavior-aware personal digital twin. The app combines onboarding signals, public career integrations, backend scoring, and a Flask AI engine to generate a personalized dashboard for health, finance, career, wellness, and daily intelligence.
+LifeTwin is an AI-powered Digital Twin platform designed to help users optimize their life holistically across:
 
-## What It Does
+Health
+Finance
+Career
+Productivity
+Wellness
+Lifestyle Habits
 
-- Authenticates users with email/password and JWT.
-- Guides users through onboarding for priorities, lifestyle, finances, and integrations.
-- Verifies public GitHub and LeetCode profiles where possible.
-- Stores LinkedIn as an unverified career signal for the MVP.
-- Generates adaptive dashboard analytics from onboarding data.
-- Uses threshold intelligence to show green, orange, or red states for healthy, warning, or critical patterns.
-- Separates AI insights from adaptive recommendations:
-  - AI Insights explain what the system understands about the user.
-  - Adaptive Recommendations suggest what the user should do next.
-- Connects a Node.js backend to a Flask AI engine for burnout, productivity, and correlation analysis, with rule-based fallback logic.
+Instead of treating life domains separately like traditional apps, LifeTwin builds:
 
-## Tech Stack
+a unified adaptive Digital Twin that understands how behaviors across domains affect one another.
 
-- Frontend: React, Vite, Tailwind CSS, Axios
-- Backend: Node.js, Express.js, MongoDB, Mongoose, JWT
-- AI Engine: Flask, scikit-learn, pandas, numpy
-- Integrations: GitHub public API, LeetCode public/GraphQL endpoints, LinkedIn profile-link signal
+The platform uses:
 
-## Project Structure
+behavioral onboarding
+AI-generated analytics
+adaptive recommendations
+cross-domain intelligence
+predictive simulation
+real-world integrations
 
-```text
-Digital Twin/
-├── client/      # React frontend
-├── server/      # Express API, MongoDB models, auth, onboarding, dashboard logic
-└── ai-engine/   # Flask AI prediction and correlation service
-```
+to generate a personalized life intelligence system for every user.
 
-## Workflow
+🌟 Core Vision
 
-1. User signs up or logs in.
-2. Signup redirects to onboarding.
-3. Onboarding collects behavior, finance, lifestyle, and integration signals.
-4. Backend saves the onboarding profile and calls the Flask AI engine.
-5. If the AI engine is unavailable, backend rule-based scoring creates fallback analytics.
-6. Dashboard fetches `/api/dashboard` for personalized analytics, insights, recommendations, charts, streak state, and integration intelligence.
-7. The UI adapts colors and content based on calculated user thresholds.
+Most modern apps only track:
 
-## Local Setup
+fitness
+productivity
+finance
+coding
+wellness
 
-### 1. Backend
+individually.
 
-```bash
-cd server
-npm install
-copy .env.example .env
-npm run dev
-```
+LifeTwin combines them together and analyzes:
 
-The backend runs on `http://localhost:5000`.
+how stress impacts productivity
+how sleep affects coding consistency
+how financial pressure affects recovery
+how exercise improves focus
+how smoking affects wellness balance
 
-### 2. AI Engine
+The goal is to create:
 
-```bash
-cd ai-engine
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
-copy .env.example .env
-python run.py
-```
+a real-time AI-powered Digital Twin for holistic life optimization.
 
-The AI engine runs on `http://localhost:5050`.
+🧠 Core Features
+🔐 Authentication & Security
+Features
+JWT Authentication
+Password Hashing using bcryptjs
+Protected Routes
+Secure Backend APIs
+User-specific Data Isolation
+Environment Variable Protection
+Secure AI-engine communication
+Protected Dashboard Access
+Security Philosophy
 
-### 3. Frontend
+LifeTwin follows:
 
-```bash
-cd client
-npm install
-npm run dev
-```
+privacy-first behavioral intelligence architecture.
 
-The frontend runs on `http://localhost:5173`.
+Sensitive behavioral data:
 
-## Environment Variables
+sleep patterns
+stress indicators
+financial wellness
+smoking habits
+recovery analytics
 
-Real secrets should stay only in local `.env` files. This repo includes `.env.example` templates only.
+are securely stored and protected.
 
-Backend examples:
+🧬 AI-Powered Digital Twin
 
-```env
-PORT=5000
-MONGODB_URI=mongodb://localhost:27017/lifetwin
-JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
-FLASK_AI_URL=http://localhost:5050
-CORS_ORIGIN=http://localhost:5173,http://localhost:3000
-```
+LifeTwin creates:
 
-AI engine examples:
+a behavioral profile
+adaptive life model
+dynamic intelligence layer
 
-```env
-FLASK_PORT=5050
-SECRET_KEY=your-secret-key-change-in-production
-NODE_BACKEND_URL=http://localhost:5000
-```
+for each user.
 
-## Core API Routes
+The AI engine continuously analyzes:
 
-- `POST /api/auth/signup`
-- `POST /api/auth/login`
-- `POST /api/onboarding`
-- `GET /api/dashboard`
-- `POST /api/daily-goals/complete`
-- `GET /api/integrations/github/:username`
-- `GET /api/integrations/leetcode/:username`
-- `POST /api/integrations/linkedin`
+wellness
+finance
+productivity
+recovery
+coding activity
+lifestyle consistency
 
-## Security Notes
+to generate:
 
-- `.env`, dependency folders, build output, virtual environments, caches, and logs are ignored.
-- JWT is required for onboarding, dashboard, daily goal, and integration routes.
-- Dashboard data is user-scoped.
-- Passwords are hashed and never returned in API responses.
-- LinkedIn is not verified through OAuth in this MVP; it is stored as a profile-link signal only.
+insights
+warnings
+predictions
+recommendations
+simulations
+📊 Adaptive Dashboard System
+
+The dashboard is:
+
+personalized
+adaptive
+behavior-aware
+AI-driven
+
+Every user sees:
+
+different insights
+different graphs
+different warnings
+different recommendations
+
+based on:
+
+onboarding inputs
+integrations
+AI predictions
+behavioral thresholds
+🔥 Burnout Intelligence
+
+The platform predicts:
+
+burnout risk
+recovery stability
+wellness imbalance
+productivity decline
+
+using:
+
+sleep patterns
+study hours
+stress levels
+exercise frequency
+coding consistency
+
+Example:
+
+“Late-night coding patterns are increasing burnout risk.”
+
+💰 Financial Wellness Intelligence
+
+LifeTwin analyzes:
+
+income vs expenditure
+savings rate
+financial stress
+spending patterns
+financial stability trajectory
+
+The system generates:
+
+financial health scores
+adaptive financial recommendations
+savings projections
+stress indicators
+
+Example:
+
+“Spending trajectory exceeds healthy financial threshold.”
+
+💻 Career & Productivity Intelligence
+
+The platform tracks:
+
+coding consistency
+GitHub activity
+LeetCode progress
+focus sessions
+productivity rhythm
+career momentum
+
+Features include:
+
+coding analytics
+productivity heatmaps
+professional growth analysis
+burnout vs productivity correlation
+🧠 Cross-Domain Intelligence
+
+This is the core innovation of LifeTwin.
+
+The platform correlates:
+
+Health ↔ Career
+Finance ↔ Wellness
+Stress ↔ Productivity
+Sleep ↔ Coding
+Exercise ↔ Focus
+
+Examples:
+
+“Low sleep consistency is reducing coding productivity.”
+“Financial stress is affecting recovery quality.”
+“Exercise consistency is improving productivity stability.”
+🔮 Simulation & What-If Intelligence
+
+LifeTwin includes:
+
+behavioral simulations
+future projections
+adaptive forecasting
+
+Users can simulate:
+
+improved sleep
+reduced stress
+reduced spending
+increased exercise
+
+and see:
+
+predicted burnout reduction
+productivity improvement
+financial recovery
+wellness stabilization
+
+Example:
+
+“Improving sleep by 2 hours may reduce burnout risk by 18%.”
+
+🤖 AI Recommendation Engine
+
+LifeTwin generates:
+
+adaptive recommendations
+wellness actions
+productivity improvements
+financial guidance
+
+Recommendations change dynamically based on:
+
+onboarding behavior
+dashboard analytics
+AI predictions
+integrations
+threshold intelligence
+
+Examples:
+
+Sleep 1 hour earlier tonight
+Reduce discretionary spending
+Schedule a recovery session
+Maintain coding consistency
+Take a stress recovery break
+📈 Threshold Intelligence System
+
+LifeTwin uses adaptive threshold-based intelligence.
+
+Every metric is categorized as:
+
+🟢 Healthy
+🟠 Warning
+🔴 Critical
+
+Examples:
+
+Sleep
+7–9 hrs → Green
+5–6 hrs → Orange
+Below 5 hrs → Red
+Financial Stability
+High savings → Green
+Moderate buffer → Orange
+Low buffer → Red
+Burnout Risk
+Low → Green
+Moderate → Orange
+High → Red
+
+The UI dynamically adapts using:
+
+graph colors
+warning indicators
+insight severity
+adaptive visual states
+🌐 Real-World Integrations
+
+LifeTwin integrates with:
+
+GitHub
+LeetCode
+LinkedIn
+Fitbit (planned)
+Banking APIs (planned)
+🐙 GitHub Integration
+
+Tracks:
+
+coding activity
+repositories
+languages
+consistency
+contribution signals
+
+Dashboard Insights:
+
+“GitHub activity increasing.”
+“Coding consistency improving.”
+🧩 LeetCode Integration
+
+Tracks:
+
+solved problems
+DSA consistency
+streaks
+ranking
+activity levels
+
+Dashboard Insights:
+
+“Problem-solving momentum stable.”
+“DSA consistency decreasing.”
+💼 LinkedIn Integration
+
+Tracks:
+
+professional growth
+networking consistency
+career focus
+learning momentum
+
+Dashboard Insights:
+
+“Professional growth trajectory improving.”
+🏥 Health Intelligence System
+
+The Health page includes:
+
+Sleep Analytics
+Stress Tracking
+Recovery Analysis
+Smoking Impact
+Exercise Tracking
+Period Tracking
+Wellness Balance
+Burnout Indicators
+
+Graphs include:
+
+sleep trends
+stress graphs
+recovery charts
+activity heatmaps
+wellness rings
+💰 Finance Intelligence System
+
+The Finance page includes:
+
+Income vs Expense Analytics
+Savings Trajectory
+Monthly Buffer Analysis
+Spending Breakdown
+Financial Stability Score
+Financial Stress Indicators
+Future Savings Projection
+
+Graphs include:
+
+savings charts
+financial trajectory graphs
+spending analysis
+stability indicators
+💻 Career Intelligence System
+
+The Career page includes:
+
+GitHub Analytics
+LeetCode Tracking
+Coding Consistency
+Productivity Heatmaps
+Focus Rhythm
+Career Momentum
+Professional Growth Analysis
+
+Graphs include:
+
+coding trends
+activity heatmaps
+productivity curves
+learning momentum graphs
+🧠 Cross Intelligence Page
+
+The Cross Intelligence page acts as:
+
+the AI brain of LifeTwin.
+
+Features:
+
+behavioral correlations
+adaptive simulations
+cross-domain insights
+predictive intelligence
+AI-generated observations
+
+Includes:
+
+What-if simulations
+Behavioral impact chains
+AI-generated projections
+Life balance analysis
+🎯 Goal & Streak System
+
+LifeTwin uses:
+
+action-based consistency streaks.
+
+Streaks are NOT fake/generated.
+
+Users earn streaks only by:
+
+completing goals
+maintaining routines
+following recommendations
+tracking behaviors
+
+Examples:
+
+sleep streak
+coding streak
+workout streak
+productivity streak
+🖥️ Frontend Tech Stack
+React.js
+Tailwind CSS
+React Router DOM
+Axios
+Context API
+Adaptive UI System
+Animated Micro-interactions
+⚙️ Backend Tech Stack
+Node.js
+Express.js
+MongoDB
+Mongoose
+JWT Authentication
+bcryptjs
+REST APIs
+AI-service integration
+🤖 AI Engine Stack
+Flask
+Python
+Scikit-learn
+NumPy
+Pandas
+
+AI Services:
+
+Burnout Prediction
+Productivity Scoring
+Correlation Analysis
+Recommendation Generation
+🏗️ Project Architecture
+Frontend (React.js)
+        ↓
+Node.js Backend (Express)
+        ↓
+Flask AI Engine
+        ↓
+MongoDB Database
+📂 Folder Structure
+Root Structure
+digital-twin/
+│
+├── client/
+├── server/
+├── ai-engine/
+└── README.md
+📁 Frontend Structure
+client/
+│
+├── src/
+│   ├── components/
+│   ├── pages/
+│   ├── layouts/
+│   ├── routes/
+│   ├── hooks/
+│   ├── context/
+│   ├── services/
+│   ├── utils/
+│   └── assets/
+📁 Backend Structure
+server/
+│
+├── config/
+├── controllers/
+├── middleware/
+├── models/
+├── routes/
+├── services/
+├── utils/
+└── index.js
+📁 AI Engine Structure
+ai-engine/
+│
+├── app/
+│   ├── analytics/
+│   ├── models/
+│   ├── routes/
+│   ├── services/
+│   └── utils/
+│
+├── tests/
+├── requirements.txt
+└── run.py
+🧭 Complete Workflow
+Step 1 — Authentication
+
+User:
+
+signs up
+logs in
+receives JWT authentication
+Step 2 — Onboarding
+
+User enters:
+
+sleep hours
+stress level
+smoking habits
+exercise frequency
+income/expenditure
+savings habits
+GitHub username
+LeetCode username
+LinkedIn profile
+Step 3 — Backend Processing
+
+Node.js backend:
+
+validates onboarding data
+stores user profile
+connects integrations
+calls AI engine
+Step 4 — AI Analysis
+
+Flask AI engine:
+
+predicts burnout
+calculates productivity
+analyzes behavior
+generates recommendations
+returns adaptive insights
+Step 5 — Dashboard Personalization
+
+Dashboard dynamically adapts using:
+
+onboarding data
+AI predictions
+integrations
+threshold intelligence
+behavioral analytics
+🔌 Backend APIs
+Authentication APIs
+POST /api/auth/signup
+POST /api/auth/login
+Onboarding APIs
+POST /api/onboarding
+Dashboard APIs
+GET /api/dashboard
+GET /api/dashboard/insights
+GET /api/dashboard/recommendations
+Integration APIs
+GET /api/integrations/github/:username
+GET /api/integrations/leetcode/:username
+POST /api/integrations/linkedin
+🤖 AI Engine APIs
+Burnout Prediction
+POST /api/predict/burnout
+Productivity Prediction
+POST /api/predict/productivity
+Correlation Analysis
+POST /api/analyze/correlation
+🎨 UI/UX Philosophy
+
+LifeTwin focuses on:
+
+premium SaaS aesthetics
+emotionally aware UI
+adaptive intelligence
+subtle animations
+intelligent motion
+behavior-aware visualization
+
+The platform avoids:
+
+generic dashboards
+excessive neon AI styling
+static analytics
+🚀 Future Scope
+Wearable device integrations
+Real-time activity tracking
+AI Copilot assistant
+Long-term behavior forecasting
+Mental wellness prediction
+Habit forecasting
+Team/family Digital Twins
+AI-powered life coaching
+Mobile application
+Real-time simulation engine
