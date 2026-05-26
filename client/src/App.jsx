@@ -15,12 +15,13 @@ import Onboarding from './pages/Onboarding';
 import Settings from './pages/Settings';
 import Signup from './pages/Signup';
 import Simulation from './pages/Simulation';
-
+import Landing from './pages/Landing';
 function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<Login />} />
+        <Route path="/" element={<Landing />} />
+        <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route
           path="/onboarding"
