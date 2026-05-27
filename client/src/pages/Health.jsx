@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import axios from 'axios';
+import { useGamification } from '../context/GamificationContext';
 
 // Data Arrays
 const healthMetrics = [
@@ -12,25 +14,123 @@ const healthMetrics = [
 const tobaccoBars = [80, 65, 90, 50, 40, 30, 25];
 
 // Smooth lifting and border-darkening transition class applied upon user hover
-const interactiveCardClass = 'rounded-xl border border-[#d8e5ea] bg-white/80 shadow-[0_10px_30px_rgba(0,0,0,0.02)] backdrop-blur transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#1b1c1c] hover:shadow-[0_18px_40px_rgba(0,0,0,0.08)] cursor-pointer active:scale-[0.98]';
+const interactiveCardClass = 'rounded-2xl border border-white/10 bg-[#11131a]/84 shadow-[0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-xl transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#ff7a00]/30 hover:shadow-[0_24px_60px_rgba(0,0,0,0.5)] cursor-pointer active:scale-[0.98]';
 
 function Health() {
   const [isMounted, setIsMounted] = useState(false);
+
+  // --- NEW GAMIFICATION LOGIC START ---
+  const [activeTab, setActiveTab] = useState('workout'); // 'workout' or 'sleep'
+  const [workoutType, setWorkoutType] = useState('');
+  const [duration, setDuration] = useState('');
+  const [sleepHours, setSleepHours] = useState('');
+  
+  const { triggerReward } = useGamification();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+  const handleLogHealth = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('authToken');
+      const endpoint = activeTab === 'workout' ? '/api/health-metrics/workout' : '/api/health-metrics/sleep';
+      const payload = activeTab === 'workout' 
+        ? { type: workoutType, duration: Number(duration) }
+        : { hours: Number(sleepHours) };
+
+      const response = await axios.post(
+        `${API_BASE_URL}${endpoint}`, 
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        setWorkoutType('');
+        setDuration('');
+        setSleepHours('');
+        
+        const gamificationData = response.data.gamification;
+        if (gamificationData) {
+          triggerReward(
+            gamificationData.xpAwarded, 
+            gamificationData.newBadges, 
+            gamificationData.newTotalXP
+          );
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to log ${activeTab}:`, error);
+    }
+  };
+  // --- NEW GAMIFICATION LOGIC END ---
 
   useEffect(() => {
     setIsMounted(true);
   }, []);
 
   return (
-    <div className="min-h-full bg-[#fbf9f8] px-6 py-8 text-[#1b1c1c] sm:px-8 lg:px-12">
+    <div className="relative min-h-full overflow-hidden bg-[#06080f] px-6 py-8 text-white sm:px-8 lg:px-12">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,122,0,0.16),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(15,143,132,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.02),transparent_20%)]" />
+      <div className="relative">
       
       {/* Header Section */}
       <section className="mb-8">
-        <h1 className="text-4xl font-semibold tracking-tight text-[#1b1c1c]">Health Intelligence Hub</h1>
-        <p className="mt-2 max-w-2xl text-base leading-relaxed text-[#596467]">
+        <h1 className="text-4xl font-semibold tracking-tight text-white">Health Intelligence Hub</h1>
+        <p className="mt-2 max-w-2xl text-base leading-relaxed text-white/68">
           Synchronized biometric tracking, environmental context logs, and preventative recovery paths.
         </p>
       </section>
+
+      {/* --- NEW GAMIFICATION QUICK ACTION FORM --- */}
+      <section className="mb-8">
+        <article className="rounded-2xl border border-white/10 bg-[#11131a]/84 p-6 shadow-[0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-xl">
+          <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Log Daily Metrics</h2>
+              <p className="mt-1 text-sm text-white/60">Maintain your health streak and earn XP.</p>
+            </div>
+            
+            <div className="flex rounded-lg bg-white/5 p-1">
+              <button 
+                onClick={() => setActiveTab('workout')}
+                className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeTab === 'workout' ? 'bg-[#16a34a] text-white shadow-lg' : 'text-white/60 hover:text-white'}`}
+              >
+                Workout
+              </button>
+              <button 
+                onClick={() => setActiveTab('sleep')}
+                className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeTab === 'sleep' ? 'bg-[#2f83b7] text-white shadow-lg' : 'text-white/60 hover:text-white'}`}
+              >
+                Sleep
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogHealth} className="flex w-full flex-col gap-3 sm:flex-row items-end">
+            {activeTab === 'workout' ? (
+              <>
+                <div className="w-full sm:w-1/3">
+                  <label className="mb-1 block text-xs uppercase text-white/60">Activity Type</label>
+                  <input type="text" placeholder="e.g., Weightlifting, Running" value={workoutType} onChange={(e) => setWorkoutType(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#16a34a] focus:outline-none" required />
+                </div>
+                <div className="w-full sm:w-1/3">
+                  <label className="mb-1 block text-xs uppercase text-white/60">Duration (Mins)</label>
+                  <input type="number" placeholder="45" value={duration} onChange={(e) => setDuration(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#16a34a] focus:outline-none" required />
+                </div>
+              </>
+            ) : (
+              <div className="w-full sm:w-2/3">
+                <label className="mb-1 block text-xs uppercase text-white/60">Hours Slept</label>
+                <input type="number" step="0.5" placeholder="e.g., 7.5" value={sleepHours} onChange={(e) => setSleepHours(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#2f83b7] focus:outline-none" required />
+              </div>
+            )}
+            
+            <button type="submit" className={`w-full sm:w-1/3 whitespace-nowrap rounded-lg px-6 py-3 font-bold transition-all ${activeTab === 'workout' ? 'bg-[#16a34a] text-white hover:shadow-[0_0_15px_rgba(22,163,74,0.4)]' : 'bg-[#2f83b7] text-white hover:shadow-[0_0_15px_rgba(47,131,183,0.4)]'}`}>
+              Save & Earn XP
+            </button>
+          </form>
+        </article>
+      </section>
+      {/* --- END GAMIFICATION FORM --- */}
 
       {/* 1. Core Health Metrics Cards */}
       <section className="mb-8 grid grid-cols-2 gap-5 md:grid-cols-3 xl:grid-cols-5">
@@ -41,53 +141,53 @@ function Health() {
 
       {/* 2. Environmental Intelligence Panel */}
       <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <article className="rounded-xl border border-[#badce3] bg-[#e6f4f8] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-1 hover:border-[#1b1c1c] hover:shadow-[0_18px_40px_rgba(0,0,0,0.08)] cursor-pointer active:scale-[0.98] xl:col-span-12">
-          <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between border-b border-[#badce3] pb-4">
+        <article className="rounded-[1.6rem] border border-white/10 bg-[#0c1018]/82 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)] transition-all duration-300 hover:-translate-y-1 hover:border-[#ff7a00]/30 hover:shadow-[0_28px_70px_rgba(0,0,0,0.55)] cursor-pointer active:scale-[0.98] xl:col-span-12">
+          <div className="mb-6 flex flex-col gap-4 border-b border-white/10 pb-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="flex items-center gap-3">
-              <div className="grid h-14 w-14 place-items-center rounded-xl bg-[#416f82] text-white shrink-0">
+              <div className="grid h-14 w-14 shrink-0 place-items-center rounded-2xl bg-gradient-to-br from-[#ff7a00] via-[#ff4d7d] to-[#0f8f84] text-white shadow-[0_0_28px_rgba(255,122,0,0.24)]">
                 <CloudIcon className="h-7 w-7" />
               </div>
               <div>
-                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#2c5363]">Today's Environmental Forecast</h3>
-                <p className="text-3xl font-bold text-[#1b1c1c] mt-0.5">41°C <span className="text-sm font-medium text-[#596467]">(Dry Heat Wave • UV Index: Extreme)</span></p>
+                <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-white/56">Today's Environmental Forecast</h3>
+                <p className="mt-0.5 text-3xl font-bold text-white">41°C <span className="text-sm font-medium text-white/58">(Dry Heat Wave • UV Index: Extreme)</span></p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
-              <span className="rounded-full bg-white/80 border border-[#badce3] px-3 py-1.5 text-xs font-semibold text-[#416f82]">📍 Current Location</span>
-              <span className="rounded-full bg-[#fff1ed] border border-[#efcfc5] px-3 py-1.5 text-xs font-semibold text-[#ea580c]">⚠️ Peak Heat Window: 12 PM - 4 PM</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#7df3cc]">📍 Current Location</span>
+              <span className="rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-[#ffb38a]">⚠️ Peak Heat Window: 12 PM - 4 PM</span>
             </div>
           </div>
 
           <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-            <div className="rounded-xl bg-white/70 border border-[#badce3] p-6 hover:bg-white transition-colors duration-300">
-              <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ea580c]">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 transition-colors duration-300 hover:bg-white/[0.08]">
+              <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#ffb38a]">
                 <DropIcon className="h-4 w-4" />
                 Adaptive Water Intake
               </div>
-              <p className="text-2xl font-bold text-[#1b1c1c] mb-1.5">3.8 Liters</p>
-              <p className="text-sm leading-relaxed text-[#596467]">
-                Intense heat drives higher baseline transpiration. Scale up targets by <strong className="text-[#ea580c]">+800ml</strong>. Include electrolytes before 2:00 PM.
+              <p className="mb-1.5 text-2xl font-bold text-white">3.8 Liters</p>
+              <p className="text-sm leading-relaxed text-white/64">
+                Intense heat drives higher baseline transpiration. Scale up targets by <strong className="text-[#ffb38a]">+800ml</strong>. Include electrolytes before 2:00 PM.
               </p>
             </div>
 
-            <div className="rounded-xl bg-white/70 border border-[#badce3] p-6 hover:bg-white transition-colors duration-300">
-              <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#8b4e3f]">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 transition-colors duration-300 hover:bg-white/[0.08]">
+              <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#7df3cc]">
                 <FemaleIcon className="h-4 w-4" />
                 Apparel Optimization
               </div>
-              <p className="text-lg font-bold text-[#380d04] mb-1.5">Loose Linen & Cottons</p>
-              <p className="text-sm leading-relaxed text-[#596467]">
+              <p className="mb-1.5 text-lg font-bold text-white">Loose Linen & Cottons</p>
+              <p className="text-sm leading-relaxed text-white/64">
                 Opt for loose-fitting, highly breathable open-weave fabrics. Avoid dark synthetic blends that trap heat radiation.
               </p>
             </div>
 
-            <div className="rounded-xl bg-white/70 border border-[#badce3] p-6 hover:bg-white transition-colors duration-300">
-              <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#16a34a]">
+            <div className="rounded-2xl border border-white/10 bg-white/5 p-6 transition-colors duration-300 hover:bg-white/[0.08]">
+              <div className="mb-3 flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-[#c8a84b]">
                 <RunIcon className="h-4 w-4" />
                 Activity Realignment
               </div>
-              <p className="text-lg font-bold text-[#144728] mb-1.5">Indoor-only Cardio Threshold</p>
-              <p className="text-sm leading-relaxed text-[#596467]">
+              <p className="mb-1.5 text-lg font-bold text-white">Indoor-only Cardio Threshold</p>
+              <p className="text-sm leading-relaxed text-white/64">
                 Postpone high-intensity outdoor activities until past 7:00 PM. High thermal loads fast-track systemic physical exhaustion.
               </p>
             </div>
@@ -97,29 +197,29 @@ function Health() {
 
       {/* 3. Reproductive Health Modules */}
       <section className="mb-8 grid grid-cols-1 gap-6 xl:grid-cols-12">
-        <article className="rounded-xl border border-[#efcfc5] bg-[#fff1ed] p-6 shadow-[0_10px_30px_rgba(0,0,0,0.02)] transition-all duration-300 hover:-translate-y-1 hover:border-[#1b1c1c] hover:shadow-[0_18px_40px_rgba(0,0,0,0.08)] cursor-pointer active:scale-[0.98] xl:col-span-6 flex flex-col justify-between">
+        <article className="flex flex-col justify-between rounded-[1.6rem] border border-white/10 bg-[#0b0f16]/82 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.45)] transition-all duration-300 hover:-translate-y-1 hover:border-[#ff7a00]/30 hover:shadow-[0_28px_70px_rgba(0,0,0,0.55)] cursor-pointer active:scale-[0.98] xl:col-span-6">
           <div>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#8b4e3f]">Period & Cycle Wellness</h3>
-              <span className="rounded-md bg-white/60 border border-[#efcfc5] px-2.5 py-1 text-xs font-semibold text-[#8b4e3f]">Day 14 • Ovulation Phase</span>
+              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#ffb38a]">Period & Cycle Wellness</h3>
+              <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-white/75">Day 14 • Ovulation Phase</span>
             </div>
             
-            <div className="rounded-xl bg-white/50 border border-[#efcfc5] p-5 text-sm text-[#6f3729] mb-5">
-              <p className="font-bold text-base text-[#ea580c] mb-1.5">⚠️ Dietary Alert & Pain Management</p>
+            <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-5 text-sm text-white/70">
+              <p className="mb-1.5 text-base font-bold text-[#ffb38a]">⚠️ Dietary Alert & Pain Management</p>
               <p className="leading-relaxed text-sm">
-                Avoid heavy legumes like <strong className="text-[#ea580c]">channa (chickpeas)</strong>, rajma, or fried foods today. High-gas foods induce abdominal bloating which puts extra pressure on the pelvic wall, severely aggravating menstrual cramps.
+                Avoid heavy legumes like <strong className="text-[#ffb38a]">channa (chickpeas)</strong>, rajma, or fried foods today. High-gas foods induce abdominal bloating which puts extra pressure on the pelvic wall, severely aggravating menstrual cramps.
               </p>
             </div>
           </div>
 
           <div className="space-y-3.5">
             <div className="flex items-start gap-3.5 text-sm">
-              <LowImpactIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#8b4e3f]" />
-              <p className="text-[#6f3729] leading-relaxed"><span className="font-semibold text-[#1b1c1c]">Exercise Matrix:</span> Swap high-impact lifting for restorative mobility stretches to control cramping responses.</p>
+              <LowImpactIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#7df3cc]" />
+              <p className="leading-relaxed text-white/70"><span className="font-semibold text-white">Exercise Matrix:</span> Swap high-impact lifting for restorative mobility stretches to control cramping responses.</p>
             </div>
             <div className="flex items-start gap-3.5 text-sm">
-              <MealIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#8b4e3f]" />
-              <p className="text-[#6f3729] leading-relaxed"><span className="font-semibold text-[#16a34a]">Optimization:</span> Shift toward iron-rich elements and warm ginger infusions to relax uterine muscles.</p>
+              <MealIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#c8a84b]" />
+              <p className="leading-relaxed text-white/70"><span className="font-semibold text-[#7df3cc]">Optimization:</span> Shift toward iron-rich elements and warm ginger infusions to relax uterine muscles.</p>
             </div>
           </div>
         </article>
@@ -127,23 +227,23 @@ function Health() {
         <article className={`${interactiveCardClass} p-6 xl:col-span-6 flex flex-col justify-between`}>
           <div>
             <div className="mb-4 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#416f82]">Pregnancy Companion</h3>
-              <span className="rounded-md bg-[#eef6f8] px-2.5 py-1 text-xs font-semibold text-[#416f82]">Trimester 2</span>
+              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#7df3cc]">Pregnancy Companion</h3>
+              <span className="rounded-md border border-white/10 bg-white/5 px-2.5 py-1 text-xs font-semibold text-white/75">Trimester 2</span>
             </div>
             <div className="mb-5 grid grid-cols-2 gap-4">
-              <div className="rounded-xl bg-[#f7fbfc] p-5 border border-[#d8e5ea]">
-                <p className="text-xs font-bold uppercase tracking-wider text-[#596467]">Current Progress</p>
-                <p className="mt-1.5 text-2xl font-bold text-[#416f82]">18 Weeks, 4 Days</p>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-white/48">Current Progress</p>
+                <p className="mt-1.5 text-2xl font-bold text-white">18 Weeks, 4 Days</p>
               </div>
-              <div className="rounded-xl bg-[#f7fbfc] p-5 border border-[#d8e5ea]">
-                <p className="text-xs font-bold uppercase tracking-wider text-[#596467]">Weight Trajectory</p>
-                <p className="mt-1.5 text-2xl font-bold text-[#16a34a]">+4.2 kg <span className="text-xs text-[#596467] font-normal">(Optimal)</span></p>
+              <div className="rounded-xl border border-white/10 bg-white/5 p-5">
+                <p className="text-xs font-bold uppercase tracking-wider text-white/48">Weight Trajectory</p>
+                <p className="mt-1.5 text-2xl font-bold text-[#c8a84b]">+4.2 kg <span className="text-xs font-normal text-white/55">(Optimal)</span></p>
               </div>
             </div>
           </div>
-          <div className="rounded-xl bg-[#f7fbfc] border border-[#d8e5ea] p-4.5 flex items-start gap-3.5 text-sm">
-            <SparkIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#416f82]" />
-            <p className="text-[#596467] leading-relaxed"><span className="font-semibold text-[#1b1c1c]">Fetal Signal:</span> Auditory nerves are functioning. Avoid environments exceeding 85dB to keep heart rates uniform.</p>
+          <div className="flex items-start gap-3.5 rounded-xl border border-white/10 bg-white/5 p-4.5 text-sm">
+            <SparkIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#7df3cc]" />
+            <p className="leading-relaxed text-white/70"><span className="font-semibold text-white">Fetal Signal:</span> Auditory nerves are functioning. Avoid environments exceeding 85dB to keep heart rates uniform.</p>
           </div>
         </article>
       </section>
@@ -154,18 +254,18 @@ function Health() {
         <article className={`${interactiveCardClass} p-6 xl:col-span-4 flex flex-col justify-between`}>
           <div>
             <div className="mb-3 flex items-center justify-between">
-              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#416f82]">Tobacco Log</h3>
-              <span className="rounded-md bg-[#ddf5e5] px-2 py-1 text-[10px] font-bold text-[#16a34a]">-15% WK</span>
+              <h3 className="text-xs font-bold uppercase tracking-[0.16em] text-[#c8a84b]">Tobacco Log</h3>
+              <span className="rounded-md border border-white/10 bg-white/5 px-2 py-1 text-[10px] font-bold text-[#7df3cc]">-15% WK</span>
             </div>
             <div className="mb-3 flex items-baseline gap-2">
-              <span className="text-4xl font-semibold">3</span>
-              <span className="text-sm text-[#596467]">units / avg daily</span>
+              <span className="text-4xl font-semibold text-white">3</span>
+              <span className="text-sm text-white/60">units / avg daily</span>
             </div>
             <div className="mb-5 flex h-24 items-end gap-2 px-1">
               {tobaccoBars.map((height, index) => (
-                <div key={index} className="flex-1 rounded-t bg-[#416f82]/10 overflow-hidden">
+                <div key={index} className="flex-1 overflow-hidden rounded-t bg-white/5">
                   <div
-                    className="w-full rounded-t bg-[#416f82] transition-all duration-[1200ms] ease-out origin-bottom"
+                    className="w-full origin-bottom rounded-t bg-gradient-to-t from-[#c8a84b] to-[#7b61ff] transition-all duration-[1200ms] ease-out"
                     style={{ 
                       height: isMounted ? `${height}%` : '0%', 
                       opacity: 0.4 + index * 0.08 
@@ -180,9 +280,9 @@ function Health() {
 
         {/* Daily Optimization Matrix */}
         <article className={`${interactiveCardClass} p-6 xl:col-span-8 flex flex-col justify-between`}>
-          <div className="mb-5 border-b border-[#d8e5ea] pb-4">
-            <h2 className="text-2xl font-bold tracking-tight text-[#1b1c1c]">Daily Optimization Matrix</h2>
-            <p className="text-sm text-[#596467] mt-1">Continuous comparative view of circadian habits and target corrections.</p>
+          <div className="mb-5 border-b border-white/10 pb-4">
+            <h2 className="text-2xl font-bold tracking-tight text-white">Daily Optimization Matrix</h2>
+            <p className="mt-1 text-sm text-white/60">Continuous comparative view of circadian habits and target corrections.</p>
           </div>
           
           <div className="grid grid-cols-1 gap-5 md:grid-cols-2 grow">
@@ -312,6 +412,7 @@ function Health() {
         </article>
       </section>
 
+      </div>
     </div>
   );
 }

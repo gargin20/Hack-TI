@@ -23,6 +23,8 @@ import {
   TrendingUp,
   Wallet,
 } from 'lucide-react';
+// ✅ IMPORT THE GAMIFICATION HOOK
+import { useGamification } from '../context/GamificationContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
@@ -283,6 +285,28 @@ function Dashboard() {
   const insights = useMemo(() => buildInsights(profile, dashboardData), [profile, dashboardData]);
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
+  // ✅ NEW GAMIFICATION STATE LOGIC
+  const { gamData } = useGamification();
+
+  const getLevelProgress = (xp) => {
+    let currentLevelXP = 0;
+    let nextLevelXP = 100;
+    if (xp >= 100 && xp < 250) { currentLevelXP = 100; nextLevelXP = 250; }
+    else if (xp >= 250 && xp < 500) { currentLevelXP = 250; nextLevelXP = 500; }
+    else if (xp >= 500 && xp < 900) { currentLevelXP = 500; nextLevelXP = 900; }
+    else if (xp >= 900) {
+      const levelDiff = Math.floor((xp - 900) / 500);
+      currentLevelXP = 900 + (levelDiff * 500);
+      nextLevelXP = currentLevelXP + 500;
+    }
+    const xpIntoLevel = xp - currentLevelXP;
+    const levelRequirement = nextLevelXP - currentLevelXP;
+    const progressPercent = Math.min((xpIntoLevel / levelRequirement) * 100, 100);
+    return { xpIntoLevel, levelRequirement, progressPercent };
+  };
+
+  const { progressPercent, levelRequirement, xpIntoLevel } = getLevelProgress(gamData?.totalXP || 0);
+
   useEffect(() => {
     const fetchDashboard = async () => {
       const token = localStorage.getItem('authToken');
@@ -304,14 +328,11 @@ function Dashboard() {
     <div className="app-shell flex min-h-screen min-w-0 flex-1 overflow-hidden bg-[#05070c] text-white selection:bg-[#7b61ff]/30" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
       {/* Marble/Noise Texture Background */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        {/* Grid texture */}
         <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:72px_72px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]" />
-        {/* Marble veins */}
         <svg className="absolute inset-0 h-full w-full opacity-[0.035]" xmlns="http://www.w3.org/2000/svg">
           <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
           <rect width="100%" height="100%" filter="url(#noise)" />
         </svg>
-        {/* Ambient glows */}
         <div className="absolute -left-32 top-0 h-[500px] w-[500px] rounded-full bg-[#7b61ff]/5 blur-[120px]" />
         <div className="absolute -right-32 bottom-0 h-[600px] w-[600px] rounded-full bg-[#10c7a1]/4 blur-[140px]" />
         <div className="absolute left-1/2 top-1/3 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[#c8a84b]/3 blur-[100px]" />
@@ -321,7 +342,7 @@ function Dashboard() {
         <DashboardHeader today={today} onSearchClick={() => navigate('/copilot')} firstName={firstName} />
 
         <main className="dashboard-scrollbar flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6 lg:px-8">
-          <motion.div className="mx-auto max-w-[1400px] space-y-6" variants={pageVariants} initial="hidden" animate="show">
+          <motion.div className="mx-auto w-full max-w-[1500px] space-y-6" variants={pageVariants} initial="hidden" animate="show">
             
             <DashboardHero
               firstName={firstName}
@@ -331,6 +352,14 @@ function Dashboard() {
               onFinanceOpen={() => navigate('/finance')}
               onCareerOpen={() => navigate('/career')}
               today={today}
+            />
+
+            {/* ✅ NEW GAMIFICATION WIDGET INTEGRATED HERE */}
+            <GamificationStatusWidget 
+              gamData={gamData} 
+              progressPercent={progressPercent} 
+              levelRequirement={levelRequirement} 
+              xpIntoLevel={xpIntoLevel} 
             />
 
             <motion.section className="grid w-full grid-cols-12 gap-6" variants={pageVariants} initial="hidden" animate="show">
@@ -345,15 +374,12 @@ function Dashboard() {
                 <DigitalTwinPanel insights={insights} />
               </motion.div>
 
-              {/* MIDDLE ROW: Radar (7) + Calendar (3) + Bio Coach (2) */}
+              {/* MIDDLE ROW: Radar (7) + Calendar (5) */}
               <motion.div className="col-span-12 xl:col-span-7" variants={itemVariants}>
                 <LifeBalance insights={insights} />
               </motion.div>
-              <motion.div className="col-span-12 xl:col-span-3" variants={itemVariants}>
+              <motion.div className="col-span-12 xl:col-span-5" variants={itemVariants}>
                 <DailyRituals insights={insights} />
-              </motion.div>
-              <motion.div className="col-span-12 xl:col-span-2" variants={itemVariants}>
-                <BioCoachPanel insights={insights} />
               </motion.div>
 
               {/* COMMAND CENTER PORTALS */}
@@ -393,206 +419,6 @@ function DigitalTwinPanel({ insights }) {
         <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-base">🤖</div>
       </div>
       <DigitalTwinAvatar insights={insights} />
-    </motion.article>
-  );
-}
-
-// ==========================================
-// Bio Coach Panel — fills blank right space
-// ==========================================
-function BioCoachPanel({ insights }) {
-  const burnout = insights.burnoutRisk;
-  const health = insights.healthScore;
-  const finance = insights.financeScore;
-  const recovery = insights.recoveryScore;
-  const [tick, setTick] = useState(0);
-  const [blink, setBlink] = useState(false);
-  const [breathe, setBreathe] = useState(false);
-
-  const mood = useMemo(() => {
-    if (burnout > 70 || health < 45) return 'tired';
-    if (burnout > 50 || health < 65) return 'alert';
-    if (finance < 40) return 'stressed';
-    return 'optimal';
-  }, [burnout, health, finance]);
-
-  const moodCfg = {
-    tired:   { aura: '#ff4d7d', label: '😴 Fatigued',  tips: ['Rest now — burnout curve is steep', 'Avoid screens 1h before bed', 'Hydrate before next task'] },
-    alert:   { aura: '#c8a84b', label: '⚠️ Alert',     tips: ['Take a 5-min breathing break', 'Stress markers are elevated', 'One thing at a time'] },
-    stressed:{ aura: '#c8a84b', label: '💸 Stressed',   tips: ['Review one budget line today', 'Finance stress is spiking focus', 'Small win: log an expense'] },
-    optimal: { aura: '#10c7a1', label: '✨ Optimal',    tips: ['Momentum locked in — stay here', 'Perfect time for deep work', 'Consistency compounds daily'] },
-  };
-  const cfg = moodCfg[mood];
-  const currentTip = cfg.tips[tick % cfg.tips.length];
-
-  useEffect(() => {
-    const blinkInt = setInterval(() => { setBlink(true); setTimeout(() => setBlink(false), 150); }, 3000 + Math.random() * 1200);
-    const breatheInt = setInterval(() => setBreathe(b => !b), 2800);
-    const tipInt = setInterval(() => setTick(t => t + 1), 4500);
-    return () => { clearInterval(blinkInt); clearInterval(breatheInt); clearInterval(tipInt); };
-  }, []);
-
-  const vitals = [
-    { label: 'Health',   val: health,   color: '#10c7a1' },
-    { label: 'Finance',  val: finance,  color: '#c8a84b' },
-    { label: 'Recovery', val: recovery, color: '#7b61ff' },
-    { label: 'Burnout',  val: 100 - burnout, color: '#ff4d7d' },
-  ];
-
-  return (
-    <motion.article
-      whileHover={{ y: -4, scale: 1.01 }}
-      className="flex h-full flex-col gap-4 rounded-[2rem] border border-white/10 bg-white/[0.02] p-5 backdrop-blur-xl shadow-lg"
-    >
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/40">AI Coach</p>
-          <h3 className="mt-0.5 text-sm font-semibold text-white">Bio Panel</h3>
-        </div>
-        <motion.div
-          className="flex h-7 w-7 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-sm"
-          animate={{ rotate: breathe ? 8 : -8 }}
-          transition={{ duration: 2.8, ease: 'easeInOut' }}
-        >🤖</motion.div>
-      </div>
-
-      {/* Mini Avatar */}
-      <div className="flex flex-col items-center gap-2">
-        <div className="relative flex items-center justify-center">
-          {/* Aura */}
-          <motion.div
-            className="absolute rounded-full"
-            style={{ width: 80, height: 80, background: `radial-gradient(circle, ${cfg.aura}44 0%, transparent 70%)`, filter: 'blur(12px)' }}
-            animate={{ scale: breathe ? 1.2 : 1 }}
-            transition={{ duration: 2.8, ease: 'easeInOut' }}
-          />
-          {/* Orbit ring */}
-          <motion.div
-            className="absolute rounded-full border"
-            style={{ width: 68, height: 68, borderColor: `${cfg.aura}35` }}
-            animate={{ rotate: 360 }}
-            transition={{ duration: 18, repeat: Infinity, ease: 'linear' }}
-          >
-            <div className="absolute -top-1 left-1/2 h-2 w-2 -translate-x-1/2 rounded-full" style={{ backgroundColor: cfg.aura }} />
-          </motion.div>
-
-          {/* SVG face — compact version */}
-          <motion.svg
-            width="54" height="54" viewBox="0 0 100 100"
-            style={{ filter: `drop-shadow(0 0 10px ${cfg.aura}55)`, position: 'relative', zIndex: 1 }}
-            animate={{ y: breathe ? -2 : 1 }}
-            transition={{ duration: 2.8, ease: 'easeInOut' }}
-          >
-            <defs>
-              <radialGradient id="bioSkin" cx="50%" cy="38%" r="62%">
-                <stop offset="0%" stopColor={mood === 'optimal' ? '#0e1e1a' : mood === 'tired' ? '#1f0d12' : '#161206'} />
-                <stop offset="100%" stopColor="#05070c" />
-              </radialGradient>
-              <radialGradient id="bioEye" cx="50%" cy="50%" r="50%">
-                <stop offset="0%" stopColor={cfg.aura} stopOpacity="1" />
-                <stop offset="100%" stopColor={cfg.aura} stopOpacity="0.15" />
-              </radialGradient>
-            </defs>
-            {/* Head */}
-            <ellipse cx="50" cy="52" rx="32" ry="35" fill="url(#bioSkin)" stroke={`${cfg.aura}25`} strokeWidth="1.2" />
-            {/* Eyes */}
-            <motion.g animate={{ scaleY: blink ? 0.06 : 1 }} style={{ originY: '46px' }} transition={{ duration: blink ? 0.07 : 0.15 }}>
-              <ellipse cx="36" cy="46" rx="5" ry="5" fill="url(#bioEye)" />
-              <circle cx="36" cy="46" r="2.8" fill={cfg.aura} />
-              <circle cx="37" cy="44.8" r="1" fill="white" opacity="0.75" />
-              <ellipse cx="64" cy="46" rx="5" ry="5" fill="url(#bioEye)" />
-              <circle cx="64" cy="46" r="2.8" fill={cfg.aura} />
-              <circle cx="65" cy="44.8" r="1" fill="white" opacity="0.75" />
-            </motion.g>
-            {/* Brows */}
-            <motion.g animate={{ y: mood === 'tired' ? 2 : mood === 'stressed' ? -1.5 : 0 }} transition={{ duration: 0.6 }}>
-              <path d="M30 38 Q36 35 42 37" stroke={cfg.aura} strokeWidth="1.6" fill="none" strokeLinecap="round" opacity="0.6" />
-              <path d="M58 37 Q64 35 70 38" stroke={cfg.aura} strokeWidth="1.6" fill="none" strokeLinecap="round" opacity="0.6" />
-            </motion.g>
-            {/* Mouth */}
-            <motion.path
-              stroke={cfg.aura} strokeWidth="2" fill="none" strokeLinecap="round" opacity="0.85"
-              animate={{ d: mood === 'optimal' ? 'M38 60 Q50 68 62 60' : mood === 'tired' ? 'M38 63 Q50 58 62 63' : 'M40 62 Q50 64 60 62' }}
-              transition={{ duration: 0.7, ease: 'easeInOut' }}
-            />
-            {/* Circuit lines */}
-            <g opacity="0.2">
-              <path d="M18 50 L12 50 L12 44" stroke={cfg.aura} strokeWidth="0.9" fill="none" />
-              <circle cx="12" cy="44" r="1.2" fill={cfg.aura} />
-              <path d="M82 50 L88 50 L88 44" stroke={cfg.aura} strokeWidth="0.9" fill="none" />
-              <circle cx="88" cy="44" r="1.2" fill={cfg.aura} />
-            </g>
-          </motion.svg>
-        </div>
-
-        {/* Mood chip */}
-        <motion.div
-          key={mood}
-          initial={{ opacity: 0, scale: 0.8 }}
-          animate={{ opacity: 1, scale: 1 }}
-          className="rounded-full border border-white/10 bg-white/5 px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-[0.18em]"
-          style={{ color: cfg.aura }}
-        >
-          {cfg.label}
-        </motion.div>
-      </div>
-
-      {/* Rotating tip */}
-      <div
-        className="relative overflow-hidden rounded-[1.1rem] border border-white/8 bg-white/[0.03] p-3"
-        style={{ boxShadow: `0 0 16px ${cfg.aura}15` }}
-      >
-        <p className="mb-1 text-[8px] font-bold uppercase tracking-[0.18em]" style={{ color: cfg.aura }}>Tip #{(tick % 3) + 1}</p>
-        <AnimatePresence mode="wait">
-          <motion.p
-            key={currentTip}
-            initial={{ opacity: 0, y: 6 }}
-            animate={{ opacity: 1, y: 0 }}
-            exit={{ opacity: 0, y: -6 }}
-            transition={{ duration: 0.35 }}
-            className="text-[11px] leading-4 text-white/70"
-          >
-            {currentTip}
-          </motion.p>
-        </AnimatePresence>
-        {/* Tip progress dots */}
-        <div className="mt-2 flex gap-1">
-          {cfg.tips.map((_, i) => (
-            <div key={i} className="h-1 flex-1 rounded-full transition-all duration-500" style={{ backgroundColor: i === tick % 3 ? cfg.aura : `${cfg.aura}30` }} />
-          ))}
-        </div>
-      </div>
-
-      {/* Mini vitals stack */}
-      <div className="flex flex-col gap-2">
-        {vitals.map((v) => (
-          <div key={v.label} className="flex items-center gap-2">
-            <p className="w-14 text-[9px] font-bold uppercase tracking-[0.1em] text-white/40">{v.label}</p>
-            <div className="flex-1 overflow-hidden rounded-full bg-white/8 h-1.5">
-              <motion.div
-                className="h-full rounded-full"
-                style={{ backgroundColor: v.color }}
-                initial={{ width: 0 }}
-                animate={{ width: `${v.val}%` }}
-                transition={{ duration: 1.4, ease: [0.2, 0.8, 0.2, 1] }}
-              />
-            </div>
-            <p className="w-7 text-right text-[9px] font-bold" style={{ color: v.color }}>{v.val}</p>
-          </div>
-        ))}
-      </div>
-
-      {/* Pulse footer */}
-      <div className="mt-auto flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.02] px-3 py-2">
-        <motion.div
-          className="h-2 w-2 flex-shrink-0 rounded-full"
-          style={{ backgroundColor: cfg.aura }}
-          animate={{ opacity: [1, 0.3, 1] }}
-          transition={{ duration: 1.6, repeat: Infinity }}
-        />
-        <p className="text-[9px] font-semibold uppercase tracking-[0.14em] text-white/50">Live sync</p>
-      </div>
     </motion.article>
   );
 }
@@ -681,6 +507,45 @@ function DashboardHero({ firstName, insights, isLoadingDashboard, onHealthOpen, 
           </div>
         </div>
       </div>
+    </motion.section>
+  );
+}
+
+// ✅ NEW GAMIFICATION WIDGET COMPONENT
+function GamificationStatusWidget({ gamData, progressPercent, levelRequirement, xpIntoLevel }) {
+  return (
+    <motion.section variants={itemVariants} className="w-full">
+      <article className="overflow-hidden relative rounded-[2rem] border border-white/10 bg-[#0d1018]/84 shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl p-6 transition hover:-translate-y-0.5 hover:border-[#10c7a1]/30">
+        <div className="absolute right-0 top-0 h-48 w-48 -translate-y-24 translate-x-12 rounded-full bg-[#10c7a1]/5 blur-3xl" />
+        <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
+          <div className="flex items-center gap-5 shrink-0">
+            <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-[#10c7a1] to-[#0ea988] shadow-[0_0_30px_rgba(16,199,161,0.3)]">
+              <div className="absolute inset-1 rounded-xl bg-[#0a0e17] flex flex-col items-center justify-center">
+                <span className="text-[10px] font-bold uppercase tracking-widest text-[#10c7a1]">Level</span>
+                <span className="text-3xl font-bold text-white leading-none mt-0.5">{gamData?.level || 1}</span>
+              </div>
+            </div>
+            <div>
+              <h2 className="text-2xl font-bold text-white">System Optimized</h2>
+              <p className="text-sm text-white/60 mt-1">Keep logging daily metrics to level up.</p>
+            </div>
+          </div>
+          <div className="w-full max-w-xl">
+            <div className="mb-2 flex items-center justify-between text-sm font-bold">
+              <span className="text-white/60 uppercase tracking-widest text-xs">Total XP: <span className="text-white">{gamData?.totalXP || 0}</span></span>
+              <span className="text-[#10c7a1]">{xpIntoLevel} / {levelRequirement} XP to next level</span>
+            </div>
+            <div className="h-3 w-full overflow-hidden rounded-full bg-white/5 border border-white/10">
+              <motion.div
+                className="h-full rounded-full bg-gradient-to-r from-[#10c7a1] to-[#7df3cc] shadow-[0_0_10px_rgba(16,199,161,0.5)]"
+                initial={{ width: 0 }}
+                animate={{ width: `${progressPercent}%` }}
+                transition={{ duration: 1.5, ease: "easeOut" }}
+              />
+            </div>
+          </div>
+        </div>
+      </article>
     </motion.section>
   );
 }
@@ -1410,6 +1275,10 @@ function AnimatedMetricBlock({ label, value, state = null, suffix = '', formatte
       <p className={`text-xl font-bold ${state ? state.text : 'text-white'}`}>{renderedValue}</p>
     </div>
   );
+}
+
+function RadarLabel({ label, className }) {
+  return <span className={`absolute text-[9px] font-bold uppercase tracking-[0.16em] text-white/50 ${className}`}>{label}</span>;
 }
 
 // ==========================================

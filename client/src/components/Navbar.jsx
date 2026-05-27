@@ -19,18 +19,33 @@ function Navbar() {
   const pageTitle = pageTitles[location.pathname] || 'DigitalTwin workspace';
 
   return (
-    <header className="sticky top-0 z-10 border-b border-[#d8e5ea] bg-[#fbfdfe]/90 px-4 py-4 backdrop-blur sm:px-6 lg:px-8">
-      <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
-        <div>
-          <p className="text-sm font-semibold text-[#416f82]">Good Evening, {firstName}</p>
-          <h1 className="mt-1 text-2xl font-semibold tracking-tight text-zinc-950">{pageTitle}</h1>
+    <header className="sticky top-0 z-10 border-b border-white/10 bg-[#070a10]/80 px-4 py-4 text-white backdrop-blur-xl sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(123,97,255,0.12),transparent_30%),radial-gradient(circle_at_top_right,rgba(16,199,161,0.12),transparent_26%)]" />
+      <div className="relative flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
+        <div className="space-y-2">
+          <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.28em] text-white/55 backdrop-blur-xl">
+            <span className="h-1.5 w-1.5 rounded-full bg-[#10c7a1] shadow-[0_0_18px_rgba(16,199,161,0.85)]" />
+            DigitalTwin workspace
+          </div>
+          <p className="text-sm font-semibold tracking-[0.18em] text-white/60">Good evening, {firstName}</p>
+          <h1 className="text-2xl font-semibold tracking-tight text-white sm:text-3xl">
+            <span className="bg-gradient-to-r from-white via-[#9db7ff] to-[#7df3cc] bg-clip-text text-transparent">{pageTitle}</span>
+          </h1>
         </div>
 
         <div className="flex items-center gap-3">
-          <button className="flex h-10 w-10 items-center justify-center rounded-lg border border-[#c8dbe2] bg-white text-[#405965] transition hover:bg-[#f3f8fa]" type="button" aria-label="Notifications">
+          <button
+            className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
+            type="button"
+            aria-label="Notifications"
+          >
             <BellIcon className="h-4 w-4" />
           </button>
-          <button className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#416f82] text-sm font-semibold text-white" type="button" aria-label="Profile">
+          <button
+            className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-gradient-to-br from-[#7b61ff] via-[#1d5fff] to-[#10c7a1] text-sm font-semibold text-white shadow-[0_0_20px_rgba(16,199,161,0.18)]"
+            type="button"
+            aria-label="Profile"
+          >
             {firstName.slice(0, 1).toUpperCase()}
           </button>
         </div>

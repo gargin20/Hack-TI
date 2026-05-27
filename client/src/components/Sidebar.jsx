@@ -21,17 +21,25 @@ function Sidebar() {
 
   return (
     <aside
-      className={`hidden h-screen shrink-0 border-r border-[#d8e5ea] bg-[#fbfdfe] px-4 py-6 transition-[width] duration-300 lg:block ${
+      className={`relative hidden h-screen shrink-0 overflow-hidden border-r border-white/10 bg-[#130b1c] px-4 py-6 text-white shadow-[24px_0_80px_-40px_rgba(0,0,0,0.65)] transition-[width] duration-300 lg:block ${
         isCollapsed ? 'w-20' : 'w-68'
       }`}
     >
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,122,0,0.18),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(255,0,127,0.12),transparent_24%),linear-gradient(180deg,rgba(255,255,255,0.03),transparent_22%)]" />
+      <div className="pointer-events-none absolute inset-y-0 right-0 w-px bg-gradient-to-b from-transparent via-white/10 to-transparent" />
+
       <div className="flex h-full flex-col">
-      <div className={`flex items-center ${isCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
+      <div className={`relative flex items-center ${isCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
         <NavLink to="/dashboard" className="flex min-w-0 items-center gap-3">
-          <DigitalTwinLogo className="h-11 w-11 rounded-lg border border-[#d8e5ea] shadow-lg shadow-[#b8d1da]/60" />
+          <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff7a00] via-[#ff007f] to-[#7b61ff] p-[1px] shadow-[0_0_24px_rgba(255,0,127,0.18)]">
+            <div className="grid h-full w-full place-items-center rounded-[calc(1rem-1px)] bg-[#160d22]">
+              <DigitalTwinLogo className="h-8 w-8 rounded-full" />
+            </div>
+          </div>
           {!isCollapsed && (
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold text-zinc-950">DigitalTwin</p>
+              <p className="truncate text-sm font-semibold tracking-[0.18em] text-white/90">DigitalTwin</p>
+              <p className="truncate text-[11px] uppercase tracking-[0.28em] text-white/45">Warm control deck</p>
             </div>
           )}
         </NavLink>
@@ -40,7 +48,7 @@ function Sidebar() {
           <button
             type="button"
             onClick={() => setIsCollapsed(true)}
-            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-[#c8dbe2] text-[#4e6670] transition hover:bg-[#f3f8fa]"
+            className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
             aria-label="Collapse sidebar"
           >
             <ChevronLeftIcon className="h-4 w-4" />
@@ -52,19 +60,20 @@ function Sidebar() {
         <button
           type="button"
           onClick={() => setIsCollapsed(false)}
-          className="mx-auto mt-4 flex h-9 w-9 items-center justify-center rounded-lg border border-[#c8dbe2] text-[#4e6670] transition hover:bg-[#f3f8fa]"
+          className="mx-auto mt-4 flex h-9 w-9 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10 hover:text-white"
           aria-label="Expand sidebar"
         >
           <ChevronRightIcon className="h-4 w-4" />
         </button>
       )}
 
-      <nav className="mt-9 space-y-1">
+      <nav className="relative mt-9 space-y-1">
         {navItems.map((item) => (
           <SidebarNavItem key={item.label} item={item} isCollapsed={isCollapsed} />
         ))}
       </nav>
-      <nav className="mt-auto border-t border-[#d8e5ea] pt-4">
+
+      <nav className="relative mt-auto border-t border-white/10 pt-4">
         <SidebarNavItem item={settingsItem} isCollapsed={isCollapsed} />
       </nav>
       </div>
@@ -80,16 +89,16 @@ function SidebarNavItem({ item, isCollapsed }) {
       to={item.href}
       title={isCollapsed ? item.label : undefined}
       className={({ isActive }) =>
-        `flex items-center rounded-lg py-2.5 text-sm font-semibold transition ${
+        `group flex items-center rounded-2xl py-2.5 text-sm font-semibold transition-all duration-200 ${
           isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'
         } ${
           isActive
-            ? 'bg-[#e6f1f4] text-[#2f5362] shadow-sm'
-            : 'text-[#4e6670] hover:bg-[#f3f8fa] hover:text-[#2f5362]'
+            ? 'border border-white/10 bg-gradient-to-r from-[#ff7a00]/20 via-[#ff007f]/18 to-[#7b61ff]/18 text-white shadow-[0_14px_32px_-18px_rgba(255,122,0,0.8)]'
+            : 'border border-transparent text-white/62 hover:border-white/10 hover:bg-white/5 hover:text-white'
         }`
       }
     >
-      <Icon className="h-4 w-4 shrink-0" />
+      <Icon className="h-4 w-4 shrink-0 text-inherit transition-transform duration-200 group-hover:scale-105" />
       {!isCollapsed && <span>{item.label}</span>}
     </NavLink>
   );

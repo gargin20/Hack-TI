@@ -1,6 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
+import axios from 'axios';
+import { useGamification } from '../context/GamificationContext';
 
-const glassCardClass = 'rounded-lg border border-[#d8e5ea] bg-white/80 shadow-[0_10px_30px_rgba(0,0,0,0.035)] backdrop-blur transition hover:shadow-[0_18px_40px_rgba(0,0,0,0.06)]';
+const glassCardClass = 'rounded-2xl border border-white/10 bg-[#0d1018]/84 shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-[#7b61ff]/30 hover:shadow-[0_28px_70px_rgba(0,0,0,0.52)]';
 
 const careerMetrics = [
   { label: 'Career Stability', value: 88, status: 'Resilient', icon: ShieldIcon, tone: 'primary' },
@@ -16,15 +18,105 @@ const roadmapSteps = [
 ];
 
 function Career() {
+  // --- NEW GAMIFICATION LOGIC START ---
+  const [activeTab, setActiveTab] = useState('course'); // 'course' or 'focus'
+  const [courseName, setCourseName] = useState('');
+  const [focusDuration, setFocusDuration] = useState('');
+  
+  const { triggerReward } = useGamification();
+  const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+  const handleLogCareer = async (e) => {
+    e.preventDefault();
+    try {
+      const token = localStorage.getItem('authToken');
+      const endpoint = activeTab === 'course' ? '/api/career/course' : '/api/career/focus';
+      const payload = activeTab === 'course' 
+        ? { courseName }
+        : { durationMinutes: Number(focusDuration) };
+
+      const response = await axios.post(
+        `${API_BASE_URL}${endpoint}`, 
+        payload,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+
+      if (response.data.success) {
+        setCourseName('');
+        setFocusDuration('');
+        
+        const gamificationData = response.data.gamification;
+        if (gamificationData) {
+          triggerReward(
+            gamificationData.xpAwarded, 
+            gamificationData.newBadges, 
+            gamificationData.newTotalXP
+          );
+        }
+      }
+    } catch (error) {
+      console.error(`Failed to log ${activeTab}:`, error);
+    }
+  };
+  // --- NEW GAMIFICATION LOGIC END ---
+
   return (
-    <div className="min-h-full bg-[#fbf9f8] px-5 py-6 text-[#1b1c1c] sm:px-6 lg:px-8">
+    <div className="relative min-h-full overflow-hidden bg-[#05060b] px-5 py-6 text-white sm:px-6 lg:px-8">
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(123,97,255,0.16),transparent_28%),radial-gradient(circle_at_bottom_right,rgba(200,168,75,0.10),transparent_26%),radial-gradient(circle_at_center,rgba(216,139,161,0.08),transparent_30%)]" />
+      <div className="relative">
       {/* 1. Dashboard Header */}
       <header className="mb-6">
-        <h1 className="text-4xl font-semibold tracking-tight text-[#1b1c1c]">Career Intelligence</h1>
-        <p className="mt-2 text-sm text-[#596467]">
+        <h1 className="text-4xl font-semibold tracking-tight text-white">Career Intelligence</h1>
+        <p className="mt-2 text-sm text-white/68">
           Monitoring structural risk vectors, milestone velocity, and cross-disciplinary trajectory.
         </p>
       </header>
+
+      {/* --- NEW GAMIFICATION QUICK ACTION FORM --- */}
+      <section className="mb-6">
+        <article className={`${glassCardClass} p-6`}>
+          <div className="mb-5 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
+            <div>
+              <h2 className="text-xl font-semibold">Log Progress</h2>
+              <p className="mt-1 text-sm text-white/60">Upskill consistently and level up your career profile.</p>
+            </div>
+            
+            <div className="flex rounded-lg bg-white/5 p-1">
+              <button 
+                onClick={() => setActiveTab('course')}
+                className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeTab === 'course' ? 'bg-[#7b61ff] text-white shadow-lg' : 'text-white/60 hover:text-white'}`}
+              >
+                Course
+              </button>
+              <button 
+                onClick={() => setActiveTab('focus')}
+                className={`rounded-md px-4 py-2 text-sm font-bold transition-all ${activeTab === 'focus' ? 'bg-[#c8a84b] text-black shadow-lg' : 'text-white/60 hover:text-white'}`}
+              >
+                Focus Session
+              </button>
+            </div>
+          </div>
+
+          <form onSubmit={handleLogCareer} className="flex w-full flex-col gap-3 sm:flex-row items-end">
+            {activeTab === 'course' ? (
+              <div className="w-full sm:w-2/3">
+                <label className="mb-1 block text-xs uppercase text-white/60">Module / Course Name</label>
+                <input type="text" placeholder="e.g., Advanced React Patterns" value={courseName} onChange={(e) => setCourseName(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#7b61ff] focus:outline-none" required />
+              </div>
+            ) : (
+              <div className="w-full sm:w-2/3">
+                <label className="mb-1 block text-xs uppercase text-white/60">Focus Duration (Mins)</label>
+                <input type="number" placeholder="e.g., 90" value={focusDuration} onChange={(e) => setFocusDuration(e.target.value)} className="w-full rounded-lg border border-white/10 bg-white/5 p-3 text-white focus:border-[#c8a84b] focus:outline-none" required />
+              </div>
+            )}
+            
+            <button type="submit" className={`w-full sm:w-1/3 whitespace-nowrap rounded-lg px-6 py-3 font-bold transition-all ${activeTab === 'course' ? 'bg-[#7b61ff] text-white hover:shadow-[0_0_15px_rgba(123,97,255,0.4)]' : 'bg-[#c8a84b] text-black hover:shadow-[0_0_15px_rgba(200,168,75,0.4)]'}`}>
+              Save & Earn XP
+            </button>
+          </form>
+        </article>
+      </section>
+      {/* --- END GAMIFICATION FORM --- */}
 
       {/* 2. Target Metrics Row */}
       <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -42,8 +134,8 @@ function Career() {
           <article className={`${glassCardClass} p-6 flex-1 flex flex-col justify-between`}>
             <h2 className="text-xl font-semibold mb-8">AI Learning Roadmap</h2>
             <div className="relative flex items-center justify-between w-full px-4 sm:px-12 pb-4">
-              <div className="absolute left-16 right-16 top-6 h-1 bg-[#e4e2e1] z-0" />
-              <div className="absolute left-16 top-6 h-1 w-[40%] bg-[#416f82] z-0" />
+              <div className="absolute left-16 right-16 top-6 z-0 h-1 bg-white/10" />
+              <div className="absolute left-16 top-6 z-0 h-1 w-[40%] bg-gradient-to-r from-[#7b61ff] via-[#d98ba1] to-[#c8a84b]" />
               
               {roadmapSteps.map((step) => (
                 <RoadmapStep key={step.label} step={step} />
@@ -52,20 +144,20 @@ function Career() {
           </article>
 
           {/* Burnout Warning */}
-          <article className="rounded-lg border border-[#efcfc5] border-l-4 border-l-[#8b4e3f] bg-white/80 p-6 shadow-[0_10px_30px_rgba(0,0,0,0.035)]">
+          <article className="rounded-2xl border border-white/10 border-l-4 border-l-[#c8a84b] bg-white/5 p-6 shadow-[0_20px_60px_rgba(0,0,0,0.42)]">
             <div className="mb-4 flex items-start justify-between gap-4">
               <div>
-                <h2 className="text-xl font-semibold text-[#8b4e3f]">Burnout Warning</h2>
-                <p className="mt-1 text-sm text-[#596467]">Detected anomalous high intensity cycle</p>
+                <h2 className="text-xl font-semibold text-[#c8a84b]">Burnout Warning</h2>
+                <p className="mt-1 text-sm text-white/64">Detected anomalous high intensity cycle</p>
               </div>
-              <WarningIcon className="h-6 w-6 text-[#8b4e3f] shrink-0" />
+              <WarningIcon className="h-6 w-6 shrink-0 text-[#c8a84b]" />
             </div>
-            <div className="mb-5 rounded-lg border border-[#efcfc5] bg-[#fff1ed] p-4">
-              <p className="text-sm italic leading-6 text-[#7a4032]">
+            <div className="mb-5 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <p className="text-sm italic leading-6 text-white/68">
                 Late-night coding detected for 4 consecutive days. Your cognitive recovery capacity is down 14%.
               </p>
             </div>
-            <ProgressBar label="Fatigue Accumulation" value="68%" width="68%" color="#8b4e3f" />
+            <ProgressBar label="Fatigue Accumulation" value="68%" width="68%" color="#c8a84b" />
           </article>
         </div>
 
@@ -83,14 +175,14 @@ function Career() {
           />
           
           {/* Enhanced Cross-Domain Impact Analysis Card */}
-          <article className="rounded-lg border border-[#d8e5ea] bg-white/90 p-5 shadow-[0_10px_30px_rgba(0,0,0,0.035)] border-l-4 border-l-[#416f82]">
-            <div className="flex items-center gap-2 text-[#416f82] mb-2">
+          <article className="rounded-2xl border border-white/10 border-l-4 border-l-[#7b61ff] bg-white/5 p-5 shadow-[0_20px_60px_rgba(0,0,0,0.42)]">
+            <div className="mb-2 flex items-center gap-2 text-[#7b61ff]">
               <SparkIcon className="h-4 w-4" />
               <h3 className="text-xs font-bold uppercase tracking-[0.14em]">Cross-Domain Analysis</h3>
             </div>
-            <p className="text-sm font-semibold text-[#1b1c1c] mb-2">Systemic Ripple Effect Detected</p>
-            <p className="text-xs leading-relaxed text-[#596467]">
-              Pushing <span className="font-semibold text-[#8b4e3f]">12-hour study blocks</span> forces a high career roadmap velocity, but risks a critical drop in <span className="font-semibold text-amber-700">Health capacity</span> (Sleep debt/Cognitive strain) and drops long-term <span className="font-semibold text-emerald-700">Finance performance</span> due to immediate medical or recovery overhead risks.
+            <p className="mb-2 text-sm font-semibold text-white">Systemic Ripple Effect Detected</p>
+            <p className="text-xs leading-relaxed text-white/66">
+              Pushing <span className="font-semibold text-[#ffb38a]">12-hour study blocks</span> forces a high career roadmap velocity, but risks a critical drop in <span className="font-semibold text-[#7df3cc]">Health capacity</span> (Sleep debt/Cognitive strain) and drops long-term <span className="font-semibold text-[#c8a84b]">Finance performance</span> due to immediate medical or recovery overhead risks.
             </p>
           </article>
         </aside>
@@ -101,32 +193,33 @@ function Career() {
         <article className={`${glassCardClass} p-6`}>
           <div className="mb-6">
             <h2 className="text-xl font-semibold">Future Trajectory Model</h2>
-            <p className="text-sm text-[#596467] mt-1">Predictive matrix showing projected milestones over sustainable vs high-fatigue routes.</p>
+            <p className="mt-1 text-sm text-white/60">Predictive matrix showing projected milestones over sustainable vs high-fatigue routes.</p>
           </div>
-          <div className="relative h-64 overflow-hidden rounded-lg border border-[#d8e5ea] bg-[#f7fbfc]">
+          <div className="relative h-64 overflow-hidden rounded-2xl border border-white/10 bg-white/5">
             <svg className="absolute inset-0 h-full w-full" preserveAspectRatio="none" viewBox="0 0 800 240">
               {/* Grid Lines */}
-              <line x1="0" x2="800" y1="200" y2="200" stroke="#e4e2e1" strokeWidth="1" />
-              <line x1="40" x2="40" y1="0" y2="240" stroke="#e4e2e1" strokeWidth="1" />
+              <line x1="0" x2="800" y1="200" y2="200" stroke="#ffffff" strokeOpacity="0.08" strokeWidth="1" />
+              <line x1="40" x2="40" y1="0" y2="240" stroke="#ffffff" strokeOpacity="0.08" strokeWidth="1" />
               
               {/* Trajectory Paths */}
-              <path d="M0 180 Q200 130 400 150 T800 210" fill="none" stroke="#8b4e3f" strokeDasharray="7 7" strokeWidth="3" />
-              <path d="M0 180 Q250 150 550 60 T800 30" fill="none" stroke="#416f82" strokeLinecap="round" strokeWidth="4" />
+              <path d="M0 180 Q200 130 400 150 T800 210" fill="none" stroke="#c8a84b" strokeDasharray="7 7" strokeWidth="3" />
+              <path d="M0 180 Q250 150 550 60 T800 30" fill="none" stroke="#7b61ff" strokeLinecap="round" strokeWidth="4" />
             </svg>
-            <div className="absolute right-6 top-6 text-right text-[11px] font-bold uppercase tracking-[0.12em] space-y-1">
-              <p className="text-[#416f82] flex items-center justify-end gap-2">
-                <span className="h-1.5 w-6 bg-[#416f82] rounded-full inline-block" /> Balanced Growth Path
+            <div className="absolute right-6 top-6 space-y-1 text-right text-[11px] font-bold uppercase tracking-[0.12em]">
+              <p className="flex items-center justify-end gap-2 text-[#7b61ff]">
+                <span className="inline-block h-1.5 w-6 rounded-full bg-[#7b61ff]" /> Balanced Growth Path
               </p>
-              <p className="text-[#8b4e3f] flex items-center justify-end gap-2 pt-2">
-                <span className="h-1.5 w-6 border-b-2 border-dashed border-[#8b4e3f] inline-block" /> Fatigue/Burnout Trajectory
+              <p className="flex items-center justify-end gap-2 pt-2 text-[#c8a84b]">
+                <span className="inline-block h-1.5 w-6 border-b-2 border-dashed border-[#c8a84b]" /> Fatigue/Burnout Trajectory
               </p>
             </div>
           </div>
           <div className="mt-6">
-            <ProgressBar label="Sustainable Career Outlook" value="+34%" width="85%" color="#416f82" />
+            <ProgressBar label="Sustainable Career Outlook" value="+34%" width="85%" color="#7b61ff" />
           </div>
         </article>
       </section>
+      </div>
     </div>
   );
 }
@@ -135,7 +228,7 @@ function Career() {
 
 function MetricCard({ metric }) {
   const Icon = metric.icon;
-  const tone = metric.tone === 'warm' ? '#8b4e3f' : metric.tone === 'neutral' ? '#5e5e5b' : '#416f82';
+  const tone = metric.tone === 'warm' ? '#c8a84b' : metric.tone === 'neutral' ? '#9aa4b2' : '#7df3cc';
 
   return (
     <article className={`${glassCardClass} p-5 flex flex-col items-center justify-center`}>
@@ -145,7 +238,7 @@ function MetricCard({ metric }) {
           <Icon className="h-5 w-5" style={{ color: tone }} />
         </div>
       </div>
-      <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#596467]">{metric.label}</p>
+      <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-[#72655e]">{metric.label}</p>
       <p className="text-sm font-semibold" style={{ color: tone }}>{metric.status}</p>
     </article>
   );
@@ -157,12 +250,12 @@ function RoadmapStep({ step }) {
 
   return (
     <div className={`relative z-10 flex flex-col items-center text-center ${isLocked ? 'opacity-45' : ''}`}>
-      <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ring-8 ring-[#fbf9f8] ${isLocked ? 'bg-[#e4e2e1] text-[#596467]' : 'bg-[#416f82] text-white'}`}>
+      <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ring-8 ring-[#05060b] ${isLocked ? 'bg-white/8 text-white/55' : 'bg-gradient-to-br from-[#7b61ff] via-[#d98ba1] to-[#c8a84b] text-white'}`}>
         <Icon className="h-5 w-5" />
       </div>
-      <p className="text-sm font-bold text-[#1b1c1c]">{step.label}</p>
-      <p className="text-[11px] font-semibold uppercase tracking-wider text-[#596467]/80 mt-0.5">{step.detail}</p>
-      <span className={`mt-2 text-[10px] font-bold uppercase tracking-[0.12em] ${isLocked ? 'text-[#596467]' : 'text-[#416f82]'}`}>
+      <p className="text-sm font-bold text-white">{step.label}</p>
+      <p className="mt-0.5 text-[11px] font-semibold uppercase tracking-wider text-white/50">{step.detail}</p>
+      <span className={`mt-2 text-[10px] font-bold uppercase tracking-[0.12em] ${isLocked ? 'text-white/45' : 'text-[#7b61ff]'}`}>
         {step.status}
       </span>
     </div>
@@ -176,7 +269,7 @@ function ProgressRing({ value, color }) {
 
   return (
     <svg className="h-full w-full -rotate-90" viewBox="0 0 64 64">
-      <circle cx="32" cy="32" fill="none" r={radius} stroke="#e4e2e1" strokeWidth="4" />
+      <circle cx="32" cy="32" fill="none" r={radius} stroke="#ffffff" strokeOpacity="0.08" strokeWidth="4" />
       <circle cx="32" cy="32" fill="none" r={radius} stroke={color} strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" strokeWidth="4" />
     </svg>
   );
@@ -185,11 +278,11 @@ function ProgressRing({ value, color }) {
 function ProgressBar({ label, value, width, color }) {
   return (
     <div>
-      <div className="mb-2 flex justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-[#596467]">
+      <div className="mb-2 flex justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-white/48">
         <span>{label}</span>
         <span style={{ color }}>{value}</span>
       </div>
-      <div className="h-2 overflow-hidden rounded-full bg-[#e4e2e1]">
+      <div className="h-2 overflow-hidden rounded-full bg-white/8">
         <div className="h-full rounded-full transition-all duration-500" style={{ width, backgroundColor: color }} />
       </div>
     </div>
@@ -198,13 +291,13 @@ function ProgressBar({ label, value, width, color }) {
 
 function ObservationCard({ icon: Icon, title, detail }) {
   return (
-    <article className={`${glassCardClass} flex gap-4 p-4 items-start flex-1 w-full`}>
-      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#e6f1f4] text-[#416f82]">
+    <article className={`${glassCardClass} flex w-full flex-1 items-start gap-4 p-4`}>
+      <div className="grid h-9 w-9 shrink-0 place-items-center rounded-lg bg-[#7b61ff]/15 text-[#7b61ff]">
         <Icon className="h-4 w-4" />
       </div>
       <div>
-        <p className="text-[11px] font-bold uppercase tracking-[0.14em] text-[#596467]/70 mb-0.5">{title}</p>
-        <p className="text-xs font-medium leading-relaxed text-[#1b1c1c]">{detail}</p>
+        <p className="mb-0.5 text-[11px] font-bold uppercase tracking-[0.14em] text-white/48">{title}</p>
+        <p className="text-xs font-medium leading-relaxed text-white/72">{detail}</p>
       </div>
     </article>
   );

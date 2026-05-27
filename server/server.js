@@ -8,6 +8,10 @@ import { errorHandler, notFoundHandler } from './middleware/errorHandler.js';
 import authRoutes from './routes/auth.js';
 import integrationRoutes from './routes/integrations.js';
 import onboardingRoutes from './routes/onboarding.js';
+import gamificationRoutes from './routes/gamificationRoutes.js';
+import financeRoutes from './routes/financeRoutes.js';
+import healthRoutes from './routes/healthRoutes.js';
+import careerRoutes from './routes/careerRoutes.js';
 
 // Initialize Express app
 const app = express();
@@ -60,6 +64,12 @@ app.use('/api/auth', authRoutes);
 app.use('/api', onboardingRoutes);
 app.use('/api/integrations', integrationRoutes);
 
+// ✅ Mount the Gamification API Route
+app.use('/api/gamification', gamificationRoutes);
+app.use('/api/finance', financeRoutes);
+app.use('/api/health-metrics', healthRoutes);
+app.use('/api/career', careerRoutes);
+
 // ============================================
 // ERROR HANDLING MIDDLEWARE
 // ============================================
@@ -80,7 +90,7 @@ const NODE_ENV = process.env.NODE_ENV || 'development';
 const server = app.listen(PORT, () => {
   console.log(`
 ╔══════════════════════════════════════════╗
-║       LifeTwin Backend Server            ║
+║     LifeTwin Backend Server              ║
 ╚══════════════════════════════════════════╝
   
   🚀 Server running on port: ${PORT}
@@ -91,10 +101,9 @@ const server = app.listen(PORT, () => {
     - Health Check: GET /api/health
     - Signup: POST /api/auth/signup
     - Login: POST /api/auth/login
-    - Get Profile: GET /api/auth/profile (Protected)
-    - Update Profile: PUT /api/auth/profile (Protected)
-    - Change Password: POST /api/auth/change-password (Protected)
-
+    - Get Gamification: GET /api/gamification/me
+    - Log Expense: POST /api/finance/expense
+    - Log Workout: POST /api/health-metrics/workout
 ═══════════════════════════════════════════
 `);
 });

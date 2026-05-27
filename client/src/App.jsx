@@ -17,42 +17,52 @@ import Signup from './pages/Signup';
 import Simulation from './pages/Simulation';
 import Landing from './pages/Landing';
 
+// ✅ Import the Gamification Provider and the Toast Overlay
+import { GamificationProvider } from './context/GamificationContext';
+import ToastOverlay from './components/ToastOverlay';
+
 function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/" element={<Landing />} />
-        <Route path="/login" element={<Login />} />
-        <Route path="/signup" element={<Signup />} />
-        <Route
-          path="/onboarding"
-          element={
-            <ProtectedRoute>
-              <Onboarding />
-            </ProtectedRoute>
-          }
-        />
+    // ✅ The Provider MUST wrap everything!
+    <GamificationProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<Landing />} />
+          <Route path="/login" element={<Login />} />
+          <Route path="/signup" element={<Signup />} />
+          <Route
+            path="/onboarding"
+            element={
+              <ProtectedRoute>
+                <Onboarding />
+              </ProtectedRoute>
+            }
+          />
 
-        <Route
-          element={
-            <ProtectedRoute>
-              <MainLayout />
-            </ProtectedRoute>
-          }
-        >
-          <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/health" element={<Health />} />
-          <Route path="/finance" element={<Finance />} />
-          <Route path="/career" element={<Career />} />
-          <Route path="/goals" element={<Goals />} />
-          <Route path="/intelligence" element={<Intelligence />} />
-          <Route path="/notifications" element={<Notifications />} />
-          <Route path="/settings" element={<Settings />} />
-          <Route path="/copilot" element={<Copilot />} />
-          <Route path="/simulation" element={<Simulation />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+          <Route
+            element={
+              <ProtectedRoute>
+                <MainLayout />
+              </ProtectedRoute>
+            }
+          >
+            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/health" element={<Health />} />
+            <Route path="/finance" element={<Finance />} />
+            <Route path="/career" element={<Career />} />
+            <Route path="/goals" element={<Goals />} />
+            <Route path="/intelligence" element={<Intelligence />} />
+            <Route path="/notifications" element={<Notifications />} />
+            <Route path="/settings" element={<Settings />} />
+            <Route path="/copilot" element={<Copilot />} />
+            <Route path="/simulation" element={<Simulation />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+      
+      {/* ✅ The Toast Overlay sits here, listening for XP! */}
+      <ToastOverlay />
+    </GamificationProvider>
   );
 }
 
