@@ -1,47 +1,28 @@
-import { useEffect, useMemo, useState, useRef } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
-import { motion, AnimatePresence, useMotionValue, useTransform, useSpring } from 'framer-motion';
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
+import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Activity,
-  ArrowUpRight,
-  BadgeDollarSign,
-  Bell,
-  Brain,
-  Briefcase,
-  CalendarDays,
-  CheckCircle2,
-  ChevronRight,
-  Clock3,
-  Flame,
-  HeartPulse,
-  Search,
-  ShieldCheck,
-  Sparkles,
-  Target,
-  TrendingUp,
-  Wallet,
+  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
+  ResponsiveContainer, Tooltip as RechartsTooltip,
+} from 'recharts';
+import {
+  BadgeDollarSign, Bell, Briefcase, CalendarDays, CheckCircle2,
+  ChevronRight, HeartPulse, Search, Sparkles, Target, TrendingUp,
+  Flame, Brain, Activity, ArrowUpRight, Wallet, Share2, 
+  MessageCircle, Camera, Send, Lock, Trophy, Map 
 } from 'lucide-react';
-// ✅ IMPORT THE GAMIFICATION HOOK
 import { useGamification } from '../context/GamificationContext';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
 const pageVariants = {
   hidden: { opacity: 0 },
-  show: {
-    opacity: 1,
-    transition: { staggerChildren: 0.09, delayChildren: 0.08 },
-  },
+  show: { opacity: 1, transition: { staggerChildren: 0.07, delayChildren: 0.05 } },
 };
-
 const itemVariants = {
-  hidden: { opacity: 0, y: 18, filter: 'blur(8px)' },
-  show: {
-    opacity: 1, y: 0, filter: 'blur(0px)',
-    transition: { type: 'spring', stiffness: 200, damping: 20 },
-  },
+  hidden: { opacity: 0, y: 14, filter: 'blur(6px)' },
+  show: { opacity: 1, y: 0, filter: 'blur(0px)', transition: { type: 'spring', stiffness: 220, damping: 22 } },
 };
 
 const fallbackProfile = {
@@ -49,232 +30,15 @@ const fallbackProfile = {
   integrations: {
     github: { status: 'connected', username: 'anjali-dev' },
     leetcode: { status: 'connected', username: 'anjali-codes' },
-    fitbit: { status: 'skipped', profileLink: '' },
+    fitbit: { status: 'skipped' },
     linkedin: { status: 'connected', profileLink: 'linkedin' },
-    banking: { status: 'skipped', profileLink: '' },
+    banking: { status: 'skipped' },
   },
-  lifestyle: {
-    gender: '',
-    sleepHours: 6,
-    studyHours: 5,
-    exerciseFrequency: 2,
-    spendingStyle: 'balanced',
-    smokingHabits: 'no',
-    periodTracking: 'not_now',
-    genderSpecificHealthContext: 'not_now',
-  },
-  financialPatterns: {
-    monthlyIncome: '52000',
-    monthlyExpenditure: '34000',
-    savingsHabits: 'moderate',
-    financialStressLevel: 5,
-  },
+  lifestyle: { gender: '', sleepHours: 6, studyHours: 5, exerciseFrequency: 2, spendingStyle: 'balanced', smokingHabits: 'no', periodTracking: 'not_now', genderSpecificHealthContext: 'not_now' },
+  financialPatterns: { monthlyIncome: '52000', monthlyExpenditure: '34000', savingsHabits: 'moderate', financialStressLevel: 5 },
 };
 
-// ==========================================
-// THE TWIN — Animated SVG Avatar Component
-// ==========================================
-function DigitalTwinAvatar({ insights }) {
-  const burnout = insights.burnoutRisk;
-  const health = insights.healthScore;
-  const finance = insights.financeScore;
-  const alignmentLabel = insights.alignmentLabel;
-  const [blink, setBlink] = useState(false);
-  const [breathe, setBreathe] = useState(false);
-
-  // Derive avatar mood
-  const mood = useMemo(() => {
-    if (burnout > 70 || health < 45) return 'tired';
-    if (burnout > 50 || health < 65) return 'alert';
-    if (finance < 40) return 'stressed';
-    return 'optimal';
-  }, [burnout, health, finance]);
-
-  const moodConfig = {
-    tired: {
-      aura: '#ff4d7d',
-      auraOpacity: 0.18,
-      eyeOffset: 2,
-      mouthPath: 'M 38 62 Q 50 58 62 62',
-      eyeScale: 0.7,
-      glowColor: 'rgba(255,77,125,0.25)',
-      skinGradFrom: '#2a1a1f',
-      skinGradTo: '#1a0e14',
-      advice: 'Your recovery signals are low. A 20-min nap or walk can reset cortisol levels.',
-      label: '😴 Fatigued',
-    },
-    alert: {
-      aura: '#c8a84b',
-      auraOpacity: 0.2,
-      eyeOffset: 0,
-      mouthPath: 'M 40 62 Q 50 64 60 62',
-      eyeScale: 1,
-      glowColor: 'rgba(200,168,75,0.25)',
-      skinGradFrom: '#1e1a10',
-      skinGradTo: '#13100a',
-      advice: 'Moderate stress detected. Hydrate and take a 5-min breathing break.',
-      label: '⚠️ Alert Mode',
-    },
-    stressed: {
-      aura: '#c8a84b',
-      auraOpacity: 0.22,
-      eyeOffset: 1,
-      mouthPath: 'M 38 63 Q 50 59 62 63',
-      eyeScale: 0.85,
-      glowColor: 'rgba(200,168,75,0.2)',
-      skinGradFrom: '#1c1a10',
-      skinGradTo: '#121008',
-      advice: 'Financial stress is affecting your focus. Review today\'s spending and set one budget goal.',
-      label: '💸 Finance Stress',
-    },
-    optimal: {
-      aura: '#10c7a1',
-      auraOpacity: 0.22,
-      eyeOffset: 0,
-      mouthPath: 'M 38 60 Q 50 68 62 60',
-      eyeScale: 1,
-      glowColor: 'rgba(16,199,161,0.3)',
-      skinGradFrom: '#0e1e1a',
-      skinGradTo: '#071310',
-      advice: 'All systems aligned. Maintain this rhythm — consistency compounds.',
-      label: '✨ Optimal',
-    },
-  };
-
-  const cfg = moodConfig[mood];
-
-  useEffect(() => {
-    const blinkInterval = setInterval(() => {
-      setBlink(true);
-      setTimeout(() => setBlink(false), 160);
-    }, 3200 + Math.random() * 1800);
-    const breatheInterval = setInterval(() => setBreathe((b) => !b), 3000);
-    return () => { clearInterval(blinkInterval); clearInterval(breatheInterval); };
-  }, []);
-
-  return (
-    <motion.div
-      className="flex flex-col items-center gap-4"
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ type: 'spring', stiffness: 120, damping: 18, delay: 0.2 }}
-    >
-      {/* Aura Ring */}
-      <div className="relative flex items-center justify-center">
-        <motion.div
-          className="absolute rounded-full"
-          style={{
-            width: 148, height: 148,
-            background: `radial-gradient(circle, ${cfg.aura}33 0%, transparent 70%)`,
-            filter: 'blur(18px)',
-          }}
-          animate={{ scale: breathe ? 1.15 : 1, opacity: breathe ? cfg.auraOpacity * 1.4 : cfg.auraOpacity }}
-          transition={{ duration: 3, ease: 'easeInOut' }}
-        />
-        <motion.div
-          className="absolute rounded-full border"
-          style={{ width: 120, height: 120, borderColor: `${cfg.aura}40` }}
-          animate={{ scale: breathe ? 1.06 : 0.97, opacity: breathe ? 0.8 : 0.4 }}
-          transition={{ duration: 3, ease: 'easeInOut' }}
-        />
-
-        {/* SVG Face */}
-        <motion.svg
-          width="96" height="96" viewBox="0 0 100 100"
-          style={{ filter: `drop-shadow(0 0 18px ${cfg.glowColor})` }}
-          animate={{ y: breathe ? -3 : 2 }}
-          transition={{ duration: 3, ease: 'easeInOut' }}
-        >
-          <defs>
-            <radialGradient id="skinGrad" cx="50%" cy="40%" r="60%">
-              <stop offset="0%" stopColor={cfg.skinGradFrom} />
-              <stop offset="100%" stopColor={cfg.skinGradTo} />
-            </radialGradient>
-            <radialGradient id="eyeGlow" cx="50%" cy="50%" r="50%">
-              <stop offset="0%" stopColor={cfg.aura} stopOpacity="0.9" />
-              <stop offset="100%" stopColor={cfg.aura} stopOpacity="0.2" />
-            </radialGradient>
-            <filter id="softGlow">
-              <feGaussianBlur stdDeviation="1.5" result="coloredBlur" />
-              <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
-            </filter>
-          </defs>
-
-          {/* Head */}
-          <ellipse cx="50" cy="52" rx="32" ry="34" fill="url(#skinGrad)" stroke={`${cfg.aura}30`} strokeWidth="1" />
-
-          {/* Neck */}
-          <rect x="43" y="82" width="14" height="10" rx="4" fill={cfg.skinGradFrom} />
-
-          {/* Eyes */}
-          <motion.g filter="url(#softGlow)" animate={{ scaleY: blink ? 0.08 : cfg.eyeScale, y: cfg.eyeOffset }} style={{ originY: '50%' }} transition={{ duration: blink ? 0.08 : 0.2 }}>
-            {/* Left eye */}
-            <ellipse cx="36" cy="46" rx="5.5" ry="5.5" fill="url(#eyeGlow)" />
-            <circle cx="36" cy="46" r="3.2" fill={cfg.aura} opacity="0.95" />
-            <circle cx="37.2" cy="44.8" r="1.1" fill="white" opacity="0.7" />
-            {/* Right eye */}
-            <ellipse cx="64" cy="46" rx="5.5" ry="5.5" fill="url(#eyeGlow)" />
-            <circle cx="64" cy="46" r="3.2" fill={cfg.aura} opacity="0.95" />
-            <circle cx="65.2" cy="44.8" r="1.1" fill="white" opacity="0.7" />
-          </motion.g>
-
-          {/* Eyebrows */}
-          <motion.g animate={{ y: mood === 'tired' ? 2 : mood === 'stressed' ? -1 : 0 }} transition={{ duration: 0.5 }}>
-            <path d="M 29 38 Q 36 35 43 37" stroke={cfg.aura} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity="0.7" />
-            <path d="M 57 37 Q 64 35 71 38" stroke={cfg.aura} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity="0.7" />
-          </motion.g>
-
-          {/* Nose */}
-          <path d="M 48 52 Q 46 58 49 59 Q 51 59 52 58 Q 54 57 52 52" stroke={cfg.aura} strokeWidth="1" fill="none" opacity="0.35" />
-
-          {/* Mouth */}
-          <motion.path
-            d={cfg.mouthPath}
-            stroke={cfg.aura} strokeWidth="2.2" fill="none" strokeLinecap="round"
-            animate={{ d: cfg.mouthPath }}
-            transition={{ duration: 0.8, ease: 'easeInOut' }}
-            opacity="0.85"
-          />
-
-          {/* Circuit marks */}
-          <g opacity="0.25">
-            <path d="M 18 50 L 14 50 L 14 44 L 10 44" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
-            <circle cx="10" cy="44" r="1.5" fill={cfg.aura} />
-            <path d="M 82 50 L 86 50 L 86 44 L 90 44" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
-            <circle cx="90" cy="44" r="1.5" fill={cfg.aura} />
-            <path d="M 18 60 L 12 60" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
-            <path d="M 82 60 L 88 60" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
-          </g>
-        </motion.svg>
-      </div>
-
-      {/* Mood Badge */}
-      <motion.div
-        key={mood}
-        initial={{ opacity: 0, scale: 0.8 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em]"
-        style={{ color: cfg.aura }}
-      >
-        {cfg.label}
-      </motion.div>
-
-      {/* Advice Bubble */}
-      <motion.div
-        key={cfg.advice}
-        initial={{ opacity: 0, y: 6 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ delay: 0.3 }}
-        className="relative rounded-[1.2rem] border border-white/10 bg-white/[0.04] px-4 py-3 text-center text-xs leading-5 text-white/70 backdrop-blur-md"
-        style={{ boxShadow: `0 0 20px ${cfg.glowColor}` }}
-      >
-        <span className="mr-1.5 font-bold" style={{ color: cfg.aura }}>Twin:</span>
-        {cfg.advice}
-      </motion.div>
-    </motion.div>
-  );
-}
-
+// ─── Main Dashboard ─────────────────────────────────────────────────────────
 function Dashboard() {
   const navigate = useNavigate();
   const [dashboardData, setDashboardData] = useState(() => getStoredDashboardData());
@@ -285,27 +49,8 @@ function Dashboard() {
   const insights = useMemo(() => buildInsights(profile, dashboardData), [profile, dashboardData]);
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  // ✅ NEW GAMIFICATION STATE LOGIC
-  const { gamData } = useGamification();
-
-  const getLevelProgress = (xp) => {
-    let currentLevelXP = 0;
-    let nextLevelXP = 100;
-    if (xp >= 100 && xp < 250) { currentLevelXP = 100; nextLevelXP = 250; }
-    else if (xp >= 250 && xp < 500) { currentLevelXP = 250; nextLevelXP = 500; }
-    else if (xp >= 500 && xp < 900) { currentLevelXP = 500; nextLevelXP = 900; }
-    else if (xp >= 900) {
-      const levelDiff = Math.floor((xp - 900) / 500);
-      currentLevelXP = 900 + (levelDiff * 500);
-      nextLevelXP = currentLevelXP + 500;
-    }
-    const xpIntoLevel = xp - currentLevelXP;
-    const levelRequirement = nextLevelXP - currentLevelXP;
-    const progressPercent = Math.min((xpIntoLevel / levelRequirement) * 100, 100);
-    return { xpIntoLevel, levelRequirement, progressPercent };
-  };
-
-  const { progressPercent, levelRequirement, xpIntoLevel } = getLevelProgress(gamData?.totalXP || 0);
+  // ✅ PULL REAL GAMIFICATION STATES FROM BACKEND
+  const { totalXP = 0, level = 1, history = [], unlockedBadges = [], availableBadges = [] } = useGamification();
 
   useEffect(() => {
     const fetchDashboard = async () => {
@@ -315,272 +60,404 @@ function Dashboard() {
         const response = await axios.get(`${API_BASE_URL}/api/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
         setDashboardData(response.data.data);
         localStorage.setItem('digitalTwinDashboardData', JSON.stringify(response.data.data));
-      } catch (error) {
-        console.error('Dashboard fetch error:', error);
-      } finally {
-        setIsLoadingDashboard(false);
-      }
+      } catch (e) { console.error('Dashboard fetch error:', e); }
+      finally { setIsLoadingDashboard(false); }
     };
     fetchDashboard();
   }, []);
 
   return (
-    <div className="app-shell flex min-h-screen min-w-0 flex-1 overflow-hidden bg-[#05070c] text-white selection:bg-[#7b61ff]/30" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
-      {/* Marble/Noise Texture Background */}
+    <div className="flex min-h-screen min-w-0 flex-1 overflow-hidden bg-[#05070c] text-white" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      {/* Background */}
       <div className="pointer-events-none absolute inset-0 z-0 overflow-hidden">
-        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.018)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.018)_1px,transparent_1px)] bg-[size:72px_72px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]" />
-        <svg className="absolute inset-0 h-full w-full opacity-[0.035]" xmlns="http://www.w3.org/2000/svg">
-          <filter id="noise"><feTurbulence type="fractalNoise" baseFrequency="0.65" numOctaves="3" stitchTiles="stitch" /><feColorMatrix type="saturate" values="0" /></filter>
-          <rect width="100%" height="100%" filter="url(#noise)" />
-        </svg>
-        <div className="absolute -left-32 top-0 h-[500px] w-[500px] rounded-full bg-[#7b61ff]/5 blur-[120px]" />
-        <div className="absolute -right-32 bottom-0 h-[600px] w-[600px] rounded-full bg-[#10c7a1]/4 blur-[140px]" />
-        <div className="absolute left-1/2 top-1/3 h-[300px] w-[300px] -translate-x-1/2 rounded-full bg-[#c8a84b]/3 blur-[100px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.016)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.016)_1px,transparent_1px)] bg-[size:72px_72px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]" />
+        <div className="absolute -left-40 top-0 h-[480px] w-[480px] rounded-full bg-[#7b61ff]/6 blur-[130px]" />
+        <div className="absolute -right-40 bottom-0 h-[560px] w-[560px] rounded-full bg-[#10c7a1]/5 blur-[150px]" />
+        <div className="absolute left-1/3 top-1/2 h-[280px] w-[280px] rounded-full bg-[#c8a84b]/3 blur-[100px]" />
       </div>
 
       <section className="relative z-10 flex min-w-0 flex-1 flex-col overflow-hidden">
-        <DashboardHeader today={today} onSearchClick={() => navigate('/copilot')} firstName={firstName} />
+        {/* Header */}
+        <DashboardHeader
+          today={today}
+          firstName={firstName}
+          onSearchClick={() => navigate('/copilot')}
+          onNotificationClick={() => navigate('/notifications')}
+        />
 
-        <main className="dashboard-scrollbar flex-1 overflow-y-auto px-4 pb-8 pt-4 sm:px-6 lg:px-8">
-          <motion.div className="mx-auto w-full max-w-[1500px] space-y-6" variants={pageVariants} initial="hidden" animate="show">
-            
-            <DashboardHero
-              firstName={firstName}
-              insights={insights}
-              isLoadingDashboard={isLoadingDashboard}
-              onHealthOpen={() => navigate('/health')}
-              onFinanceOpen={() => navigate('/finance')}
-              onCareerOpen={() => navigate('/career')}
-              today={today}
-            />
+        <main className="flex-1 overflow-y-auto px-4 pb-10 pt-5 sm:px-6 lg:px-8" style={{ scrollbarWidth: 'thin', scrollbarColor: 'rgba(255,255,255,0.1) transparent' }}>
+          <motion.div className="mx-auto w-full max-w-[1480px] space-y-5" variants={pageVariants} initial="hidden" animate="show">
 
-            {/* ✅ NEW GAMIFICATION WIDGET INTEGRATED HERE */}
-            <GamificationStatusWidget 
-              gamData={gamData} 
-              progressPercent={progressPercent} 
-              levelRequirement={levelRequirement} 
-              xpIntoLevel={xpIntoLevel} 
-            />
+            {/* ── HERO ── */}
+            <motion.div variants={itemVariants}>
+              <HeroSection firstName={firstName} insights={insights} today={today} isLoading={isLoadingDashboard} navigate={navigate} />
+            </motion.div>
 
-            <motion.section className="grid w-full grid-cols-12 gap-6" variants={pageVariants} initial="hidden" animate="show">
-              {/* TOP ROW: Health, Finance, Avatar side by side */}
-              <motion.div className="col-span-12 xl:col-span-3" variants={itemVariants}>
-                <HealthScoreCard insights={insights} onOpen={() => navigate('/health')} />
-              </motion.div>
-              <motion.div className="col-span-12 xl:col-span-6" variants={itemVariants}>
-                <FinanceTrajectory insights={insights} onOpen={() => navigate('/finance')} />
-              </motion.div>
-              <motion.div className="col-span-12 xl:col-span-3" variants={itemVariants}>
-                <DigitalTwinPanel insights={insights} />
-              </motion.div>
+            {/* ── ROW 1: Score Cards ── */}
+            <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+              <ScoreCard
+                title="Health Score"
+                value={insights.healthScore}
+                icon={HeartPulse}
+                emoji="🧬"
+                colorState={insights.healthState.colorState}
+                subtitle={`${insights.burnoutRisk}% burnout risk`}
+                onClick={() => navigate('/health')}
+              />
+              <ScoreCard
+                title="Finance Score"
+                value={insights.financeScore}
+                icon={BadgeDollarSign}
+                emoji="💎"
+                colorState={insights.thresholds.financial.colorState}
+                subtitle={insights.monthlyBuffer}
+                onClick={() => navigate('/finance')}
+              />
+              <ScoreCard
+                title="Career Score"
+                value={insights.productivityScore}
+                icon={Briefcase}
+                emoji="🎯"
+                colorState={insights.thresholds.productivity.colorState}
+                subtitle={`${insights.recoveryScore}% recovery`}
+                onClick={() => navigate('/career')}
+              />
+            </motion.div>
 
-              {/* MIDDLE ROW: Radar (7) + Calendar (5) */}
-              <motion.div className="col-span-12 xl:col-span-7" variants={itemVariants}>
-                <LifeBalance insights={insights} />
-              </motion.div>
-              <motion.div className="col-span-12 xl:col-span-5" variants={itemVariants}>
-                <DailyRituals insights={insights} />
-              </motion.div>
+            {/* ── ROW 2: Gamified Journey Map (With Motivating XP Vault) ── */}
+            <motion.div variants={itemVariants}>
+              <GamifiedJourneyMap 
+                totalXP={totalXP} 
+                level={level} 
+                history={history} 
+                unlockedBadges={unlockedBadges} 
+                availableBadges={availableBadges} 
+                profile={profile} 
+              />
+            </motion.div>
 
-              {/* COMMAND CENTER PORTALS */}
-              <motion.div className="col-span-12" variants={itemVariants}>
-                <TrackingPortals navigate={navigate} />
-              </motion.div>
+            {/* ── ROW 3: Radar + Digital Twin + Daily Calendar ── */}
+            <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 xl:grid-cols-[1.35fr_0.85fr_0.9fr]">
+              <LifeBalanceRadar insights={insights} />
+              <DigitalTwinPanel insights={insights} />
+              <DailyCalendarStreak insights={insights} />
+            </motion.div>
 
-              {/* ADAPTIVE RECOMMENDATIONS */}
-              <motion.div className="col-span-12" variants={itemVariants}>
-                <AdaptiveRecommendations insights={insights} />
-              </motion.div>
-            </motion.section>
+            {/* ── ROW 4: Finance Chart + AI Insights ── */}
+            <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_1fr]">
+              <FinanceChart insights={insights} onOpen={() => navigate('/finance')} />
+              <AIInsightsPanel insights={insights} navigate={navigate} />
+            </motion.div>
+
+            {/* ── ROW 5: Command Portals ── */}
+            <motion.div variants={itemVariants}>
+              <CommandPortals navigate={navigate} />
+            </motion.div>
+
+            {/* ── ROW 6: Adaptive Recommendations ── */}
+            <motion.div variants={itemVariants}>
+              <AdaptiveRecommendations insights={insights} />
+            </motion.div>
 
           </motion.div>
         </main>
       </section>
-
-      <AiFeed insights={insights} />
     </div>
   );
 }
 
-// ==========================================
-// Digital Twin Panel (wraps Avatar for grid)
-// ==========================================
-function DigitalTwinPanel({ insights }) {
-  return (
-    <motion.article
-      whileHover={{ y: -4, scale: 1.01 }}
-      className="flex h-full flex-col items-center justify-between rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-lg backdrop-blur-xl"
-    >
-      <div className="mb-2 flex w-full items-center justify-between">
-        <div>
-          <h3 className="text-base font-semibold text-white">Digital Twin</h3>
-          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.2em] text-white/45">Live Signal</p>
-        </div>
-        <div className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-base">🤖</div>
-      </div>
-      <DigitalTwinAvatar insights={insights} />
-    </motion.article>
-  );
-}
+// ─── Gamified Journey Map (UPGRADED MASSIVE XP VAULT) ───────────────────────
+function GamifiedJourneyMap({ totalXP, level, history, unlockedBadges, availableBadges, profile }) {
+  const [activeFilter, setActiveFilter] = useState('all');
+  const [shareTip, setShareTip] = useState(null);
 
-function DashboardHero({ firstName, insights, isLoadingDashboard, onHealthOpen, onFinanceOpen, onCareerOpen, today }) {
-  const heroStats = [
-    { label: 'Health', value: `${insights.healthScore}%`, icon: HeartPulse, emoji: '🧬', tone: 'health', detail: `${insights.burnoutRisk}% burnout` },
-    { label: 'Finance', value: `${insights.financeScore}%`, icon: BadgeDollarSign, emoji: '💎', tone: 'finance', detail: insights.monthlyBuffer },
-    { label: 'Career', value: `${insights.productivityScore}%`, icon: Briefcase, emoji: '🎯', tone: 'career', detail: `${insights.recoveryScore}% recovery` },
+  // Safely calculate today's XP directly from the backend history logs
+  const todayXP = history.reduce((sum, log) => sum + (log.points || 0), 0);
+  
+  // Calculate readiness titles
+  const readinessTitle = level < 3 ? 'Initiate' : level < 6 ? 'Intermediate' : level < 9 ? 'Advanced' : 'Vanguard';
+  const remainingToNext = 500 - (totalXP % 500); 
+  const progressPercent = Math.min(((totalXP % 500) / 500) * 100, 100);
+
+  // Verify Integration Statuses
+  const integrations = profile?.integrations || {};
+  const isConnected = (key) => integrations[key]?.status === 'connected';
+
+  // Fallback to static milestones if backend badges haven't loaded yet
+  const fallbackMilestones = [
+    { id: 'gh1', filterKey: 'github', title: 'GitHub CONTRIBUTOR', req: 'Connect & sync 5 repositories', xp: 200, icon: '💻', completed: isConnected('github') },
+    { id: 'lc1', filterKey: 'leetcode', title: 'LeetCode PROBLEM SOLVER', req: 'Solve 10 algorithm problems', xp: 150, icon: '⚡', completed: isConnected('leetcode') },
+    { id: 'fb1', filterKey: 'fitbit', title: 'Fitbit ACTIVE', req: 'Log 10,000 steps for 7 consecutive days', xp: 300, icon: '🏃', completed: isConnected('fitbit') },
+    { id: 'li1', filterKey: 'linkedin', title: 'LinkedIn NETWORKER', req: 'Sync 50+ professional connections', xp: 100, icon: '🔗', completed: isConnected('linkedin') },
+    { id: 'bk1', filterKey: 'banking', title: 'Banking SA SAVER', req: 'Maintain positive spending trajectory', xp: 100, icon: '🏦', completed: isConnected('banking') },
+    { id: 'v1', filterKey: 'all', title: 'DIGITAL TWIN VANGUARD', req: 'Reach Level 10 System Readiness', xp: 1000, icon: '👑', completed: level >= 10, isUltimate: true },
   ];
 
+  // Merge backend badges with our UI rules
+  const MASTER_MILESTONES = availableBadges.length > 0 ? availableBadges.map(b => ({
+     id: b.id,
+     filterKey: b.id.includes('github') ? 'github' : b.id.includes('sleep') ? 'fitbit' : b.id.includes('spend') ? 'banking' : 'all',
+     title: b.title,
+     req: b.requirement,
+     xp: b.xpNeeded,
+     icon: b.icon,
+     completed: unlockedBadges.includes(b.id)
+  })) : fallbackMilestones;
+
+  const filteredMilestones = activeFilter === 'all' 
+    ? MASTER_MILESTONES 
+    : MASTER_MILESTONES.filter(m => m.filterKey === activeFilter);
+
+  // Social Share Simulator
+  const handleShare = (platform, id) => {
+    setShareTip({ platform, id });
+    setTimeout(() => setShareTip(null), 3000);
+  };
+
+  const getFilterColor = (key) => {
+    if (key === activeFilter) return 'bg-[#10c7a1]/20 text-[#10c7a1] border-[#10c7a1]/40';
+    if (isConnected(key)) return 'bg-white/10 text-white border-white/20';
+    return 'bg-white/5 text-white/40 border-white/5 hover:bg-white/10';
+  };
+
   return (
-    <motion.section className="overflow-hidden rounded-[2rem] border border-white/10 bg-[#0a0e17]/80 shadow-[0_20px_60px_-20px_rgba(0,0,0,0.8)] backdrop-blur-2xl" variants={itemVariants}>
-      <div className="grid gap-0 lg:grid-cols-[1.3fr_0.95fr]">
-        <div className="relative overflow-hidden bg-white/[0.02] px-6 py-6 lg:border-r lg:border-white/10 lg:px-8 lg:py-8">
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(255,255,255,0.05),transparent_35%)]" />
-          <motion.div className="absolute -right-8 top-6 h-28 w-28 rounded-full bg-[#c8a84b]/20 blur-3xl" animate={{ scale: [1, 1.2, 1] }} transition={{ duration: 8, repeat: Infinity, ease: 'easeInOut' }} />
-          <motion.div className="absolute bottom-6 left-8 h-20 w-20 rounded-full bg-[#7b61ff]/20 blur-3xl" animate={{ scale: [1, 1.3, 1] }} transition={{ duration: 10, repeat: Infinity, ease: 'easeInOut' }} />
-
-          <div className="relative z-10 flex h-full flex-col justify-between gap-8">
-            <div className="space-y-5">
-              <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-[0.24em] text-white/70">
-                <Sparkles className="h-3.5 w-3.5 text-[#c8a84b]" /> Premium Control Room
+    <div className="flex flex-col xl:flex-row gap-5 rounded-[1.75rem] border border-white/10 bg-[#0d1018]/90 backdrop-blur-2xl p-6 lg:p-8 relative overflow-hidden">
+      {/* Background Decor */}
+      <div className="pointer-events-none absolute -right-20 -top-20 h-64 w-64 bg-[#10c7a1]/5 blur-[80px] rounded-full" />
+      
+      {/* Left Column: Visual Map & Stats */}
+      <div className="flex-1 flex flex-col min-w-[50%]">
+        
+        {/* ✅ THE MASSIVE GLOWING XP VAULT (Motivator) */}
+        <div className="flex flex-col sm:flex-row items-start sm:items-center gap-6 mb-8 p-5 rounded-2xl bg-gradient-to-br from-[#c8a84b]/15 to-transparent border border-[#c8a84b]/30 relative overflow-hidden shadow-[0_0_40px_rgba(200,168,75,0.08)]">
+           <div className="absolute right-0 top-0 w-48 h-full bg-gradient-to-l from-[#c8a84b]/20 to-transparent pointer-events-none" />
+           <Flame className="absolute -bottom-4 -left-4 w-24 h-24 text-[#c8a84b] opacity-10 pointer-events-none" />
+           
+           <div className="relative z-10">
+              <div className="flex items-center gap-1.5 mb-1 text-[10px] font-black uppercase tracking-widest text-[#c8a84b]">
+                 <Target className="w-3.5 h-3.5" /> Total Earned Experience
               </div>
-              <div>
-                <h1 className="text-4xl font-semibold tracking-tight text-white md:text-5xl">Morning, {firstName}.</h1>
-                <p className="mt-4 max-w-2xl text-sm leading-7 text-white/70 md:text-base">
-                  Your health, finance, and career signals are in{' '}
-                  <span className="font-semibold text-[#10c7a1] drop-shadow-[0_0_8px_rgba(16,199,161,0.5)]">{insights.alignmentLabel}</span> today.
-                  {isLoadingDashboard && <span className="ml-2 text-white/40">Refreshing profile...</span>}
-                </p>
+              <div className="text-5xl font-black text-white tracking-tighter drop-shadow-[0_0_15px_rgba(200,168,75,0.4)] flex items-baseline gap-2">
+                 {totalXP} <span className="text-xl text-[#c8a84b] pb-1">XP</span>
               </div>
-            </div>
+              
+              {/* Animated Today Badge */}
+              <AnimatePresence>
+                 {todayXP > 0 && (
+                    <motion.div 
+                       initial={{ scale: 0.8, opacity: 0, y: 10 }} 
+                       animate={{ scale: 1, opacity: 1, y: 0 }} 
+                       className="absolute -top-3 -right-12 bg-gradient-to-r from-[#10c7a1] to-emerald-400 text-[#05070c] px-2.5 py-0.5 rounded-full text-[11px] font-black tracking-wider shadow-[0_0_15px_rgba(16,199,161,0.6)] transform rotate-12"
+                    >
+                       +{todayXP} TODAY!
+                    </motion.div>
+                 )}
+              </AnimatePresence>
+           </div>
 
-            <div className="flex flex-wrap gap-3">
-              <button type="button" onClick={onHealthOpen} className="rounded-full bg-white px-5 py-3 text-sm font-semibold text-black transition hover:bg-white/90">Open health</button>
-              <button type="button" onClick={onFinanceOpen} className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10">Open finance</button>
-              <button type="button" onClick={onCareerOpen} className="rounded-full border border-white/15 bg-white/5 px-5 py-3 text-sm font-semibold text-white backdrop-blur-sm transition hover:bg-white/10">Open career</button>
-            </div>
-          </div>
+           <div className="hidden sm:block w-px h-14 bg-white/10 mx-2" />
+
+           <div className="flex-1 w-full relative z-10">
+              <div className="flex justify-between items-end mb-2 text-xs font-bold">
+                 <span className="text-white/60">Level {level} <span className="text-white tracking-wider uppercase text-[10px] bg-white/10 px-2 py-0.5 rounded ml-1">{readinessTitle}</span></span>
+                 <span className="text-[#c8a84b]">{remainingToNext} XP to next level</span>
+              </div>
+              <div className="h-3 w-full bg-black/60 rounded-full overflow-hidden border border-white/10 p-0.5">
+                 <motion.div 
+                    initial={{ width: 0 }} 
+                    animate={{ width: `${progressPercent}%` }} 
+                    transition={{ duration: 1.5, ease: "easeOut" }}
+                    className="h-full bg-gradient-to-r from-[#c8a84b] to-[#fde047] rounded-full shadow-[0_0_10px_rgba(200,168,75,0.8)]"
+                 />
+              </div>
+           </div>
         </div>
 
-        <div className="relative flex flex-col gap-4 bg-white/[0.01] px-5 py-5 lg:px-6 lg:py-6">
-          <div className="flex items-center justify-between gap-4">
-            <div>
-              <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/50">Live snapshot</p>
-              <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Signal alignment</h2>
-            </div>
-            <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg shadow-lg">🎯</div>
-          </div>
+        {/* Filters */}
+        <div className="flex flex-wrap gap-2 mb-6">
+          {['all', 'github', 'leetcode', 'fitbit', 'linkedin', 'banking'].map(key => (
+            <button 
+              key={key} 
+              onClick={() => setActiveFilter(key)}
+              className={`px-3.5 py-1.5 rounded-full text-xs font-semibold border transition-all duration-300 capitalize ${getFilterColor(key)}`}
+            >
+              {key === 'all' ? 'All Integrations' : key.replace('banking', 'Banking App')}
+            </button>
+          ))}
+        </div>
 
-          <div className="grid gap-3 sm:grid-cols-3">
-            {heroStats.map((stat) => {
-              const Icon = stat.icon;
+        {/* Central Visual Map (The Pathway) */}
+        <div className="relative mt-auto mb-4 py-8 px-4 border border-white/5 bg-[#05070c]/50 rounded-2xl overflow-hidden">
+          {/* SVG Connecting Line */}
+          <svg className="absolute inset-0 w-full h-full pointer-events-none" preserveAspectRatio="none">
+            <path 
+              d="M 50,60 C 150,60 200,120 350,120 C 500,120 550,60 750,60" 
+              fill="none" 
+              stroke="rgba(255,255,255,0.08)" 
+              strokeWidth="4" 
+              strokeDasharray="8 8"
+            />
+            {/* Highlight line based on filter (Simulated) */}
+            <path 
+              d="M 50,60 C 150,60 200,120 350,120 C 500,120 550,60 750,60" 
+              fill="none" 
+              stroke={activeFilter !== 'all' ? "#10c7a1" : "url(#glowGradient)"} 
+              strokeWidth="4" 
+              className="transition-all duration-700"
+              style={{ strokeDasharray: activeFilter === 'all' ? '100% 0' : '20% 80%', strokeDashoffset: activeFilter === 'github' ? '0%' : '-30%' }}
+            />
+            <defs>
+              <linearGradient id="glowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                <stop offset="0%" stopColor="#10c7a1" />
+                <stop offset="50%" stopColor="#7b61ff" />
+                <stop offset="100%" stopColor="#c8a84b" />
+              </linearGradient>
+            </defs>
+          </svg>
+
+          {/* Integration Nodes */}
+          <div className="relative z-10 flex justify-between items-center px-4 md:px-12">
+            {[
+              { id: 'github', icon: '💻', yOffset: '-translate-y-4' },
+              { id: 'leetcode', icon: '⚡', yOffset: 'translate-y-6' },
+              { id: 'fitbit', icon: '🏃', yOffset: 'translate-y-8' },
+              { id: 'linkedin', icon: '🔗', yOffset: 'translate-y-2' },
+              { id: 'banking', icon: '🏦', yOffset: '-translate-y-6' }
+            ].map((node, i) => {
+              const connected = isConnected(node.id);
+              const isTargeted = activeFilter === node.id || activeFilter === 'all';
               return (
-                <div key={stat.label} className="rounded-[1.35rem] border border-white/10 bg-white/[0.03] p-4 shadow-lg backdrop-blur-md">
-                  <div className="flex items-start justify-between gap-3">
-                    <div>
-                      <p className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">{stat.label}</p>
-                      <p className="mt-1 text-2xl font-semibold tracking-tight text-white">{stat.value}</p>
-                    </div>
-                    <div className="flex h-8 w-8 items-center justify-center rounded-full bg-white/5">
-                      <Icon className="h-4 w-4 text-white/70" />
-                    </div>
+                <div key={node.id} className={`flex flex-col items-center transition-all duration-500 ${node.yOffset} ${isTargeted ? 'scale-110 opacity-100' : 'scale-90 opacity-40'}`}>
+                  <div className={`h-12 w-12 rounded-full border-[3px] flex items-center justify-center text-lg shadow-xl relative
+                    ${connected ? 'bg-[#10c7a1]/20 border-[#10c7a1] text-white shadow-[0_0_20px_rgba(16,199,161,0.3)]' : 'bg-[#0a0e18] border-white/20 text-white/30'}`}>
+                    {node.icon}
+                    {connected && <CheckCircle2 className="absolute -bottom-1 -right-1 h-4 w-4 bg-black rounded-full text-[#10c7a1]" />}
                   </div>
-                  <p className="mt-3 flex items-center gap-2 text-xs font-medium text-white/60">
-                    <span>{stat.emoji}</span>
-                    <span>{stat.detail}</span>
-                  </p>
+                  <span className="text-[10px] mt-2 font-bold tracking-widest uppercase text-white/50">{node.id}</span>
                 </div>
               );
             })}
           </div>
-
-          <div className="mt-auto rounded-[1.35rem] border border-[#10c7a1]/20 bg-[#10c7a1]/5 p-4 text-white shadow-[0_0_20px_rgba(16,199,161,0.05)]">
-            <div className="flex items-center justify-between gap-4">
-              <div>
-                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Today</p>
-                <p className="mt-1 text-sm font-medium text-white/90">{today}</p>
-              </div>
-              <div className="flex items-center gap-2 text-xs font-semibold text-[#10c7a1]">
-                <CheckCircle2 className="h-4 w-4" />
-                Premium sync active
-              </div>
-            </div>
-          </div>
         </div>
       </div>
-    </motion.section>
-  );
-}
 
-// ✅ NEW GAMIFICATION WIDGET COMPONENT
-function GamificationStatusWidget({ gamData, progressPercent, levelRequirement, xpIntoLevel }) {
-  return (
-    <motion.section variants={itemVariants} className="w-full">
-      <article className="overflow-hidden relative rounded-[2rem] border border-white/10 bg-[#0d1018]/84 shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl p-6 transition hover:-translate-y-0.5 hover:border-[#10c7a1]/30">
-        <div className="absolute right-0 top-0 h-48 w-48 -translate-y-24 translate-x-12 rounded-full bg-[#10c7a1]/5 blur-3xl" />
-        <div className="relative flex flex-col md:flex-row items-center justify-between gap-6">
-          <div className="flex items-center gap-5 shrink-0">
-            <div className="relative flex h-20 w-20 items-center justify-center rounded-2xl bg-gradient-to-br from-[#10c7a1] to-[#0ea988] shadow-[0_0_30px_rgba(16,199,161,0.3)]">
-              <div className="absolute inset-1 rounded-xl bg-[#0a0e17] flex flex-col items-center justify-center">
-                <span className="text-[10px] font-bold uppercase tracking-widest text-[#10c7a1]">Level</span>
-                <span className="text-3xl font-bold text-white leading-none mt-0.5">{gamData?.level || 1}</span>
-              </div>
-            </div>
-            <div>
-              <h2 className="text-2xl font-bold text-white">System Optimized</h2>
-              <p className="text-sm text-white/60 mt-1">Keep logging daily metrics to level up.</p>
-            </div>
-          </div>
-          <div className="w-full max-w-xl">
-            <div className="mb-2 flex items-center justify-between text-sm font-bold">
-              <span className="text-white/60 uppercase tracking-widest text-xs">Total XP: <span className="text-white">{gamData?.totalXP || 0}</span></span>
-              <span className="text-[#10c7a1]">{xpIntoLevel} / {levelRequirement} XP to next level</span>
-            </div>
-            <div className="h-3 w-full overflow-hidden rounded-full bg-white/5 border border-white/10">
-              <motion.div
-                className="h-full rounded-full bg-gradient-to-r from-[#10c7a1] to-[#7df3cc] shadow-[0_0_10px_rgba(16,199,161,0.5)]"
-                initial={{ width: 0 }}
-                animate={{ width: `${progressPercent}%` }}
-                transition={{ duration: 1.5, ease: "easeOut" }}
-              />
-            </div>
-          </div>
+      {/* Right Column: Milestones List */}
+      <div className="flex-1 lg:max-w-[45%] flex flex-col bg-white/[0.02] border border-white/5 rounded-2xl p-5 relative overflow-hidden">
+        <h3 className="text-sm font-bold text-white tracking-widest uppercase mb-4 flex items-center gap-2">
+          <Trophy className="h-4 w-4 text-[#c8a84b]" /> Milestone Unlocks & Rewards
+        </h3>
+        
+        <div className="flex-1 overflow-y-auto pr-2 space-y-3 scrollbar-thin">
+          <AnimatePresence mode="popLayout">
+            {filteredMilestones.map((m) => (
+              <motion.div 
+                key={m.id}
+                layout
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                transition={{ duration: 0.3 }}
+                className={`p-4 rounded-xl border flex flex-col gap-3 relative overflow-hidden transition-all duration-300
+                  ${m.completed ? 'bg-gradient-to-r from-white/5 to-[#10c7a1]/5 border-[#10c7a1]/30' : 'bg-black/20 border-white/5'}`}
+              >
+                {/* Milestone Details */}
+                <div className="flex gap-4 items-start">
+                  <div className={`h-10 w-10 shrink-0 rounded-lg flex items-center justify-center text-xl 
+                    ${m.completed ? 'bg-[#10c7a1]/20 text-white' : 'bg-white/5 text-white/20'}`}>
+                    {m.icon}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex justify-between items-start mb-1">
+                      <h4 className={`text-sm font-bold truncate ${m.completed ? (m.isUltimate ? 'text-[#c8a84b]' : 'text-white') : 'text-white/40'}`}>
+                        {m.title}
+                      </h4>
+                      {m.completed ? (
+                         <span className="shrink-0 ml-2 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider bg-[#10c7a1]/20 text-[#10c7a1] border border-[#10c7a1]/30">Unlocked</span>
+                      ) : (
+                         <span className="shrink-0 ml-2 px-2 py-0.5 rounded text-[9px] font-bold tracking-wider bg-white/5 text-white/30 border border-white/10 flex items-center gap-1"><Lock className="h-2 w-2"/> Locked</span>
+                      )}
+                    </div>
+                    <p className="text-[11px] text-white/50 leading-relaxed mb-2">{m.req}</p>
+                    <p className="text-xs font-mono font-semibold text-[#7b61ff]">Earn {m.xp} XP {m.isUltimate && '& Vanguard Title'}</p>
+                  </div>
+                </div>
+
+                {/* Simulated Interaction Panel (Only shows if completed) */}
+                {m.completed && (
+                  <div className="pt-3 border-t border-white/10 flex items-center justify-between mt-auto">
+                    <span className="text-[10px] text-white/40 font-semibold uppercase tracking-wider">Share Achievement</span>
+                    <div className="flex gap-2 relative">
+                      {[
+                        { name: 'WhatsApp', icon: MessageCircle, color: 'text-green-400 hover:bg-green-400/20' },
+                        { name: 'Instagram', icon: Camera, color: 'text-pink-400 hover:bg-pink-400/20' },
+                        { name: 'Twitter', icon: Send, color: 'text-sky-400 hover:bg-sky-400/20' }
+                      ].map(social => (
+                         <button 
+                           key={social.name}
+                           onClick={() => handleShare(social.name, m.id)}
+                           className={`h-7 w-7 rounded-md flex items-center justify-center bg-white/5 transition-colors ${social.color}`}
+                         >
+                           <social.icon className="h-3.5 w-3.5" />
+                         </button>
+                      ))}
+                      
+                      {/* Tooltip Simulation */}
+                      {shareTip?.id === m.id && (
+                        <motion.div 
+                          initial={{ opacity: 0, y: 10 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          className="absolute right-0 bottom-full mb-2 w-48 p-2 bg-[#05070c] border border-[#10c7a1]/40 rounded-lg shadow-2xl z-20 text-center"
+                        >
+                           <p className="text-[10px] font-bold text-white">Opening {shareTip.platform}...</p>
+                           <p className="text-[9px] text-white/60 mt-0.5">Simulated share operation successful!</p>
+                        </motion.div>
+                      )}
+                    </div>
+                  </div>
+                )}
+              </motion.div>
+            ))}
+          </AnimatePresence>
         </div>
-      </article>
-    </motion.section>
+      </div>
+    </div>
   );
 }
 
-function DashboardHeader({ today, firstName, onSearchClick }) {
+// ─── Header ─────────────────────────────────────────────────────────────────
+function DashboardHeader({ today, firstName, onSearchClick, onNotificationClick }) {
   return (
     <motion.header
-      className="flex shrink-0 items-center justify-between border-b border-white/10 bg-[#070a10]/80 px-4 py-4 backdrop-blur-xl lg:px-8"
-      initial={{ opacity: 0, y: -12 }}
+      className="flex shrink-0 items-center justify-between border-b border-white/8 bg-[#070a10]/80 px-4 py-3.5 backdrop-blur-xl lg:px-8"
+      initial={{ opacity: 0, y: -10 }}
       animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.45 }}
+      transition={{ duration: 0.4 }}
     >
-      <div className="max-w-2xl flex-1">
-        <label className="relative block">
-          <Search className="pointer-events-none absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-white/40" />
-          <input
-            type="text"
-            placeholder="Ask DigitalTwin AI"
-            onClick={onSearchClick}
-            onFocus={onSearchClick}
-            readOnly
-            className="w-full rounded-full border border-white/10 bg-white/5 pl-11 pr-4 py-2.5 text-sm text-white placeholder:text-white/40 outline-none transition hover:bg-white/10 focus:border-[#7b61ff]/50 focus:ring-1 focus:ring-[#7b61ff]/50"
-          />
-        </label>
+      <div className="flex-1 max-w-xl">
+        <button
+          type="button"
+          onClick={onSearchClick}
+          className="flex w-full items-center gap-3 rounded-2xl border border-white/10 bg-white/5 px-4 py-2.5 text-sm text-white/40 transition hover:bg-white/8 hover:border-white/15 hover:text-white/60"
+        >
+          <Search className="h-4 w-4 shrink-0" />
+          <span>Ask your Twin Copilot…</span>
+          <span className="ml-auto flex items-center gap-1 rounded-lg border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-bold tracking-widest text-white/30">⌘K</span>
+        </button>
       </div>
-
-      <div className="ml-4 flex items-center gap-3">
-        <div className="hidden items-center gap-2 rounded-full border border-white/10 bg-white/5 px-4 py-2 text-xs font-semibold text-white/70 shadow-lg sm:flex">
-          <CalendarDays className="h-4 w-4 text-[#c8a84b]" />
+      <div className="ml-4 flex items-center gap-2.5">
+        <div className="hidden items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-xs font-medium text-white/55 sm:flex">
+          <CalendarDays className="h-3.5 w-3.5 text-[#c8a84b]" />
           {today}
         </div>
-        <button className="flex h-10 w-10 items-center justify-center rounded-full border border-white/10 bg-white/5 text-white/70 transition hover:bg-white/10" type="button">
-          <Bell className="h-4.5 w-4.5" />
+        <button
+          type="button"
+          onClick={onNotificationClick}
+          className="relative flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
+        >
+          <Bell className="h-4 w-4" />
+          <span className="absolute right-1.5 top-1.5 h-2 w-2 rounded-full bg-[#ff4d7d] shadow-[0_0_6px_rgba(255,77,125,0.8)]" />
         </button>
-        <div className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-gradient-to-br from-[#7b61ff] to-[#10c7a1] text-sm font-bold text-white shadow-[0_0_15px_rgba(16,199,161,0.3)]">
+        <div className="grid h-9 w-9 place-items-center rounded-xl border border-white/10 bg-gradient-to-br from-[#7b61ff] to-[#10c7a1] text-sm font-bold text-white shadow-[0_0_12px_rgba(16,199,161,0.25)]">
           {firstName.slice(0, 1).toUpperCase()}
         </div>
       </div>
@@ -588,309 +465,345 @@ function DashboardHeader({ today, firstName, onSearchClick }) {
   );
 }
 
-function HealthScoreCard({ insights, onOpen }) {
-  const [displayedScore, setDisplayedScore] = useState(insights.healthScore);
-  const [ringReplayKey, setRingReplayKey] = useState(0);
-  const radius = 45;
-  const circumference = 2 * Math.PI * radius;
-  const score = insights.healthScore;
-  const dashOffset = circumference - (score / 100) * circumference;
-  const healthStyle = getVisualState(insights.healthState.colorState);
-  const burnoutStyle = getVisualState(insights.thresholds.burnout.colorState);
-  const wellnessStyle = getVisualState(insights.thresholds.wellness.colorState);
-
-  useEffect(() => { setDisplayedScore(score); }, [score]);
-
-  const replayHealthScore = () => {
-    const duration = 850;
-    const startTime = performance.now();
-    setDisplayedScore(0);
-    setRingReplayKey((key) => key + 1);
-    const tick = (timestamp) => {
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      const easedProgress = 1 - Math.pow(1 - progress, 3);
-      setDisplayedScore(Math.round(score * easedProgress));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    requestAnimationFrame(tick);
-  };
+function HeroSection({ firstName, insights, today, isLoading, navigate }) {
+  const alignmentColor = insights.burnoutRisk > 70 ? '#ff4d7d' : insights.financeScore < 40 ? '#c8a84b' : '#10c7a1';
 
   return (
-    <motion.article className={`h-full cursor-pointer rounded-[2rem] p-6 transition-all hover:bg-white/[0.04] ${healthStyle.card}`} onClick={onOpen} whileHover={{ y: -4, scale: 1.01 }}>
-      <div className="mb-4 flex items-center justify-between">
-        <div>
-          <h3 className="text-lg font-semibold text-white">Health Score</h3>
-          <p className={`text-[11px] font-semibold uppercase tracking-[0.16em] ${healthStyle.text}`}>{healthStyle.label} vitals</p>
-        </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg">🧬</div>
-      </div>
+    <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-[#0a0e18]/90 backdrop-blur-2xl">
+      <div className="relative px-6 py-7 lg:px-8">
+        <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top_left,rgba(123,97,255,0.06),transparent_40%)]" />
+        <motion.div className="pointer-events-none absolute right-8 top-4 h-32 w-32 rounded-full bg-[#c8a84b]/10 blur-3xl" animate={{ scale: [1, 1.15, 1] }} transition={{ duration: 9, repeat: Infinity }} />
 
-      <div className="flex flex-1 items-center justify-center py-4">
-        <div className="relative h-36 w-36 cursor-default rounded-full" onMouseEnter={replayHealthScore}>
-          <svg className="h-full w-full overflow-visible" viewBox="0 0 100 100">
-            <circle cx="50" cy="50" fill="none" r={radius} stroke="rgba(255,255,255,0.05)" strokeWidth="6" />
-            <circle
-              key={ringReplayKey}
-              cx="50" cy="50" fill="none" r={radius}
-              stroke={healthStyle.stroke}
-              strokeDasharray={circumference}
-              strokeDashoffset={dashOffset}
-              strokeLinecap="round" strokeWidth="6"
-              style={{ transform: 'rotate(-90deg)', transformOrigin: '50% 50%', transition: 'stroke-dashoffset 1.2s cubic-bezier(0.2, 0.8, 0.2, 1)' }}
-            />
-          </svg>
-          <div className="absolute inset-0 flex flex-col items-center justify-center rounded-full">
-            <span className={`text-4xl font-semibold ${healthStyle.text}`}>{displayedScore}</span>
-            <span className="text-[10px] font-bold uppercase tracking-[0.16em] text-white/50">{healthStyle.label}</span>
+        <div className="relative z-10 flex flex-col gap-6 lg:flex-row lg:items-center lg:justify-between">
+          <div className="space-y-3">
+            <div className="inline-flex items-center gap-2 rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[10px] font-bold uppercase tracking-[0.22em] text-white/60">
+              <Sparkles className="h-3 w-3 text-[#c8a84b]" />
+              Premium Control Room · {today}
+            </div>
+            <h1 className="text-3xl font-semibold tracking-tight text-white md:text-4xl">
+              Good morning, {firstName}.
+            </h1>
+            <p className="max-w-lg text-sm leading-relaxed text-white/60">
+              Your signals are in{' '}
+              <span className="font-semibold drop-shadow-[0_0_8px_currentColor]" style={{ color: alignmentColor }}>
+                {insights.alignmentLabel}
+              </span>
+              {isLoading && <span className="ml-2 text-white/30 text-xs animate-pulse">syncing…</span>}
+            </p>
+          </div>
+
+          <div className="flex flex-wrap gap-2.5">
+            <HeroButton label="Open Health" onClick={() => navigate('/health')} primary />
+            <HeroButton label="Open Finance" onClick={() => navigate('/finance')} />
+            <HeroButton label="Open Career" onClick={() => navigate('/career')} />
+            <HeroButton label="AI Insights" onClick={() => navigate('/intelligence')} accent />
+          </div>
+        </div>
+
+        <div className="relative z-10 mt-6 flex flex-wrap items-center gap-4 border-t border-white/8 pt-5">
+          <StatusPill icon="🧬" label="Burnout Risk" value={`${insights.burnoutRisk}%`} colorState={insights.thresholds.burnout.colorState} />
+          <StatusPill icon="💧" label="Recovery" value={`${insights.recoveryScore}%`} colorState={insights.thresholds.wellness.colorState} />
+          <StatusPill icon="💎" label="Savings Rate" value={`${insights.savingsRate}%`} colorState={insights.savingsState.colorState} />
+          <StatusPill icon="🎯" label="Productivity" value={`${insights.productivityScore}%`} colorState={insights.thresholds.productivity.colorState} />
+          <div className="ml-auto flex items-center gap-2 rounded-xl border border-[#10c7a1]/20 bg-[#10c7a1]/8 px-3 py-1.5 text-xs font-semibold text-[#10c7a1]">
+            <CheckCircle2 className="h-3.5 w-3.5" />
+            Premium Sync Active
           </div>
         </div>
       </div>
-
-      <div className="mt-6 grid grid-cols-2 gap-3">
-        <MiniMetric label="Burnout" value={`${insights.burnoutRisk}%`} state={burnoutStyle} />
-        <MiniMetric label="Recovery" value={`${insights.recoveryScore}%`} state={wellnessStyle} />
-      </div>
-    </motion.article>
+    </div>
   );
 }
 
-function FinanceTrajectory({ insights, onOpen }) {
-  const [selectedRange, setSelectedRange] = useState('1M');
-  const [isHovered, setIsHovered] = useState(false);
-  const [hoveredBarIndex, setHoveredBarIndex] = useState(null);
-  const activeChart = insights.financeRanges[selectedRange];
-  const financeStyle = getVisualState(insights.thresholds.financial.colorState);
+function HeroButton({ label, onClick, primary, accent }) {
+  const base = 'rounded-xl px-4 py-2 text-sm font-semibold transition-all';
+  if (primary) return <button type="button" onClick={onClick} className={`${base} bg-white text-black hover:bg-white/90`}>{label}</button>;
+  if (accent) return <button type="button" onClick={onClick} className={`${base} border border-[#10c7a1]/30 bg-[#10c7a1]/10 text-[#10c7a1] hover:bg-[#10c7a1]/20`}>{label}</button>;
+  return <button type="button" onClick={onClick} className={`${base} border border-white/10 bg-white/5 text-white/80 hover:bg-white/10`}>{label}</button>;
+}
 
-  // Generate approximate currency values for bars
-  const income = insights.monthlyBufferValue != null ? (insights.monthlyBufferValue + (insights.savingsRate > 0 ? 0 : 0)) : 0;
-  const barCurrencyValues = useMemo(() => {
-    return activeChart.bars.map((height) => {
-      const baseVal = insights.monthlyBufferValue != null
-        ? Math.abs(insights.monthlyBufferValue) * (height / 100) * 1.4
-        : height * 420;
-      return Math.round(baseVal / 500) * 500;
-    });
-  }, [activeChart.bars, insights.monthlyBufferValue]);
+function StatusPill({ icon, label, value, colorState }) {
+  const c = colorStateToHex(colorState);
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-white/8 bg-white/[0.03] px-3 py-1.5">
+      <span className="text-sm">{icon}</span>
+      <span className="text-xs text-white/45 font-medium">{label}</span>
+      <span className="text-xs font-bold" style={{ color: c }}>{value}</span>
+    </div>
+  );
+}
+
+function ScoreCard({ title, value, icon: Icon, emoji, colorState, subtitle, onClick }) {
+  const c = colorStateToHex(colorState);
+  const bg = colorStateToBg(colorState);
+  const [displayed, setDisplayed] = useState(value);
+
+  useEffect(() => {
+    const duration = 900;
+    const start = performance.now();
+    const tick = (ts) => {
+      const p = Math.min((ts - start) / duration, 1);
+      const e = 1 - Math.pow(1 - p, 3);
+      setDisplayed(Math.round(value * e));
+      if (p < 1) requestAnimationFrame(tick);
+    };
+    setDisplayed(0);
+    requestAnimationFrame(tick);
+  }, [value]);
 
   return (
     <motion.article
-      className={`h-full cursor-pointer rounded-[2rem] p-6 transition-all hover:bg-white/[0.04] ${financeStyle.card}`}
-      onClick={onOpen}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => { setIsHovered(false); setHoveredBarIndex(null); }}
-      whileHover={{ y: -6, scale: 1.015 }}
+      onClick={onClick}
+      whileHover={{ y: -4, scale: 1.015 }}
+      className="cursor-pointer rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 backdrop-blur-xl transition-colors hover:border-white/20"
+      style={{ boxShadow: `0 0 0 1px ${c}08` }}
     >
-      <div className="mb-8 flex items-center justify-between">
+      <div className="flex items-start justify-between mb-4">
         <div>
-          <h3 className="text-lg font-semibold text-white">Financial Trajectory</h3>
-          <p className={`text-sm ${financeStyle.text}`}>{activeChart.summary}</p>
+          <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/40">{title}</p>
+          <p className="mt-1.5 text-3xl font-semibold text-white">{displayed}<span className="text-lg text-white/40">%</span></p>
         </div>
-        <div className="flex gap-1.5 rounded-full border border-white/10 bg-white/5 p-1">
-          {['1W', '1M'].map((range) => (
-            <button
-              key={range}
-              onClick={(e) => { e.stopPropagation(); setSelectedRange(range); }}
-              className={`rounded-full px-3 py-1.5 text-[10px] font-bold uppercase transition ${selectedRange === range ? 'bg-white/15 text-white shadow-sm' : 'text-white/40 hover:bg-white/10'}`}
-              type="button"
-            >
-              {range}
-            </button>
-          ))}
+        <div className="flex h-10 w-10 items-center justify-center rounded-xl text-lg" style={{ background: `${c}15`, border: `1px solid ${c}25` }}>
+          {emoji}
         </div>
       </div>
-
-      <div key={selectedRange} className="relative mb-6 h-56 overflow-hidden rounded-[1.5rem] border border-white/5 bg-white/[0.01] px-5 pb-8 pt-5">
+      <div className="mb-3 h-1.5 w-full overflow-hidden rounded-full bg-white/8">
         <motion.div
-          aria-hidden="true"
-          animate={{ opacity: isHovered ? 1 : 0.35, scale: isHovered ? 1.05 : 1 }}
-          transition={{ duration: 0.35, ease: 'easeOut' }}
-          className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_50%_20%,rgba(212,175,55,0.08),transparent_28%),radial-gradient(circle_at_80%_30%,rgba(16,199,161,0.08),transparent_24%)]"
+          className="h-full rounded-full"
+          style={{ background: `linear-gradient(90deg, ${c}80, ${c})` }}
+          initial={{ width: 0 }}
+          animate={{ width: `${value}%` }}
+          transition={{ duration: 1.2, ease: [0.2, 0.8, 0.2, 1] }}
         />
-        <div className="absolute inset-x-5 top-5 bottom-8 grid grid-rows-4">
-          {[0, 1, 2, 3].map((line) => (<div key={line} className="border-t border-white/5" />))}
-        </div>
-
-        <div className="absolute inset-x-5 bottom-8 top-5 flex items-end gap-3">
-          {activeChart.bars.map((height, index) => (
-            <div
-              key={`${height}-${index}`}
-              className="relative flex h-full flex-1 cursor-pointer items-end"
-              onMouseEnter={(e) => { e.stopPropagation(); setHoveredBarIndex(index); }}
-              onMouseLeave={() => setHoveredBarIndex(null)}
-            >
-              <div
-                className="w-full rounded-t-xl transition-all duration-300"
-                style={{
-                  height: `${height}%`,
-                  backgroundColor: financeStyle.softStroke,
-                  opacity: hoveredBarIndex === index ? 0.95 : (0.4 + index * (0.6 / Math.max(activeChart.bars.length - 1, 1))),
-                  transform: `scaleY(${hoveredBarIndex === index ? 1.12 : (isHovered ? 1.08 : 1)}) translateY(${hoveredBarIndex === index ? '-4px' : (isHovered ? '-2px' : '0px')})`,
-                  transformOrigin: 'bottom',
-                  boxShadow: hoveredBarIndex === index ? `0 0 24px ${financeStyle.stroke}` : (isHovered ? `0 0 18px ${financeStyle.softStroke}` : 'none'),
-                }}
-              />
-              {/* Floating currency tooltip on bar hover */}
-              <AnimatePresence>
-                {hoveredBarIndex === index && (
-                  <motion.div
-                    initial={{ opacity: 0, y: 8, scale: 0.9 }}
-                    animate={{ opacity: 1, y: 0, scale: 1 }}
-                    exit={{ opacity: 0, y: 4, scale: 0.9 }}
-                    transition={{ duration: 0.18 }}
-                    className="pointer-events-none absolute bottom-full left-1/2 z-20 mb-2 -translate-x-1/2 rounded-xl border border-white/10 bg-[#0a0e17]/95 px-3 py-1.5 text-center backdrop-blur-md"
-                    style={{ boxShadow: `0 0 16px ${financeStyle.glowColor || 'rgba(16,199,161,0.2)'}` }}
-                  >
-                    <p className="text-[10px] font-bold uppercase tracking-[0.12em] text-white/50">{activeChart.labels[Math.floor(index / Math.max(activeChart.bars.length / 3, 1))] || 'Data'}</p>
-                    <p className="mt-0.5 text-sm font-bold" style={{ color: financeStyle.stroke }}>
-                      {formatMoney(barCurrencyValues[index])}
-                    </p>
-                  </motion.div>
-                )}
-              </AnimatePresence>
-            </div>
-          ))}
-        </div>
-
-        <svg className="pointer-events-none absolute inset-x-5 bottom-8 top-5 h-[calc(100%-52px)] w-[calc(100%-40px)] overflow-visible" viewBox="0 0 368 140" preserveAspectRatio="none">
-          <polyline points={activeChart.linePoints} fill="none" stroke={financeStyle.stroke} strokeLinecap="round" strokeLinejoin="round" strokeWidth="4" />
-          {activeChart.pointData.map((point, index) => (
-            <circle
-              key={`${point.x}-${point.y}`}
-              cx={point.x} cy={point.y} r="4"
-              fill="#0a0e17"
-              stroke={financeStyle.stroke} strokeWidth="3"
-              style={{ filter: isHovered ? 'drop-shadow(0 0 10px rgba(255,255,255,0.35))' : 'none' }}
-            />
-          ))}
-        </svg>
-
-        <div className="absolute inset-x-5 bottom-3 flex justify-between text-[10px] font-bold uppercase tracking-[0.12em] text-white/40">
-          {activeChart.labels.map((label) => (<span key={label}>{label}</span>))}
-        </div>
       </div>
-
-      <div className="flex items-center justify-between border-t border-white/10 pt-5">
-        <div className="flex gap-8">
-          <AnimatedMetricBlock label="Savings Rate" value={insights.savingsRate} suffix="%" state={getVisualState(insights.savingsState.colorState)} />
-          <AnimatedMetricBlock label="Monthly Buffer" value={insights.monthlyBufferValue} formatter={formatMoney} fallback="Add data" state={getVisualState(insights.bufferState.colorState)} />
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-white/40">{subtitle}</p>
+        <div className="flex items-center gap-1 text-xs font-semibold" style={{ color: c }}>
+          <span className="h-1.5 w-1.5 rounded-full animate-pulse" style={{ background: c }} />
+          <span className="text-[10px] font-bold uppercase tracking-widest">{colorState === 'green' ? 'Good' : colorState === 'orange' ? 'Watch' : 'Alert'}</span>
         </div>
       </div>
     </motion.article>
   );
 }
 
-// ==========================================
-// Enhanced Life Balance Radar with hover breakdowns
-// ==========================================
-function LifeBalance({ insights }) {
-  const [activeIndex, setActiveIndex] = useState(null);
+function DigitalTwinAvatar({ insights }) {
+  const burnout = insights.burnoutRisk;
+  const health = insights.healthScore;
+  const finance = insights.financeScore;
+  const [blink, setBlink] = useState(false);
+  const [breathe, setBreathe] = useState(false);
 
+  const mood = useMemo(() => {
+    if (burnout > 70 || health < 45) return 'tired';
+    if (burnout > 50 || health < 65) return 'alert';
+    if (finance < 40) return 'stressed';
+    return 'optimal';
+  }, [burnout, health, finance]);
+
+  const moodConfig = {
+    tired: {
+      aura: '#ff4d7d', auraOpacity: 0.18, eyeOffset: 2,
+      mouthPath: 'M 38 62 Q 50 58 62 62', eyeScale: 0.7,
+      glowColor: 'rgba(255,77,125,0.22)',
+      skinGradFrom: '#2a1a1f', skinGradTo: '#1a0e14',
+      advice: 'Recovery signals low. A 20-min nap can reset cortisol.',
+      label: '😴 Fatigued',
+    },
+    alert: {
+      aura: '#c8a84b', auraOpacity: 0.2, eyeOffset: 0,
+      mouthPath: 'M 40 62 Q 50 64 60 62', eyeScale: 1,
+      glowColor: 'rgba(200,168,75,0.22)',
+      skinGradFrom: '#1e1a10', skinGradTo: '#13100a',
+      advice: 'Moderate stress detected. Hydrate and take a 5-min break.',
+      label: '⚠️ Alert Mode',
+    },
+    stressed: {
+      aura: '#c8a84b', auraOpacity: 0.22, eyeOffset: 1,
+      mouthPath: 'M 38 63 Q 50 59 62 63', eyeScale: 0.85,
+      glowColor: 'rgba(200,168,75,0.2)',
+      skinGradFrom: '#1c1a10', skinGradTo: '#121008',
+      advice: 'Finance stress detected. Set one budget goal today.',
+      label: '💸 Finance Stress',
+    },
+    optimal: {
+      aura: '#10c7a1', auraOpacity: 0.22, eyeOffset: 0,
+      mouthPath: 'M 38 60 Q 50 68 62 60', eyeScale: 1,
+      glowColor: 'rgba(16,199,161,0.28)',
+      skinGradFrom: '#0e1e1a', skinGradTo: '#071310',
+      advice: 'All systems aligned. Consistency compounds.',
+      label: '✨ Optimal',
+    },
+  };
+
+  const cfg = moodConfig[mood];
+
+  useEffect(() => {
+    const blinkTimer = setInterval(() => {
+      setBlink(true);
+      setTimeout(() => setBlink(false), 160);
+    }, 3200 + Math.random() * 1800);
+    const breatheTimer = setInterval(() => setBreathe(b => !b), 3000);
+    return () => { clearInterval(blinkTimer); clearInterval(breatheTimer); };
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center gap-3">
+      <div className="relative flex items-center justify-center">
+        <motion.div className="absolute rounded-full"
+          style={{ width: 130, height: 130, background: `radial-gradient(circle, ${cfg.aura}30 0%, transparent 70%)`, filter: 'blur(16px)' }}
+          animate={{ scale: breathe ? 1.14 : 1, opacity: breathe ? cfg.auraOpacity * 1.35 : cfg.auraOpacity }}
+          transition={{ duration: 3, ease: 'easeInOut' }}
+        />
+        <motion.div className="absolute rounded-full border"
+          style={{ width: 106, height: 106, borderColor: `${cfg.aura}35` }}
+          animate={{ scale: breathe ? 1.05 : 0.97, opacity: breathe ? 0.75 : 0.35 }}
+          transition={{ duration: 3, ease: 'easeInOut' }}
+        />
+        <motion.svg width="88" height="88" viewBox="0 0 100 100"
+          style={{ filter: `drop-shadow(0 0 14px ${cfg.glowColor})` }}
+          animate={{ y: breathe ? -2.5 : 2 }}
+          transition={{ duration: 3, ease: 'easeInOut' }}
+        >
+          <defs>
+            <radialGradient id="dtSkinGrad" cx="50%" cy="40%" r="60%">
+              <stop offset="0%" stopColor={cfg.skinGradFrom} />
+              <stop offset="100%" stopColor={cfg.skinGradTo} />
+            </radialGradient>
+            <radialGradient id="dtEyeGlow" cx="50%" cy="50%" r="50%">
+              <stop offset="0%" stopColor={cfg.aura} stopOpacity="0.9" />
+              <stop offset="100%" stopColor={cfg.aura} stopOpacity="0.2" />
+            </radialGradient>
+            <filter id="dtSoftGlow">
+              <feGaussianBlur stdDeviation="1.4" result="coloredBlur" />
+              <feMerge><feMergeNode in="coloredBlur" /><feMergeNode in="SourceGraphic" /></feMerge>
+            </filter>
+          </defs>
+          <ellipse cx="50" cy="52" rx="32" ry="34" fill="url(#dtSkinGrad)" stroke={`${cfg.aura}28`} strokeWidth="1" />
+          <rect x="43" y="82" width="14" height="10" rx="4" fill={cfg.skinGradFrom} />
+          <motion.g filter="url(#dtSoftGlow)" animate={{ scaleY: blink ? 0.08 : cfg.eyeScale, y: cfg.eyeOffset }} style={{ originY: '50%' }} transition={{ duration: blink ? 0.08 : 0.2 }}>
+            <ellipse cx="36" cy="46" rx="5.5" ry="5.5" fill="url(#dtEyeGlow)" />
+            <circle cx="36" cy="46" r="3.2" fill={cfg.aura} opacity="0.95" />
+            <circle cx="37.2" cy="44.8" r="1.1" fill="white" opacity="0.7" />
+            <ellipse cx="64" cy="46" rx="5.5" ry="5.5" fill="url(#dtEyeGlow)" />
+            <circle cx="64" cy="46" r="3.2" fill={cfg.aura} opacity="0.95" />
+            <circle cx="65.2" cy="44.8" r="1.1" fill="white" opacity="0.7" />
+          </motion.g>
+          <motion.g animate={{ y: mood === 'tired' ? 2 : mood === 'stressed' ? -1 : 0 }} transition={{ duration: 0.5 }}>
+            <path d="M 29 38 Q 36 35 43 37" stroke={cfg.aura} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity="0.65" />
+            <path d="M 57 37 Q 64 35 71 38" stroke={cfg.aura} strokeWidth="1.8" fill="none" strokeLinecap="round" opacity="0.65" />
+          </motion.g>
+          <path d="M 48 52 Q 46 58 49 59 Q 51 59 52 58 Q 54 57 52 52" stroke={cfg.aura} strokeWidth="1" fill="none" opacity="0.3" />
+          <motion.path d={cfg.mouthPath} stroke={cfg.aura} strokeWidth="2.2" fill="none" strokeLinecap="round" animate={{ d: cfg.mouthPath }} transition={{ duration: 0.8, ease: 'easeInOut' }} opacity="0.85" />
+          <g opacity="0.2">
+            <path d="M 18 50 L 14 50 L 14 44 L 10 44" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
+            <circle cx="10" cy="44" r="1.5" fill={cfg.aura} />
+            <path d="M 82 50 L 86 50 L 86 44 L 90 44" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
+            <circle cx="90" cy="44" r="1.5" fill={cfg.aura} />
+            <path d="M 18 60 L 12 60" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
+            <path d="M 82 60 L 88 60" stroke={cfg.aura} strokeWidth="0.8" fill="none" />
+          </g>
+        </motion.svg>
+      </div>
+      <motion.div key={mood} initial={{ opacity: 0, scale: 0.85 }} animate={{ opacity: 1, scale: 1 }}
+        className="rounded-full border border-white/10 bg-white/5 px-3 py-1 text-[9px] font-bold uppercase tracking-[0.18em]"
+        style={{ color: cfg.aura }}>
+        {cfg.label}
+      </motion.div>
+      <motion.div key={cfg.advice} initial={{ opacity: 0, y: 5 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: 0.25 }}
+        className="rounded-2xl border border-white/8 bg-white/[0.03] px-4 py-3 text-center text-[11px] leading-5 text-white/60 backdrop-blur-md w-full"
+        style={{ boxShadow: `0 0 16px ${cfg.glowColor}` }}
+      >
+        <span className="mr-1 font-bold" style={{ color: cfg.aura }}>Twin:</span>
+        {cfg.advice}
+      </motion.div>
+    </div>
+  );
+}
+
+function DigitalTwinPanel({ insights }) {
+  return (
+    <motion.article whileHover={{ y: -3, scale: 1.01 }} className="flex h-full flex-col rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 backdrop-blur-xl">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-white">Digital Twin</h3>
+          <p className="mt-0.5 text-[10px] font-bold uppercase tracking-[0.18em] text-white/35">Live Signal</p>
+        </div>
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-base">🤖</div>
+      </div>
+      <div className="flex flex-1 items-center justify-center">
+        <DigitalTwinAvatar insights={insights} />
+      </div>
+    </motion.article>
+  );
+}
+
+function LifeBalanceRadar({ insights }) {
   const data = [
-    { subject: 'Health', A: insights.healthScore, fullMark: 100, emoji: '🧬', color: '#10c7a1', desc: 'Biometric + recovery composite' },
-    { subject: 'Finance', A: insights.financeScore, fullMark: 100, emoji: '💎', color: '#c8a84b', desc: 'Savings + buffer composite' },
-    { subject: 'Career', A: insights.productivityScore, fullMark: 100, emoji: '🎯', color: '#7b61ff', desc: 'Productivity + momentum score' },
-    { subject: 'Recovery', A: insights.recoveryScore, fullMark: 100, emoji: '💧', color: '#38bdf8', desc: 'Sleep + exercise + stress inverse' },
-    { subject: 'Resilience', A: 100 - insights.burnoutRisk, fullMark: 100, emoji: '🛡️', color: '#f472b6', desc: 'Inverse of burnout risk index' },
+    { subject: 'Health', A: insights.healthScore, emoji: '🧬', color: '#10c7a1', desc: 'Biometric + recovery' },
+    { subject: 'Finance', A: insights.financeScore, emoji: '💎', color: '#c8a84b', desc: 'Savings + buffer' },
+    { subject: 'Career', A: insights.productivityScore, emoji: '🎯', color: '#7b61ff', desc: 'Productivity + momentum' },
+    { subject: 'Recovery', A: insights.recoveryScore, emoji: '💧', color: '#38bdf8', desc: 'Sleep + exercise + stress' },
+    { subject: 'Resilience', A: 100 - insights.burnoutRisk, emoji: '🛡️', color: '#f472b6', desc: 'Inverse burnout index' },
   ];
 
   const CustomTooltip = ({ active, payload }) => {
     if (!active || !payload?.length) return null;
-    const entry = data.find((d) => d.subject === payload[0]?.payload?.subject);
+    const entry = data.find(d => d.subject === payload[0]?.payload?.subject);
     if (!entry) return null;
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.9 }}
-        animate={{ opacity: 1, scale: 1 }}
-        className="rounded-[1rem] border border-white/10 bg-[#0a0e17]/95 px-4 py-3 text-left backdrop-blur-xl shadow-2xl"
-        style={{ minWidth: 160, boxShadow: `0 0 20px ${entry.color}30` }}
-      >
-        <div className="flex items-center gap-2 mb-1">
-          <span className="text-base">{entry.emoji}</span>
-          <p className="text-xs font-bold uppercase tracking-[0.15em]" style={{ color: entry.color }}>{entry.subject}</p>
+      <div className="rounded-xl border border-white/10 bg-[#0a0e17]/95 px-3.5 py-2.5 backdrop-blur-xl text-left" style={{ boxShadow: `0 0 18px ${entry.color}30` }}>
+        <div className="flex items-center gap-1.5 mb-1">
+          <span>{entry.emoji}</span>
+          <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: entry.color }}>{entry.subject}</span>
         </div>
-        <p className="text-2xl font-bold text-white">{entry.A}<span className="text-sm font-normal text-white/50 ml-0.5">%</span></p>
-        <p className="mt-1 text-[10px] text-white/45 leading-4">{entry.desc}</p>
-      </motion.div>
+        <p className="text-xl font-bold text-white">{entry.A}<span className="text-sm font-normal text-white/45 ml-0.5">%</span></p>
+        <p className="mt-0.5 text-[10px] text-white/40">{entry.desc}</p>
+      </div>
     );
   };
 
   return (
-    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="flex h-full flex-col rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-lg backdrop-blur-xl">
-      <div className="mb-4 flex items-center justify-between gap-4">
+    <motion.article whileHover={{ y: -3 }} className="flex flex-col rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 backdrop-blur-xl">
+      <div className="mb-4 flex items-center justify-between">
         <div>
-          <h3 className="text-lg font-semibold text-white">Life Balance Radar</h3>
-          <p className="mt-1 text-xs font-medium uppercase tracking-[0.2em] text-white/45">Hover each axis for details</p>
+          <h3 className="text-base font-semibold text-white">Life Balance</h3>
+          <p className="text-[10px] font-medium uppercase tracking-[0.18em] text-white/35 mt-0.5">Hover axes for details</p>
         </div>
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg">⚡</div>
+        <span className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-base">⚡</span>
       </div>
-
-      <div className="grid flex-1 gap-5 xl:grid-cols-[1.2fr_0.8fr]">
-        {/* Expanded Radar */}
-        <div className="min-h-[340px] w-full">
+      <div className="grid flex-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
+        <div className="min-h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="72%" data={data}>
-              <PolarGrid stroke="rgba(255,255,255,0.07)" />
-              <PolarAngleAxis
-                dataKey="subject"
-                tick={({ x, y, payload }) => {
-                  const entry = data.find((d) => d.subject === payload.value);
-                  return (
-                    <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fill={entry?.color || 'rgba(255,255,255,0.5)'} fontSize={10} fontWeight={700} letterSpacing="0.1em">
-                      {payload.value}
-                    </text>
-                  );
-                }}
-              />
+            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
+              <PolarGrid stroke="rgba(255,255,255,0.06)" />
+              <PolarAngleAxis dataKey="subject" tick={({ x, y, payload }) => {
+                const entry = data.find(d => d.subject === payload.value);
+                return <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fill={entry?.color || 'rgba(255,255,255,0.45)'} fontSize={9.5} fontWeight={700} letterSpacing="0.08em">{payload.value}</text>;
+              }} />
               <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
               <RechartsTooltip content={<CustomTooltip />} />
-              <Radar
-                name="Sync Score"
-                dataKey="A"
-                stroke="#7b61ff"
-                strokeWidth={2.5}
-                fill="rgba(123,97,255,0.15)"
-                fillOpacity={0.9}
-                dot={{ r: 5, fill: '#7b61ff', stroke: 'rgba(123,97,255,0.4)', strokeWidth: 2 }}
-                activeDot={{ r: 7, fill: '#7b61ff', stroke: 'white', strokeWidth: 2, filter: 'drop-shadow(0 0 6px rgba(123,97,255,0.8))' }}
-              />
+              <Radar name="Score" dataKey="A" stroke="#7b61ff" strokeWidth={2} fill="rgba(123,97,255,0.13)" dot={{ r: 4, fill: '#7b61ff', stroke: 'rgba(123,97,255,0.35)', strokeWidth: 2 }} activeDot={{ r: 6, fill: '#7b61ff', stroke: 'white', strokeWidth: 2 }} />
             </RadarChart>
           </ResponsiveContainer>
         </div>
-
-        {/* Breakdown List */}
-        <div className="flex flex-col gap-2.5">
-          {data.map((item, index) => (
-            <motion.div
-              key={item.subject}
-              whileHover={{ scale: 1.03, x: 4 }}
-              className="group flex items-center justify-between rounded-[1.1rem] border border-white/8 bg-white/[0.03] px-4 py-3 transition-colors hover:border-white/15 cursor-default"
-              style={{ boxShadow: `0 0 0 0 ${item.color}00` }}
-              whileHover={{ boxShadow: `0 0 14px ${item.color}22` }}
-            >
-              <div className="flex items-center gap-3">
-                <span className="text-base">{item.emoji}</span>
+        <div className="flex flex-col gap-2">
+          {data.map((item, i) => (
+            <motion.div key={item.subject} whileHover={{ x: 3 }} className="flex items-center justify-between rounded-xl border border-white/6 bg-white/[0.025] px-3.5 py-2.5 transition hover:border-white/12">
+              <div className="flex items-center gap-2.5">
+                <span className="text-sm">{item.emoji}</span>
                 <div>
-                  <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/45">{item.subject}</p>
+                  <p className="text-[9px] font-bold uppercase tracking-widest text-white/35">{item.subject}</p>
                   <p className="text-sm font-semibold text-white">{item.A}%</p>
                 </div>
               </div>
-              <div className="flex items-center gap-2">
-                <div className="h-1.5 w-16 overflow-hidden rounded-full bg-white/10">
-                  <motion.div
-                    className="h-full rounded-full"
-                    style={{ backgroundColor: item.color }}
-                    initial={{ width: 0 }}
-                    animate={{ width: `${item.A}%` }}
-                    transition={{ duration: 1.2, delay: index * 0.1, ease: [0.2, 0.8, 0.2, 1] }}
-                  />
-                </div>
+              <div className="h-1 w-14 overflow-hidden rounded-full bg-white/8">
+                <motion.div className="h-full rounded-full" style={{ backgroundColor: item.color }} initial={{ width: 0 }} animate={{ width: `${item.A}%` }} transition={{ duration: 1.1, delay: i * 0.08 }} />
               </div>
             </motion.div>
           ))}
-
-          <div className="mt-auto rounded-[1.1rem] border border-white/10 bg-[#10c7a1]/5 p-3 text-xs leading-5 text-white/60">
-            <span className="mr-1.5 inline-block">🧠</span>
-            Balance leaning toward recovery. Hydration and finance reminders active.
+          <div className="mt-auto rounded-xl border border-white/8 bg-white/[0.02] p-3 text-[11px] text-white/45 leading-5">
+            <span className="text-[#10c7a1] font-semibold">Balance note:</span> Recovery and resilience are shaping today's priorities.
           </div>
         </div>
       </div>
@@ -898,227 +811,189 @@ function LifeBalance({ insights }) {
   );
 }
 
-function DailyRituals({ insights }) {
+function DailyCalendarStreak({ insights }) {
   const [now, setNow] = useState(() => new Date());
-  const ritualCalendar = useMemo(() => buildRitualCalendar(now, insights), [now, insights]);
-
-  useEffect(() => {
-    const timer = setInterval(() => setNow(new Date()), 1000);
-    return () => clearInterval(timer);
-  }, []);
+  useEffect(() => { const t = setInterval(() => setNow(new Date()), 1000); return () => clearInterval(t); }, []);
+  const calendar = useMemo(() => buildRitualCalendar(now, insights), [now, insights]);
 
   return (
-    <motion.article whileHover={{ y: -4, scale: 1.01 }} className="flex h-full flex-col justify-between rounded-[2rem] border border-white/10 bg-white/[0.02] p-6 shadow-lg backdrop-blur-xl">
-      <div className="mb-5 flex items-start justify-between gap-4">
+    <motion.article whileHover={{ y: -3 }} className="flex flex-col rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 backdrop-blur-xl">
+      <div className="mb-4 flex items-start justify-between">
         <div>
-          <p className="text-sm font-semibold text-white">Day {ritualCalendar.today}</p>
-          <p className="mt-0.5 font-mono text-[11px] text-white/50">{formatTimeLeft(now)} left</p>
-          {ritualCalendar.streakStarted && (
-            <p className="mt-1 text-[11px] font-semibold text-[#10c7a1]">{ritualCalendar.currentStreak} day streak</p>
+          <h3 className="text-base font-semibold text-white">Daily Streak</h3>
+          <p className="mt-0.5 font-mono text-[10px] text-white/35">{formatTimeLeft(now)} remaining today</p>
+          {calendar.streakStarted && (
+            <p className="mt-1 text-xs font-bold text-[#10c7a1]">🔥 {calendar.currentStreak} day streak</p>
           )}
         </div>
-        <div className="relative h-14 w-14 rotate-45 rounded-[14px] border border-white/10 bg-white/5 shadow-lg">
-          <div className="absolute inset-1.5 rounded-[12px] border border-white/5" />
-          <div className="flex h-full -rotate-45 flex-col items-center justify-center">
-            <span className="text-lg font-bold text-white">{ritualCalendar.today}</span>
-            <span className="text-[9px] font-bold uppercase tracking-[0.12em] text-white/50">{ritualCalendar.monthShort}</span>
-          </div>
+        <div className="flex flex-col items-center rounded-xl border border-white/10 bg-white/5 p-2.5 min-w-[50px]">
+          <span className="text-lg font-bold text-white leading-none">{calendar.today}</span>
+          <span className="text-[9px] font-bold uppercase tracking-widest text-white/40 mt-0.5">{calendar.monthShort}</span>
         </div>
       </div>
-
-      <div className="grid grid-cols-7 gap-y-4">
-        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((day, index) => (
-          <div key={`${day}-${index}`} className="text-center text-xs font-semibold text-white/40">{day}</div>
+      <div className="grid grid-cols-7 gap-y-2.5 gap-x-1">
+        {['S', 'M', 'T', 'W', 'T', 'F', 'S'].map((d, i) => (
+          <div key={`${d}-${i}`} className="text-center text-[10px] font-bold text-white/30">{d}</div>
         ))}
-        {ritualCalendar.days.map((day) => (
-          <div key={day.key} className="grid h-8 place-items-center">
-            {day.type === 'blank' ? <span /> : <RitualDay day={day} />}
+        {calendar.days.map(day => (
+          <div key={day.key} className="grid h-7 place-items-center">
+            {day.type === 'blank' ? <span /> : <CalendarDay day={day} />}
           </div>
         ))}
       </div>
-
-      {!ritualCalendar.streakStarted && (
-        <p className="mt-6 rounded-xl border border-white/5 bg-white/5 px-4 py-3 text-center text-[11px] font-medium text-white/60">
-          Complete today's goals to begin streak tracking.
+      {!calendar.streakStarted && (
+        <p className="mt-4 rounded-xl border border-white/6 bg-white/[0.025] px-3 py-2.5 text-center text-[11px] text-white/45">
+          Complete today's goals to begin your streak.
         </p>
       )}
     </motion.article>
   );
 }
 
-function RitualDay({ day }) {
-  if (day.state === 'today-complete') return <span className="grid h-8 w-8 place-items-center rounded-full bg-[#10c7a1] text-sm font-bold text-[#05070c] shadow-[0_0_12px_rgba(16,199,161,0.6)]">{day.value}</span>;
-  if (day.state === 'today') return <span className="grid h-8 w-8 place-items-center rounded-full border border-[#10c7a1] bg-[#10c7a1]/10 text-sm font-bold text-[#10c7a1]">{day.value}</span>;
-  if (day.state === 'done') return <span className="grid h-8 w-8 place-items-center rounded-full border-2 border-white/20 text-white/60"><CheckIcon className="h-4 w-4" /></span>;
-  if (day.state === 'missed') return (
-    <span className="relative grid h-8 w-8 place-items-center text-sm font-medium text-white/40">
-      {day.value}
-      <span className="absolute bottom-1 h-1 w-1 rounded-full bg-[#ff4d7d]" />
-    </span>
-  );
-  return <span className="text-sm font-medium text-white/50">{day.value}</span>;
+function CalendarDay({ day }) {
+  if (day.state === 'today-complete') return <span className="grid h-7 w-7 place-items-center rounded-full bg-[#10c7a1] text-xs font-bold text-[#05070c] shadow-[0_0_10px_rgba(16,199,161,0.5)]">{day.value}</span>;
+  if (day.state === 'today') return <span className="grid h-7 w-7 place-items-center rounded-full border border-[#10c7a1] bg-[#10c7a1]/10 text-xs font-bold text-[#10c7a1]">{day.value}</span>;
+  if (day.state === 'done') return <span className="grid h-7 w-7 place-items-center rounded-full border border-white/15 text-white/40 text-[10px]">✓</span>;
+  if (day.state === 'missed') return <span className="relative grid h-7 w-7 place-items-center text-xs text-white/35">{day.value}<span className="absolute bottom-0.5 h-1 w-1 rounded-full bg-[#ff4d7d]" /></span>;
+  return <span className="text-xs text-white/40">{day.value}</span>;
 }
 
-// ==========================================
-// Command Center Portals — enhanced
-// ==========================================
-function TrackingPortals({ navigate }) {
-  const portals = [
-    {
-      title: 'Vitality Chamber',
-      desc: 'Biometrics & Recovery',
-      path: '/health',
-      icon: '🧬',
-      accentColor: '#ff4d7d',
-      gradFrom: 'rgba(255,77,125,0.12)',
-      gradTo: 'transparent',
-      borderHover: '#ff4d7d',
-      stat: 'Health Score',
-      particles: ['💊', '🏃', '💤'],
-    },
-    {
-      title: 'Wealth Nexus',
-      desc: 'Cashflow & Assets',
-      path: '/finance',
-      icon: '💎',
-      accentColor: '#10c7a1',
-      gradFrom: 'rgba(16,199,161,0.12)',
-      gradTo: 'transparent',
-      borderHover: '#10c7a1',
-      stat: 'Finance Score',
-      particles: ['📈', '💳', '🏦'],
-    },
-    {
-      title: 'Trajectory Forge',
-      desc: 'Focus & Momentum',
-      path: '/career',
-      icon: '🎯',
-      accentColor: '#7b61ff',
-      gradFrom: 'rgba(123,97,255,0.12)',
-      gradTo: 'transparent',
-      borderHover: '#7b61ff',
-      stat: 'Career Score',
-      particles: ['⚡', '🧠', '🚀'],
-    },
-  ];
+function FinanceChart({ insights, onOpen }) {
+  const [range, setRange] = useState('1M');
+  const [hovered, setHovered] = useState(null);
+  const chart = insights.financeRanges[range];
+  const finStyle = getVisualState(insights.thresholds.financial.colorState);
 
   return (
+    <motion.article whileHover={{ y: -3 }} onClick={onOpen} className="cursor-pointer rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 backdrop-blur-xl transition hover:border-white/18">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-white">Financial Trajectory</h3>
+          <p className={`text-xs mt-0.5 ${finStyle.text}`}>{chart.summary}</p>
+        </div>
+        <div className="flex gap-1 rounded-xl border border-white/10 bg-white/5 p-1">
+          {['1W', '1M'].map(r => (
+            <button key={r} onClick={e => { e.stopPropagation(); setRange(r); }} type="button"
+              className={`rounded-lg px-3 py-1 text-[10px] font-bold uppercase transition ${range === r ? 'bg-white/15 text-white' : 'text-white/35 hover:text-white/60'}`}>{r}</button>
+          ))}
+        </div>
+      </div>
+      <div className="relative h-48 overflow-hidden rounded-xl border border-white/5 bg-white/[0.01] px-4 pb-7 pt-4">
+        <div className="absolute inset-x-4 top-4 bottom-7 grid grid-rows-4">
+          {[0, 1, 2, 3].map(i => <div key={i} className="border-t border-white/[0.04]" />)}
+        </div>
+        <div className="absolute inset-x-4 bottom-7 top-4 flex items-end gap-2">
+          {chart.bars.map((h, i) => (
+            <div key={i} className="relative flex h-full flex-1 items-end" onMouseEnter={() => setHovered(i)} onMouseLeave={() => setHovered(null)}>
+              <div className="w-full rounded-t-lg transition-all duration-200"
+                style={{ height: `${h}%`, backgroundColor: finStyle.softStroke, opacity: hovered === i ? 0.9 : 0.35 + i * (0.5 / Math.max(chart.bars.length - 1, 1)), transform: hovered === i ? 'translateY(-2px)' : 'none' }} />
+            </div>
+          ))}
+        </div>
+        <svg className="pointer-events-none absolute inset-x-4 bottom-7 top-4" viewBox="0 0 368 140" preserveAspectRatio="none" style={{ height: 'calc(100% - 44px)', width: 'calc(100% - 32px)' }}>
+          <polyline points={chart.linePoints} fill="none" stroke={finStyle.stroke} strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" />
+          {chart.pointData.map((p, i) => <circle key={i} cx={p.x} cy={p.y} r="3.5" fill="#0a0e17" stroke={finStyle.stroke} strokeWidth="2.5" />)}
+        </svg>
+        <div className="absolute inset-x-4 bottom-2 flex justify-between text-[9px] font-bold uppercase tracking-widest text-white/30">
+          {chart.labels.map(l => <span key={l}>{l}</span>)}
+        </div>
+      </div>
+      <div className="mt-4 flex gap-6 border-t border-white/6 pt-4">
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/35 mb-1">Savings Rate</p>
+          <p className={`text-lg font-bold ${finStyle.text}`}>{insights.savingsRate}%</p>
+        </div>
+        <div>
+          <p className="text-[10px] font-bold uppercase tracking-widest text-white/35 mb-1">Monthly Buffer</p>
+          <p className={`text-lg font-bold ${getVisualState(insights.bufferState.colorState).text}`}>{insights.monthlyBuffer}</p>
+        </div>
+      </div>
+    </motion.article>
+  );
+}
+
+function AIInsightsPanel({ insights, navigate }) {
+  return (
+    <motion.article whileHover={{ y: -3 }} className="flex flex-col rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-5 backdrop-blur-xl">
+      <div className="mb-4 flex items-center justify-between">
+        <div>
+          <h3 className="text-base font-semibold text-white">AI Insights</h3>
+          <p className="text-[10px] font-medium uppercase tracking-widest text-white/35 mt-0.5">Live signal feed</p>
+        </div>
+        <button type="button" onClick={() => navigate('/intelligence')} className="flex items-center gap-1.5 rounded-xl border border-[#7b61ff]/25 bg-[#7b61ff]/10 px-3 py-1.5 text-[11px] font-bold text-[#7b61ff] transition hover:bg-[#7b61ff]/20">
+          <Brain className="h-3.5 w-3.5" /> Full Intelligence <ArrowUpRight className="h-3 w-3" />
+        </button>
+      </div>
+      <div className="flex flex-col gap-2.5 flex-1">
+        {insights.feed.map((item, i) => {
+          const state = getVisualState(item.colorState);
+          const isNeg = item.sentiment === 'negative';
+          return (
+            <motion.div key={i} whileHover={{ scale: 1.01 }} className={`rounded-xl border bg-white/[0.025] p-3.5 ${state.card}`}>
+              <div className="flex items-start justify-between gap-2 mb-2">
+                <span className={`rounded-lg px-2 py-0.5 text-[9px] font-bold uppercase tracking-widest ${state.badge}`}>{item.label}</span>
+                <span className="text-[9px] text-white/30 shrink-0">{item.time}</span>
+              </div>
+              <p className={`text-xs leading-5 ${isNeg ? state.text : 'text-white/75'}`}>{item.title}</p>
+            </motion.div>
+          );
+        })}
+      </div>
+      <div className="mt-4 rounded-xl border border-white/8 bg-white/[0.02] p-3.5">
+        <p className="mb-2 text-[9px] font-bold uppercase tracking-widest text-white/35">Weekly Alignment</p>
+        <div className="flex h-16 items-end gap-1">
+          {insights.alignmentBars.map((h, i) => {
+            const s = getVisualState(alignmentColorState(h));
+            return <div key={i} className="flex-1 rounded-t-sm" style={{ height: `${h}%`, backgroundColor: s.stroke, opacity: 0.45 + i * 0.1 }} />;
+          })}
+        </div>
+        <div className="mt-1.5 flex justify-between text-[9px] font-bold uppercase tracking-widest text-white/25">
+          <span>Mon</span><span>Today</span>
+        </div>
+      </div>
+    </motion.article>
+  );
+}
+
+function CommandPortals({ navigate }) {
+  const portals = [
+    { title: 'Vitality Chamber', desc: 'Biometrics & Recovery', path: '/health', icon: '🧬', color: '#ff4d7d', particles: ['💊', '🏃', '💤'] },
+    { title: 'Wealth Nexus', desc: 'Cashflow & Assets', path: '/finance', icon: '💎', color: '#10c7a1', particles: ['📈', '💳', '🏦'] },
+    { title: 'Trajectory Forge', desc: 'Focus & Momentum', path: '/career', icon: '🎯', color: '#7b61ff', particles: ['⚡', '🧠', '🚀'] },
+  ];
+  return (
     <section>
-      <div className="mb-4 flex items-center gap-3">
-        <h2 className="text-lg font-semibold text-white">Command Center</h2>
+      <div className="mb-3.5 flex items-center gap-3">
+        <h2 className="text-base font-semibold text-white">Command Center</h2>
         <div className="h-px flex-1 bg-gradient-to-r from-white/10 to-transparent" />
       </div>
-      <div className="grid grid-cols-1 gap-5 md:grid-cols-3">
-        {portals.map((p) => (
-          <PortalCard key={p.title} portal={p} navigate={navigate} />
-        ))}
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {portals.map(p => <PortalCard key={p.title} portal={p} navigate={navigate} />)}
       </div>
     </section>
   );
 }
 
 function PortalCard({ portal: p, navigate }) {
-  const [isHovered, setIsHovered] = useState(false);
-  const [mousePos, setMousePos] = useState({ x: 0, y: 0 });
-  const cardRef = useRef(null);
-
-  const handleMouseMove = (e) => {
-    if (!cardRef.current) return;
-    const rect = cardRef.current.getBoundingClientRect();
-    setMousePos({ x: e.clientX - rect.left, y: e.clientY - rect.top });
-  };
-
+  const [hovered, setHovered] = useState(false);
   return (
-    <motion.div
-      ref={cardRef}
-      onClick={() => navigate(p.path)}
-      onMouseEnter={() => setIsHovered(true)}
-      onMouseLeave={() => setIsHovered(false)}
-      onMouseMove={handleMouseMove}
-      whileHover={{ y: -8, scale: 1.02 }}
-      transition={{ type: 'spring', stiffness: 300, damping: 22 }}
-      className="group relative cursor-pointer overflow-hidden rounded-[2rem] border border-white/10 bg-white/[0.02] p-7 backdrop-blur-xl"
-      style={{
-        borderColor: isHovered ? `${p.accentColor}50` : 'rgba(255,255,255,0.1)',
-        boxShadow: isHovered ? `0 0 40px ${p.accentColor}18, 0 20px 60px -20px rgba(0,0,0,0.6)` : '0 10px 40px -15px rgba(0,0,0,0.5)',
-        transition: 'border-color 0.3s ease, box-shadow 0.3s ease',
-      }}
-    >
-      {/* Spotlight effect on hover */}
-      <AnimatePresence>
-        {isHovered && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            exit={{ opacity: 0 }}
-            className="pointer-events-none absolute inset-0"
-            style={{
-              background: `radial-gradient(160px circle at ${mousePos.x}px ${mousePos.y}px, ${p.accentColor}14, transparent 65%)`,
-            }}
-          />
-        )}
-      </AnimatePresence>
-
-      {/* Base gradient */}
-      <div
-        className="absolute inset-0 transition-opacity duration-300"
-        style={{
-          background: `radial-gradient(ellipse at top left, ${p.gradFrom}, ${p.gradTo})`,
-          opacity: isHovered ? 0.7 : 0.35,
-        }}
-      />
-
-      {/* Animated corner glow */}
-      <motion.div
-        className="absolute -right-6 -top-6 h-24 w-24 rounded-full blur-2xl"
-        style={{ backgroundColor: p.accentColor }}
-        animate={{ opacity: isHovered ? 0.18 : 0.06, scale: isHovered ? 1.3 : 1 }}
-        transition={{ duration: 0.4 }}
-      />
-
-      <div className="relative z-10">
-        {/* Header */}
-        <div className="flex items-start justify-between">
+    <motion.div onClick={() => navigate(p.path)} onMouseEnter={() => setHovered(true)} onMouseLeave={() => setHovered(false)} whileHover={{ y: -6, scale: 1.02 }} transition={{ type: 'spring', stiffness: 280, damping: 22 }}
+      className="group cursor-pointer overflow-hidden rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-6 backdrop-blur-xl" style={{ borderColor: hovered ? `${p.color}40` : undefined, boxShadow: hovered ? `0 0 32px ${p.color}12` : undefined, transition: 'border-color 0.3s, box-shadow 0.3s' }}>
+      <div className="absolute -right-4 -top-4 h-20 w-20 rounded-full blur-2xl transition-all duration-400" style={{ backgroundColor: p.color, opacity: hovered ? 0.14 : 0.05 }} />
+      <div className="relative">
+        <div className="flex items-start justify-between mb-5">
           <div>
-            <p className="text-[10px] font-bold uppercase tracking-[0.22em] text-white/45">{p.desc}</p>
-            <h3 className="mt-1.5 text-2xl font-bold tracking-tight text-white">{p.title}</h3>
+            <p className="text-[9px] font-bold uppercase tracking-[0.22em] text-white/35">{p.desc}</p>
+            <h3 className="mt-1 text-xl font-bold text-white">{p.title}</h3>
           </div>
-          <motion.div
-            className="flex h-14 w-14 items-center justify-center rounded-2xl border border-white/10 bg-white/5 text-2xl shadow-lg"
-            animate={{ rotate: isHovered ? 8 : 0, scale: isHovered ? 1.1 : 1 }}
-            transition={{ type: 'spring', stiffness: 300, damping: 18 }}
-            style={{ boxShadow: isHovered ? `0 0 20px ${p.accentColor}40` : 'none' }}
-          >
-            {p.icon}
-          </motion.div>
+          <motion.div animate={{ rotate: hovered ? 8 : 0, scale: hovered ? 1.08 : 1 }} transition={{ type: 'spring', stiffness: 280 }} className="flex h-12 w-12 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-xl" style={{ boxShadow: hovered ? `0 0 16px ${p.color}35` : undefined }}>{p.icon}</motion.div>
         </div>
-
-        {/* Particle row */}
-        <div className="mt-5 flex gap-2">
-          {p.particles.map((particle, i) => (
-            <motion.span
-              key={i}
-              className="flex h-8 w-8 items-center justify-center rounded-xl border border-white/8 bg-white/[0.03] text-sm"
-              animate={{ y: isHovered ? [0, -3, 0] : 0 }}
-              transition={{ duration: 0.5, delay: i * 0.08, repeat: isHovered ? Infinity : 0, repeatType: 'reverse' }}
-            >
-              {particle}
-            </motion.span>
-          ))}
+        <div className="flex gap-1.5 mb-5">
+          {p.particles.map((part, i) => <motion.span key={i} animate={{ y: hovered ? [0, -3, 0] : 0 }} transition={{ duration: 0.5, delay: i * 0.08, repeat: hovered ? Infinity : 0, repeatType: 'reverse' }} className="flex h-7 w-7 items-center justify-center rounded-lg border border-white/8 bg-white/[0.03] text-xs">{part}</motion.span>)}
         </div>
-
-        {/* Footer CTA */}
-        <motion.div
-          className="mt-6 flex items-center gap-2 text-sm font-semibold"
-          style={{ color: p.accentColor }}
-          animate={{ x: isHovered ? 4 : 0 }}
-          transition={{ type: 'spring', stiffness: 300, damping: 20 }}
-        >
-          Enter Portal
-          <motion.div animate={{ x: isHovered ? 4 : 0 }} transition={{ type: 'spring', stiffness: 300, damping: 20 }}>
-            <ChevronRight className="h-4 w-4" />
-          </motion.div>
-        </motion.div>
+        <div className="flex items-center gap-1.5 text-sm font-semibold transition-all" style={{ color: p.color }}>
+          Enter Portal <motion.div animate={{ x: hovered ? 4 : 0 }}><ChevronRight className="h-4 w-4" /></motion.div>
+        </div>
       </div>
     </motion.div>
   );
@@ -1126,242 +1001,80 @@ function PortalCard({ portal: p, navigate }) {
 
 function AdaptiveRecommendations({ insights }) {
   return (
-    <section className="relative w-full overflow-hidden rounded-[2rem] border border-white/10 bg-[#0a0e17]/80 p-6 sm:p-8 shadow-lg backdrop-blur-2xl">
-      <div className="relative z-10">
-        <div className="mb-6 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-          <h2 className="text-2xl font-semibold text-white">Adaptive Recommendations</h2>
-          <div className="flex w-fit items-center gap-2 rounded-full border border-[#10c7a1]/30 bg-[#10c7a1]/10 px-4 py-1.5 shadow-[0_0_15px_rgba(16,199,161,0.15)]">
-            <span className="h-2 w-2 animate-pulse rounded-full bg-[#10c7a1]" />
-            <span className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#10c7a1]">Deep Sync Active</span>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 gap-6 md:grid-cols-3">
-          {insights.recommendations.slice(0, 3).map((item) => {
-            const state = getVisualState(item.colorState);
-            return (
-              <motion.article key={item.title} whileHover={{ y: -4, scale: 1.02 }} className={`relative overflow-hidden rounded-[1.5rem] border bg-white/[0.02] p-0 backdrop-blur transition-colors ${state.card}`}>
-                <div className="relative z-10 border-b border-white/5 px-6 py-5 bg-white/[0.02]">
-                  <div className="flex items-center justify-between">
-                    <h4 className={`text-sm font-bold ${state.text}`}>{item.title}</h4>
-                    <div className={`flex h-10 w-10 items-center justify-center rounded-xl shadow-inner ${state.icon}`}>
-                      {item.icon ? <item.icon className="h-4 w-4" /> : '•'}
-                    </div>
-                  </div>
-                </div>
-                <div className="relative z-10 px-6 py-5">
-                  <p className="text-sm leading-6 text-white/60">{item.detail}</p>
-                </div>
-              </motion.article>
-            );
-          })}
+    <section className="relative overflow-hidden rounded-[1.5rem] border border-white/10 bg-[#0a0e18]/80 p-5 sm:p-6 backdrop-blur-2xl">
+      <div className="mb-5 flex items-center justify-between gap-4">
+        <h2 className="text-base font-semibold text-white">Adaptive Recommendations</h2>
+        <div className="flex items-center gap-2 rounded-xl border border-[#10c7a1]/20 bg-[#10c7a1]/8 px-3 py-1.5">
+          <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-[#10c7a1]" />
+          <span className="text-[9px] font-bold uppercase tracking-widest text-[#10c7a1]">Deep Sync Active</span>
         </div>
       </div>
-      <div className="pointer-events-none absolute -bottom-16 -right-12 h-52 w-52 rounded-full bg-[#7b61ff]/10 blur-3xl" />
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
+        {insights.recommendations.slice(0, 3).map(item => {
+          const s = getVisualState(item.colorState);
+          return (
+            <motion.div key={item.title} whileHover={{ y: -3, scale: 1.01 }} className={`overflow-hidden rounded-xl border bg-white/[0.025] ${s.card}`}>
+              <div className="flex items-center justify-between border-b border-white/5 px-5 py-4">
+                <h4 className={`text-sm font-semibold ${s.text}`}>{item.title}</h4>
+                <div className={`flex h-9 w-9 items-center justify-center rounded-lg ${s.icon}`}>{item.icon && <item.icon className="h-4 w-4" />}</div>
+              </div>
+              <div className="px-5 py-4">
+                <p className="text-xs leading-5.5 text-white/55">{item.detail}</p>
+              </div>
+            </motion.div>
+          );
+        })}
+      </div>
+      <div className="pointer-events-none absolute -bottom-12 -right-8 h-40 w-40 rounded-full bg-[#7b61ff]/8 blur-3xl" />
     </section>
   );
 }
 
-function AiFeed({ insights }) {
-  const sectorReminders = [
-    { emoji: '💧', title: 'Drink your water', detail: `${Math.max(2, 8 - Math.round(insights.stressLevel / 2))} glasses left today`, tone: 'health' },
-    { emoji: '📘', title: 'Course left', detail: `${Math.max(1, Math.ceil((100 - insights.productivityScore) / 12))} lessons left to finish`, tone: 'career' },
-    { emoji: '💸', title: 'Save this month', detail: `Set aside ${formatMoney(Math.max(0, Math.round((insights.monthlyBufferValue || 0) * 0.2)))}`, tone: 'finance' },
-  ];
-
-  return (
-    <aside className="hidden xl:flex h-screen w-80 shrink-0 flex-col overflow-hidden border-l border-white/10 bg-[#070a10]/50 backdrop-blur-xl">
-      <div className="flex h-[73px] shrink-0 items-center border-b border-white/10 px-6 bg-[#070a10]/80">
-        <Sparkles className="mr-3 h-5 w-5 text-[#c8a84b]" />
-        <h3 className="text-lg font-semibold text-white">AI Insight</h3>
-      </div>
-
-      <div className="dashboard-scrollbar flex-1 space-y-6 overflow-y-auto p-5">
-        <section className="space-y-4">
-          {insights.feed.map((item) => {
-            const state = getVisualState(item.colorState);
-            const isHarmful = item.sentiment === 'negative' || normalizeColorState(item.colorState) === 'red';
-            const textState = isHarmful ? getVisualState('red') : state;
-            return (
-              <motion.article key={item.title} whileHover={{ scale: 1.02 }} className={`space-y-3 rounded-[1.2rem] border bg-white/[0.03] p-4 shadow-lg backdrop-blur-md transition-colors ${state.card}`}>
-                <div className="flex items-start justify-between">
-                  <span className={`rounded-full px-2.5 py-0.5 text-[9px] font-bold uppercase tracking-wider ${state.badge}`}>{item.label}</span>
-                  <span className="text-[10px] font-medium text-white/40">{item.time}</span>
-                </div>
-                <p className={`text-sm font-medium leading-6 ${isHarmful ? textState.text : 'text-white/90'}`}>{item.title}</p>
-              </motion.article>
-            );
-          })}
-        </section>
-
-        <section>
-          <h4 className="mb-4 text-[10px] font-bold uppercase tracking-[0.2em] text-white/50">Historical Alignment</h4>
-          <div className="rounded-[1.2rem] border border-white/10 bg-white/[0.02] p-4 backdrop-blur-md">
-            <div className="flex h-24 items-end gap-1 px-1">
-              {insights.alignmentBars.map((height, index) => {
-                const state = getVisualState(alignmentColorState(height));
-                return (
-                  <div key={`${height}-${index}`} className="flex-1 rounded-t-sm transition-all hover:opacity-100"
-                    style={{ height: `${height}%`, backgroundColor: state.stroke, opacity: 0.4 + index * 0.1, boxShadow: `0 0 10px ${state.softStroke}` }}
-                  />
-                );
-              })}
-            </div>
-            <div className="mt-3 flex justify-between text-[9px] font-bold uppercase tracking-[0.14em] text-white/40">
-              <span>Mon</span><span>Today</span>
-            </div>
-          </div>
-
-          <div className="mt-4 grid gap-3">
-            {sectorReminders.map((item, index) => (
-              <motion.div
-                key={item.title}
-                animate={{ y: [0, index % 2 === 0 ? -2 : 2, 0] }}
-                transition={{ duration: 4.2 + index * 0.5, repeat: Infinity, ease: 'easeInOut' }}
-                className={`rounded-[1.1rem] border border-white/10 bg-white/[0.03] p-3 ${item.tone === 'health' ? 'shadow-[0_0_0_1px_rgba(16,199,161,0.08)]' : item.tone === 'finance' ? 'shadow-[0_0_0_1px_rgba(212,175,55,0.08)]' : 'shadow-[0_0_0_1px_rgba(123,97,255,0.08)]'}`}
-              >
-                <div className="flex items-start gap-3">
-                  <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-lg">{item.emoji}</div>
-                  <div className="min-w-0">
-                    <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-white/45">{item.title}</p>
-                    <p className="mt-1 text-sm leading-5 text-white/70">{item.detail}</p>
-                  </div>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-        </section>
-      </div>
-    </aside>
-  );
+// ─── Utility Functions ────────────────────────────────────────────────────────
+// [All existing utility functions remain identical]
+function colorStateToHex(state) {
+  const n = normalizeColorState(state);
+  return n === 'green' ? '#10c7a1' : n === 'orange' ? '#c8a84b' : '#ff4d7d';
 }
-
-// ==========================================
-// Sub-components
-// ==========================================
-function MiniMetric({ label, value, state = getVisualState('green') }) {
-  return (
-    <div className={`rounded-[1.2rem] p-3.5 transition-colors ${state.surface}`}>
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className={`text-lg font-bold ${state.text}`}>{value}</p>
-    </div>
-  );
+function colorStateToBg(state) {
+  const n = normalizeColorState(state);
+  return n === 'green' ? 'rgba(16,199,161,0.08)' : n === 'orange' ? 'rgba(200,168,75,0.08)' : 'rgba(255,77,125,0.08)';
 }
-
-function AnimatedMetricBlock({ label, value, state = null, suffix = '', formatter = null, fallback = '' }) {
-  const numericValue = Number(value);
-  const hasValue = Number.isFinite(numericValue);
-  const [displayValue, setDisplayValue] = useState(hasValue ? 0 : value);
-
-  useEffect(() => {
-    if (!hasValue) { setDisplayValue(value || fallback); return; }
-    const duration = 850;
-    const startTime = performance.now();
-    const tick = (timestamp) => {
-      const progress = Math.min((timestamp - startTime) / duration, 1);
-      const easedProgress = 1 - Math.pow(1 - progress, 3);
-      setDisplayValue(Math.round(numericValue * easedProgress));
-      if (progress < 1) requestAnimationFrame(tick);
-    };
-    setDisplayValue(0);
-    requestAnimationFrame(tick);
-  }, [fallback, hasValue, numericValue, value]);
-
-  const renderedValue = hasValue ? `${formatter ? formatter(displayValue) : displayValue}${suffix}` : displayValue || fallback;
-
-  return (
-    <div>
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.12em] text-white/50">{label}</p>
-      <p className={`text-xl font-bold ${state ? state.text : 'text-white'}`}>{renderedValue}</p>
-    </div>
-  );
-}
-
-function RadarLabel({ label, className }) {
-  return <span className={`absolute text-[9px] font-bold uppercase tracking-[0.16em] text-white/50 ${className}`}>{label}</span>;
-}
-
-// ==========================================
-// Data Utilities
-// ==========================================
 function getVisualState(colorState = 'green') {
-  const normalizedColorState = normalizeColorState(colorState);
+  const n = normalizeColorState(colorState);
   const states = {
-    green: {
-      label: 'Healthy', stroke: '#10c7a1', softStroke: 'rgba(16,199,161,0.2)', glowColor: 'rgba(16,199,161,0.2)',
-      text: 'text-[#10c7a1]', card: 'border-white/10 hover:border-[#10c7a1]/40',
-      icon: 'bg-[#10c7a1]/10 text-[#10c7a1] border border-[#10c7a1]/20',
-      badge: 'bg-[#10c7a1]/10 text-[#10c7a1] border border-[#10c7a1]/20',
-      surface: 'bg-[#10c7a1]/5 border border-[#10c7a1]/10',
-    },
-    orange: {
-      label: 'Warning', stroke: '#c8a84b', softStroke: 'rgba(200,168,75,0.2)', glowColor: 'rgba(200,168,75,0.2)',
-      text: 'text-[#c8a84b]', card: 'border-white/10 hover:border-[#c8a84b]/40',
-      icon: 'bg-[#c8a84b]/10 text-[#c8a84b] border border-[#c8a84b]/20',
-      badge: 'bg-[#c8a84b]/10 text-[#c8a84b] border border-[#c8a84b]/20',
-      surface: 'bg-[#c8a84b]/5 border border-[#c8a84b]/10',
-    },
-    red: {
-      label: 'Critical', stroke: '#ff4d7d', softStroke: 'rgba(255,77,125,0.2)', glowColor: 'rgba(255,77,125,0.2)',
-      text: 'text-[#ff4d7d]', card: 'border-white/10 hover:border-[#ff4d7d]/40',
-      icon: 'bg-[#ff4d7d]/10 text-[#ff4d7d] border border-[#ff4d7d]/20',
-      badge: 'bg-[#ff4d7d]/10 text-[#ff4d7d] border border-[#ff4d7d]/20',
-      surface: 'bg-[#ff4d7d]/5 border border-[#ff4d7d]/10',
-    },
+    green: { label: 'Healthy', stroke: '#10c7a1', softStroke: 'rgba(16,199,161,0.35)', glowColor: 'rgba(16,199,161,0.2)', text: 'text-[#10c7a1]', card: 'border-white/8 hover:border-[#10c7a1]/30', icon: 'bg-[#10c7a1]/10 text-[#10c7a1] border border-[#10c7a1]/20', badge: 'bg-[#10c7a1]/10 text-[#10c7a1] border border-[#10c7a1]/20', surface: 'bg-[#10c7a1]/5 border border-[#10c7a1]/10' },
+    orange: { label: 'Warning', stroke: '#c8a84b', softStroke: 'rgba(200,168,75,0.35)', glowColor: 'rgba(200,168,75,0.2)', text: 'text-[#c8a84b]', card: 'border-white/8 hover:border-[#c8a84b]/30', icon: 'bg-[#c8a84b]/10 text-[#c8a84b] border border-[#c8a84b]/20', badge: 'bg-[#c8a84b]/10 text-[#c8a84b] border border-[#c8a84b]/20', surface: 'bg-[#c8a84b]/5 border border-[#c8a84b]/10' },
+    red: { label: 'Critical', stroke: '#ff4d7d', softStroke: 'rgba(255,77,125,0.35)', glowColor: 'rgba(255,77,125,0.2)', text: 'text-[#ff4d7d]', card: 'border-white/8 hover:border-[#ff4d7d]/30', icon: 'bg-[#ff4d7d]/10 text-[#ff4d7d] border border-[#ff4d7d]/20', badge: 'bg-[#ff4d7d]/10 text-[#ff4d7d] border border-[#ff4d7d]/20', surface: 'bg-[#ff4d7d]/5 border border-[#ff4d7d]/10' },
   };
-  return states[normalizedColorState] || states.green;
+  return states[n] || states.green;
 }
-
-function getStoredProfile() {
-  try { return localStorage.getItem('lifetwinOnboardingProfile') ? JSON.parse(localStorage.getItem('lifetwinOnboardingProfile')) : fallbackProfile; }
-  catch { return fallbackProfile; }
+function normalizeColorState(cs = 'green') {
+  const m = { healthy: 'green', warning: 'orange', danger: 'red', critical: 'red' };
+  return m[cs] || cs || 'green';
 }
+function alignmentColorState(v) { return v <= 33 ? 'red' : v <= 66 ? 'orange' : 'green'; }
 
-function getStoredDashboardData() {
-  try { return localStorage.getItem('digitalTwinDashboardData') ? JSON.parse(localStorage.getItem('digitalTwinDashboardData')) : null; }
-  catch { return null; }
-}
+function getStoredProfile() { try { const s = localStorage.getItem('lifetwinOnboardingProfile'); return s ? JSON.parse(s) : fallbackProfile; } catch { return fallbackProfile; } }
+function getStoredDashboardData() { try { const s = localStorage.getItem('digitalTwinDashboardData'); return s ? JSON.parse(s) : null; } catch { return null; } }
+function getStoredUser() { try { const s = localStorage.getItem('user'); return s ? JSON.parse(s) : null; } catch { return null; } }
 
-function getStoredUser() {
-  try { return localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')) : null; }
-  catch { return null; }
-}
-
-function normalizeProfile(rawProfile) {
-  if (!rawProfile) return fallbackProfile;
-  if (rawProfile.lifestyle && rawProfile.financialPatterns) return rawProfile;
+function normalizeProfile(r) {
+  if (!r) return fallbackProfile;
+  if (r.lifestyle && r.financialPatterns) return r;
   return {
-    behavioralAnalysis: { focusAreas: rawProfile.selectedSignals || [] },
+    behavioralAnalysis: { focusAreas: r.selectedSignals || [] },
     integrations: {
-      github: { status: rawProfile.githubUsername ? 'connected' : 'skipped', username: rawProfile.githubUsername || '' },
-      leetcode: { status: rawProfile.leetcodeUsername ? 'connected' : 'skipped', username: rawProfile.leetcodeUsername || '' },
-      fitbit: { status: rawProfile.fitbitProfile ? 'connected' : 'skipped', profileLink: rawProfile.fitbitProfile || '' },
-      googleCalendar: { status: rawProfile.calendarProfile ? 'connected' : 'skipped', profileLink: rawProfile.calendarProfile || '' },
-      linkedin: { status: rawProfile.linkedinProfile ? 'connected' : 'skipped', profileLink: rawProfile.linkedinProfile || '' },
-      banking: { status: rawProfile.bankingProfile ? 'connected' : 'skipped', profileLink: rawProfile.bankingProfile || '' },
+      github: { status: r.githubUsername ? 'connected' : 'skipped', username: r.githubUsername || '' },
+      leetcode: { status: r.leetcodeUsername ? 'connected' : 'skipped', username: r.leetcodeUsername || '' },
+      fitbit: { status: r.fitbitProfile ? 'connected' : 'skipped', profileLink: r.fitbitProfile || '' },
+      googleCalendar: { status: r.calendarProfile ? 'connected' : 'skipped', profileLink: r.calendarProfile || '' },
+      linkedin: { status: r.linkedinProfile ? 'connected' : 'skipped', profileLink: r.linkedinProfile || '' },
+      banking: { status: r.bankingProfile ? 'connected' : 'skipped', profileLink: r.bankingProfile || '' },
     },
-    lifestyle: {
-      gender: rawProfile.gender || '',
-      sleepHours: rawProfile.sleepHours ?? 7,
-      studyHours: rawProfile.studyHours ?? 4,
-      exerciseFrequency: rawProfile.exerciseFrequency ?? 2,
-      spendingStyle: rawProfile.spendingStyle || 'balanced',
-      smokingHabits: rawProfile.smokingHabit || 'no',
-      periodTracking: rawProfile.periodTracking || 'not_now',
-      genderSpecificHealthContext: rawProfile.genderSpecificHealthContext || 'not_now',
-    },
-    financialPatterns: {
-      monthlyIncome: rawProfile.monthlyIncome ?? 0,
-      monthlyExpenditure: rawProfile.monthlyExpenditure ?? 0,
-      savingsHabits: rawProfile.savingsHabit || 'moderate',
-      financialStressLevel: rawProfile.financialStressLevel ?? 5,
-    },
-    aiScores: {
-      burnoutRisk: rawProfile.burnoutRisk,
-      productivityScore: rawProfile.productivityScore,
-      financialHealth: rawProfile.financialHealth,
-      wellnessBalance: rawProfile.wellnessBalance,
-    },
+    lifestyle: { gender: r.gender || '', sleepHours: r.sleepHours ?? 7, studyHours: r.studyHours ?? 4, exerciseFrequency: r.exerciseFrequency ?? 2, spendingStyle: r.spendingStyle || 'balanced', smokingHabits: r.smokingHabit || 'no', periodTracking: r.periodTracking || 'not_now', genderSpecificHealthContext: r.genderSpecificHealthContext || 'not_now' },
+    financialPatterns: { monthlyIncome: r.monthlyIncome ?? 0, monthlyExpenditure: r.monthlyExpenditure ?? 0, savingsHabits: r.savingsHabit || 'moderate', financialStressLevel: r.financialStressLevel ?? 5 },
+    aiScores: { burnoutRisk: r.burnoutRisk, productivityScore: r.productivityScore, financialHealth: r.financialHealth, wellnessBalance: r.wellnessBalance },
   };
 }
 
@@ -1374,28 +1087,29 @@ function buildInsights(profile, dashboardData = null) {
   const expenditure = Number(profile.financialPatterns.monthlyExpenditure || 0);
   const rawSavingsRate = income > 0 ? Math.round(((income - expenditure) / income) * 100) : 0;
   const savingsRate = income > 0 ? Math.max(0, rawSavingsRate) : 28;
-  const connectedCount = Object.values(profile.integrations || {}).filter((item) => item.status === 'connected').length;
+  const connectedCount = Object.values(profile.integrations || {}).filter(i => i.status === 'connected').length;
   const monthlyBufferValue = income > 0 ? income - expenditure : null;
   const monthlyBuffer = monthlyBufferValue !== null ? formatMoney(monthlyBufferValue) : 'Add data';
   const hasGithub = profile.integrations?.github?.status === 'connected';
   const hasLeetcode = profile.integrations?.leetcode?.status === 'connected';
   const smokingHabit = profile.lifestyle.smokingHabits || 'no';
   const gender = profile.lifestyle.gender || '';
-  const genderThresholds = getGenderThresholds(gender);
-  const periodRecoveryLoad = gender === 'female' && profile.lifestyle.periodTracking === 'irregular' ? 5 : 0;
-  const maleRecoveryCredit = gender === 'male' && profile.lifestyle.genderSpecificHealthContext !== 'not_now' && exerciseFrequency >= 3 ? 3 : 0;
+  const gt = getGenderThresholds(gender);
+  const periodLoad = gender === 'female' && profile.lifestyle.periodTracking === 'irregular' ? 5 : 0;
+  const maleCredit = gender === 'male' && profile.lifestyle.genderSpecificHealthContext !== 'not_now' && exerciseFrequency >= 3 ? 3 : 0;
 
-  const calculatedBurnout = clamp(Math.round(42 + Math.max(0, genderThresholds.idealSleepHours - sleepHours) * 8 + Math.max(0, studyHours - genderThresholds.heavyStudyHours) * 5 + stressLevel * 2 - exerciseFrequency * 3 + (smokingHabit === 'yes' ? 8 : 0) + periodRecoveryLoad - maleRecoveryCredit), 18, 95);
-  const calculatedProductivity = clamp(Math.round(58 + studyHours * 5 + connectedCount * 3 + (hasGithub ? 4 : 0) + (hasLeetcode ? 3 : 0) - Math.max(0, genderThresholds.idealSleepHours - sleepHours) * 3 - Math.max(0, stressLevel - 6) * 3), 30, 98);
-  const calculatedRecovery = clamp(Math.round(54 + sleepHours * 4 + exerciseFrequency * genderThresholds.exerciseWeight - stressLevel * 3 - (smokingHabit === 'yes' ? 10 : 0) - periodRecoveryLoad), 18, 96);
-  const calculatedFinance = clamp(Math.round(50 + rawSavingsRate * 0.8 - stressLevel * 2 - (expenditure > income && income > 0 ? 18 : 0)), 8, 98);
+  const calcBurnout = clamp(Math.round(42 + Math.max(0, gt.idealSleepHours - sleepHours) * 8 + Math.max(0, studyHours - gt.heavyStudyHours) * 5 + stressLevel * 2 - exerciseFrequency * 3 + (smokingHabit === 'yes' ? 8 : 0) + periodLoad - maleCredit), 18, 95);
+  const calcProductivity = clamp(Math.round(58 + studyHours * 5 + connectedCount * 3 + (hasGithub ? 4 : 0) + (hasLeetcode ? 3 : 0) - Math.max(0, gt.idealSleepHours - sleepHours) * 3 - Math.max(0, stressLevel - 6) * 3), 30, 98);
+  const calcRecovery = clamp(Math.round(54 + sleepHours * 4 + exerciseFrequency * gt.exerciseWeight - stressLevel * 3 - (smokingHabit === 'yes' ? 10 : 0) - periodLoad), 18, 96);
+  const calcFinance = clamp(Math.round(50 + rawSavingsRate * 0.8 - stressLevel * 2 - (expenditure > income && income > 0 ? 18 : 0)), 8, 98);
 
   const analytics = dashboardData?.analytics || profile.aiScores || {};
-  const burnoutRisk = clamp(Number.isFinite(Number(analytics.burnoutRisk)) ? Number(analytics.burnoutRisk) : calculatedBurnout, 0, 100);
-  const productivityScore = clamp(Number.isFinite(Number(analytics.productivityScore)) ? Number(analytics.productivityScore) : calculatedProductivity, 0, 100);
-  const recoveryScore = clamp(Number.isFinite(Number(analytics.wellnessBalance)) ? Number(analytics.wellnessBalance) : calculatedRecovery, 0, 100);
-  const financeScore = clamp(Number.isFinite(Number(analytics.financialHealth)) ? Number(analytics.financialHealth) : calculatedFinance, 0, 100);
+  const burnoutRisk = clamp(Number.isFinite(Number(analytics.burnoutRisk)) ? Number(analytics.burnoutRisk) : calcBurnout, 0, 100);
+  const productivityScore = clamp(Number.isFinite(Number(analytics.productivityScore)) ? Number(analytics.productivityScore) : calcProductivity, 0, 100);
+  const recoveryScore = clamp(Number.isFinite(Number(analytics.wellnessBalance)) ? Number(analytics.wellnessBalance) : calcRecovery, 0, 100);
+  const financeScore = clamp(Number.isFinite(Number(analytics.financialHealth)) ? Number(analytics.financialHealth) : calcFinance, 0, 100);
   const healthScore = clamp(Math.round((100 - burnoutRisk) * 0.35 + recoveryScore * 0.65), 35, 96);
+
   const thresholds = normalizeThresholds(dashboardData?.thresholds || analytics.thresholds, { sleepHours, stressLevel, burnoutRisk, financeScore, recoveryScore, productivityScore, income, expenditure, gender });
   const healthState = deriveHealthState({ healthScore, burnoutState: thresholds.burnout, wellnessState: thresholds.wellness });
   const metricStates = dashboardData?.metricStates || dashboardData?.analytics?.metricStates || {};
@@ -1408,8 +1122,6 @@ function buildInsights(profile, dashboardData = null) {
 
   return {
     burnoutRisk, productivityScore, recoveryScore, financeScore, healthScore, sleepHours, studyHours, exerciseFrequency, stressLevel, streak, thresholds, healthState, savingsState, bufferState, savingsRate, monthlyBufferValue, monthlyBuffer,
-    financeTrend: rawSavingsRate < 0 ? '-3.8% spending pressure' : rawSavingsRate > 25 ? '+2.4% growth' : '+0.6% stabilizing',
-    financeTone: rawSavingsRate < 0 ? '#ff4d7d' : '#10c7a1',
     financeRanges,
     alignmentBars: buildAlignmentBars({ sleepHours, studyHours, exerciseFrequency, stressLevel, rawSavingsRate, healthScore, financeScore, productivityScore, recoveryScore, burnoutRisk, hasGithub, hasLeetcode }),
     alignmentLabel: burnoutRisk > 70 ? 'active recovery mode' : rawSavingsRate < 0 ? 'financial caution mode' : 'optimal alignment',
@@ -1417,27 +1129,18 @@ function buildInsights(profile, dashboardData = null) {
   };
 }
 
-function normalizeRecommendations(apiRecommendations, context) {
-  const source = mergeByTitle([...buildFallbackRecommendations(context), ...(Array.isArray(apiRecommendations) ? apiRecommendations : [])]);
-  return source.map((item, index) => ({
-    title: item.title,
-    detail: item.detail || item.message || 'Personalized from your latest onboarding signals.',
-    icon: iconForCategory(item.category || item.title),
-    severity: item.severity || 'low',
-    colorState: normalizeColorState(item.colorState || colorStateFromSeverity(item.severity)),
-    originalIndex: index,
-  })).sort((first, second) => recommendationPriority(second) - recommendationPriority(first) || first.originalIndex - second.originalIndex).slice(0, 3);
+function normalizeRecommendations(api, ctx) {
+  const src = mergeByTitle([...buildFallbackRecommendations(ctx), ...(Array.isArray(api) ? api : [])]);
+  return src.map((item, i) => ({ title: item.title, detail: item.detail || item.message || 'Personalized from your latest onboarding signals.', icon: iconForCategory(item.category || item.title), severity: item.severity || 'low', colorState: normalizeColorState(item.colorState || colorStateFromSeverity(item.severity)), originalIndex: i })).sort((a, b) => recommendationPriority(b) - recommendationPriority(a) || a.originalIndex - b.originalIndex).slice(0, 3);
 }
 
 function buildFallbackRecommendations({ sleepHours, studyHours, savingsRate, rawSavingsRate, burnoutRisk, stressLevel, exerciseFrequency, smokingHabit, hasGithub, hasLeetcode }) {
   const items = [];
-  const lowSleepHighStudy = sleepHours < 5 && studyHours > 8;
-  const highExerciseLowStress = exerciseFrequency >= 4 && stressLevel <= 3;
-  if (lowSleepHighStudy) items.push({ title: 'Prioritize 7+ hours of sleep', detail: 'Protect the next 3 nights with an earlier wind-down window.', category: 'wellness', severity: 'high', colorState: 'red' });
+  if (sleepHours < 5 && studyHours > 8) items.push({ title: 'Prioritize 7+ hours of sleep', detail: 'Protect the next 3 nights with an earlier wind-down window.', category: 'wellness', severity: 'high', colorState: 'red' });
   else if (sleepHours < 7) items.push({ title: 'Early Recharge', detail: 'Move bedtime 45 minutes earlier to improve tomorrow recovery.', category: 'wellness', severity: 'medium', colorState: 'orange' });
-  else if (highExerciseLowStress) items.push({ title: 'Maintain current health rhythm', detail: 'Keep the same workout cadence for the next week.', category: 'health', severity: 'low', colorState: 'green' });
+  else if (exerciseFrequency >= 4 && stressLevel <= 3) items.push({ title: 'Maintain current health rhythm', detail: 'Keep the same workout cadence for the next week.', category: 'health', severity: 'low', colorState: 'green' });
   if (rawSavingsRate < 0) items.push({ title: 'Reduce discretionary spending this week', detail: 'Pause flexible purchases and review recurring expenses.', category: 'finance', severity: 'high', colorState: 'red' });
-  else if (savingsRate > 25) items.push({ title: 'Increase long-term savings allocation', detail: 'Move a small surplus into savings while income stays ahead of expenditure.', category: 'finance', severity: 'low', colorState: 'green' });
+  else if (savingsRate > 25) items.push({ title: 'Increase long-term savings allocation', detail: 'Move a small surplus into savings while income stays ahead.', category: 'finance', severity: 'low', colorState: 'green' });
   if (burnoutRisk > 65 || stressLevel > 7) items.push({ title: 'Recovery Break', detail: 'Schedule a 20-minute reset before the next deep-work block.', category: 'health', severity: burnoutRisk > 70 ? 'high' : 'medium', colorState: burnoutRisk > 70 ? 'red' : 'orange' });
   if (smokingHabit === 'yes') items.push({ title: 'Reduce recovery friction', detail: 'Pair one craving window with a short walk or breathing reset.', category: 'health', severity: 'medium', colorState: 'orange' });
   if (hasGithub || hasLeetcode) items.push({ title: 'Protect coding momentum', detail: 'Keep one focused coding or practice block active today.', category: 'career', severity: 'low', colorState: 'green' });
@@ -1445,56 +1148,42 @@ function buildFallbackRecommendations({ sleepHours, studyHours, savingsRate, raw
   return items;
 }
 
-function buildFeed(apiInsights, context) {
-  const behavioralFeed = buildBehaviorFeed(context);
-  const aiFeed = Array.isArray(apiInsights) ? apiInsights.map((item, index) => ({
-    label: item.label || 'Insight', time: index === 0 ? 'Now' : index === 1 ? '12m ago' : '28m ago',
-    title: item.message || item.title || 'Digital Twin insight updated from your profile.',
-    colorState: normalizeColorState(item.colorState || colorStateFromSeverity(item.severity) || 'green'),
-    sentiment: item.sentiment || sentimentFromColorState(item.colorState || colorStateFromSeverity(item.severity)),
-  })) : [];
-  return mergeFeed([...behavioralFeed, ...aiFeed]).slice(0, 3);
+function buildFeed(apiInsights, ctx) {
+  const behavioral = buildBehaviorFeed(ctx);
+  const ai = Array.isArray(apiInsights) ? apiInsights.map((item, i) => ({ label: item.label || 'Insight', time: i === 0 ? 'Now' : i === 1 ? '12m ago' : '28m ago', title: item.message || item.title || 'Digital Twin insight updated.', colorState: normalizeColorState(item.colorState || colorStateFromSeverity(item.severity) || 'green'), sentiment: item.sentiment || sentimentFromColorState(item.colorState) })) : [];
+  return mergeFeed([...behavioral, ...ai]).slice(0, 3);
 }
 
-function buildBehaviorFeed(context) {
+function buildBehaviorFeed(ctx) {
   const items = [];
-  const lowSleepHighStudy = context.sleepHours < 5 && context.studyHours > 8;
-  const highExerciseLowStress = context.exerciseFrequency >= 4 && context.stressLevel <= 3;
-  if (lowSleepHighStudy) {
+  if (ctx.sleepHours < 5 && ctx.studyHours > 8) {
     items.push({ label: 'Burnout', time: 'Now', title: 'Late-night study patterns may increase burnout risk because recovery time is reduced.', colorState: 'red', sentiment: 'negative' });
     items.push({ label: 'Wellness', time: '4m ago', title: 'Reduced sleep consistency is impacting recovery stability.', colorState: 'orange', sentiment: 'negative' });
-  } else if (highExerciseLowStress) {
+  } else if (ctx.exerciseFrequency >= 4 && ctx.stressLevel <= 3) {
     items.push({ label: 'Recovery', time: 'Now', title: 'Exercise frequency is improving recovery rhythm and focus stability.', colorState: 'green', sentiment: 'positive' });
     items.push({ label: 'Productivity', time: '9m ago', title: 'Wellness consistency is positively impacting productivity confidence.', colorState: 'green', sentiment: 'positive' });
   } else {
-    items.push({ label: 'Biometric', time: 'Now', title: context.exerciseFrequency > 2 ? 'Workout consistency is improving recovery confidence.' : 'A short mobility block today would improve recovery confidence.', colorState: context.exerciseFrequency > 2 ? 'green' : 'orange', sentiment: context.exerciseFrequency > 2 ? 'positive' : 'neutral' });
+    items.push({ label: 'Biometric', time: 'Now', title: ctx.exerciseFrequency > 2 ? 'Workout consistency is improving recovery confidence.' : 'A short mobility block today would improve recovery confidence.', colorState: ctx.exerciseFrequency > 2 ? 'green' : 'orange', sentiment: ctx.exerciseFrequency > 2 ? 'positive' : 'neutral' });
   }
-  if (context.rawSavingsRate < 0) items.push({ label: 'Finance', time: '11m ago', title: 'Financial stress indicators are increasing because spending trajectory exceeds income stability.', colorState: 'red', sentiment: 'negative' });
-  else if (context.savingsRate > 25) items.push({ label: 'Finance', time: '18m ago', title: 'Financial discipline is currently stable as income stays ahead of expenditure.', colorState: 'green', sentiment: 'positive' });
-  if (context.hasGithub || context.hasLeetcode) items.push({ label: 'Career', time: '24m ago', title: 'GitHub or LeetCode signals strengthen the career momentum pattern.', colorState: 'green', sentiment: 'positive' });
-  if (context.smokingHabit === 'yes') items.push({ label: 'Wellness', time: '31m ago', title: 'Smoking habit is adding recovery friction to the wellness model.', colorState: 'red', sentiment: 'negative' });
+  if (ctx.rawSavingsRate < 0) items.push({ label: 'Finance', time: '11m ago', title: 'Financial stress indicators are increasing because spending trajectory exceeds income stability.', colorState: 'red', sentiment: 'negative' });
+  else if (ctx.savingsRate > 25) items.push({ label: 'Finance', time: '18m ago', title: 'Financial discipline is currently stable as income stays ahead of expenditure.', colorState: 'green', sentiment: 'positive' });
+  if (ctx.hasGithub || ctx.hasLeetcode) items.push({ label: 'Career', time: '24m ago', title: 'GitHub or LeetCode signals strengthen the career momentum pattern.', colorState: 'green', sentiment: 'positive' });
+  if (ctx.smokingHabit === 'yes') items.push({ label: 'Wellness', time: '31m ago', title: 'Smoking habit is adding recovery friction to the wellness model.', colorState: 'red', sentiment: 'negative' });
   return items;
 }
 
-function mergeByTitle(items) {
-  const seen = new Set();
-  return items.filter((item) => { const key = String(item.title || '').toLowerCase(); if (!key || seen.has(key)) return false; seen.add(key); return true; });
-}
+function mergeByTitle(items) { const s = new Set(); return items.filter(i => { const k = String(i.title || '').toLowerCase(); if (!k || s.has(k)) return false; s.add(k); return true; }); }
+function mergeFeed(items) { const s = new Set(); return items.filter(i => { const k = `${i.label}-${i.title}`.toLowerCase(); if (s.has(k)) return false; s.add(k); return true; }); }
 
-function mergeFeed(items) {
-  const seen = new Set();
-  return items.filter((item) => { const key = `${item.label}-${item.title}`.toLowerCase(); if (seen.has(key)) return false; seen.add(key); return true; });
-}
-
-function normalizeThresholds(apiThresholds, context) {
-  const genderThresholds = getGenderThresholds(context.gender);
+function normalizeThresholds(api, ctx) {
+  const gt = getGenderThresholds(ctx.gender);
   return {
-    sleep: apiThresholds?.sleep || thresholdState(context.sleepHours < genderThresholds.criticalSleepHours ? 'critical' : context.sleepHours < genderThresholds.idealSleepHours ? 'warning' : 'healthy', context.sleepHours),
-    stress: apiThresholds?.stress || thresholdState(context.stressLevel >= 7 ? 'critical' : context.stressLevel >= 5 ? 'warning' : 'healthy', context.stressLevel),
-    burnout: apiThresholds?.burnout || thresholdState(context.burnoutRisk > genderThresholds.criticalBurnout ? 'critical' : context.burnoutRisk >= genderThresholds.warningBurnout ? 'warning' : 'healthy', context.burnoutRisk),
-    financial: apiThresholds?.financial || thresholdState(savingsStatusFromRate(context.income > 0 ? ((context.income - context.expenditure) / context.income) * 100 : 0), context.financeScore),
-    wellness: apiThresholds?.wellness || thresholdState(context.recoveryScore < genderThresholds.criticalWellness ? 'critical' : context.recoveryScore < genderThresholds.warningWellness ? 'warning' : 'healthy', context.recoveryScore),
-    productivity: apiThresholds?.productivity || thresholdState(context.productivityScore < 45 ? 'critical' : context.productivityScore < 65 ? 'warning' : 'healthy', context.productivityScore),
+    sleep: api?.sleep || thresholdState(ctx.sleepHours < gt.criticalSleepHours ? 'critical' : ctx.sleepHours < gt.idealSleepHours ? 'warning' : 'healthy', ctx.sleepHours),
+    stress: api?.stress || thresholdState(ctx.stressLevel >= 7 ? 'critical' : ctx.stressLevel >= 5 ? 'warning' : 'healthy', ctx.stressLevel),
+    burnout: api?.burnout || thresholdState(ctx.burnoutRisk > gt.criticalBurnout ? 'critical' : ctx.burnoutRisk >= gt.warningBurnout ? 'warning' : 'healthy', ctx.burnoutRisk),
+    financial: api?.financial || thresholdState(savingsStatusFromRate(ctx.income > 0 ? ((ctx.income - ctx.expenditure) / ctx.income) * 100 : 0), ctx.financeScore),
+    wellness: api?.wellness || thresholdState(ctx.recoveryScore < gt.criticalWellness ? 'critical' : ctx.recoveryScore < gt.warningWellness ? 'warning' : 'healthy', ctx.recoveryScore),
+    productivity: api?.productivity || thresholdState(ctx.productivityScore < 45 ? 'critical' : ctx.productivityScore < 65 ? 'warning' : 'healthy', ctx.productivityScore),
   };
 }
 
@@ -1510,108 +1199,67 @@ function deriveHealthState({ healthScore, burnoutState, wellnessState }) {
   return thresholdState('healthy', healthScore);
 }
 function deriveSavingsState({ rawSavingsRate }) { return thresholdState(savingsStatusFromRate(rawSavingsRate), rawSavingsRate); }
-function deriveBufferState({ income, expenditure }) {
-  if (income <= 0) return thresholdState('warning', 0);
-  return thresholdState(savingsStatusFromRate(((income - expenditure) / income) * 100), ((income - expenditure) / income) * 100);
-}
-function savingsStatusFromRate(savingsRate) {
-  if (savingsRate <= 33) return 'critical';
-  if (savingsRate <= 66) return 'warning';
-  return 'healthy';
-}
-function colorStateFromSeverity(severity) {
-  if (severity === 'high') return 'red';
-  if (severity === 'medium') return 'orange';
-  return 'green';
-}
-function recommendationPriority(item) {
-  if (normalizeColorState(item.colorState) === 'red' || item.severity === 'high') return 3;
-  if (normalizeColorState(item.colorState) === 'orange' || item.severity === 'medium') return 2;
-  return 1;
-}
-function alignmentColorState(value) {
-  if (value <= 33) return 'red';
-  if (value <= 66) return 'orange';
-  return 'green';
-}
-function sentimentFromColorState(colorState) { return normalizeColorState(colorState) === 'red' ? 'negative' : 'neutral'; }
-function normalizeColorState(colorState = 'green') {
-  const legacyMap = { healthy: 'green', warning: 'orange', danger: 'red', critical: 'red' };
-  return legacyMap[colorState] || colorState || 'green';
-}
-function iconForCategory(category = '') {
-  const text = String(category).toLowerCase();
-  if (text.includes('finance') || text.includes('spending') || text.includes('saving')) return WalletIcon;
-  if (text.includes('career') || text.includes('product') || text.includes('learning')) return BriefIcon;
-  return MoonIcon;
+function deriveBufferState({ income, expenditure }) { if (income <= 0) return thresholdState('warning', 0); return thresholdState(savingsStatusFromRate(((income - expenditure) / income) * 100), ((income - expenditure) / income) * 100); }
+function savingsStatusFromRate(r) { return r <= 33 ? 'critical' : r <= 66 ? 'warning' : 'healthy'; }
+function colorStateFromSeverity(s) { return s === 'high' ? 'red' : s === 'medium' ? 'orange' : 'green'; }
+function recommendationPriority(item) { const n = normalizeColorState(item.colorState); return n === 'red' || item.severity === 'high' ? 3 : n === 'orange' || item.severity === 'medium' ? 2 : 1; }
+function sentimentFromColorState(cs) { return normalizeColorState(cs) === 'red' ? 'negative' : 'neutral'; }
+function iconForCategory(cat = '') {
+  const t = String(cat).toLowerCase();
+  if (t.includes('finance') || t.includes('spending') || t.includes('saving')) return Wallet;
+  if (t.includes('career') || t.includes('product') || t.includes('learning')) return Briefcase;
+  return Activity;
 }
 
 function buildFinanceRanges({ income, expenditure, stressLevel, savingsRate, financeScore }) {
-  const weeklySeries = buildFinanceSeries({ income, expenditure, stressLevel, savingsRate, financeScore, points: 7, volatility: 7, rangeWeight: 0.65 });
-  const monthlySeries = buildFinanceSeries({ income, expenditure, stressLevel, savingsRate, financeScore, points: 12, volatility: 4.5, rangeWeight: 1 });
+  const weekly = buildFinanceSeries({ income, expenditure, stressLevel, savingsRate, financeScore, points: 7, volatility: 7, rangeWeight: 0.65 });
+  const monthly = buildFinanceSeries({ income, expenditure, stressLevel, savingsRate, financeScore, points: 12, volatility: 4.5, rangeWeight: 1 });
   const pressure = income > 0 && expenditure > income;
   const stable = savingsRate >= 20;
   return {
-    '1W': { bars: weeklySeries, linePoints: buildLinePoints(weeklySeries), pointData: buildPointData(weeklySeries), labels: ['Mon', 'Thu', 'Today'], summary: pressure ? 'Weekly cashflow dipping under spending pressure' : stable ? 'Weekly cashflow holding healthy surplus' : 'Weekly cashflow stabilizing near baseline' },
-    '1M': { bars: monthlySeries, linePoints: buildLinePoints(monthlySeries), pointData: buildPointData(monthlySeries), labels: ['Last Month', 'Baseline', 'Today'], summary: pressure ? '-3.8% monthly spending pressure against baseline' : stable ? '+2.4% monthly growth against baseline' : '+0.6% monthly stabilization against baseline' },
+    '1W': { bars: weekly, linePoints: buildLinePoints(weekly), pointData: buildPointData(weekly), labels: ['Mon', 'Thu', 'Today'], summary: pressure ? 'Weekly cashflow under spending pressure' : stable ? 'Weekly cashflow holding surplus' : 'Weekly cashflow stabilizing' },
+    '1M': { bars: monthly, linePoints: buildLinePoints(monthly), pointData: buildPointData(monthly), labels: ['Last Month', 'Baseline', 'Today'], summary: pressure ? '-3.8% monthly spending pressure' : stable ? '+2.4% monthly growth' : '+0.6% stabilizing' },
   };
 }
 
 function buildFinanceSeries({ income, expenditure, stressLevel, savingsRate, financeScore, points, volatility, rangeWeight }) {
   const pressure = income > 0 && expenditure > income;
-  const trendDirection = pressure ? -1 : savingsRate > 25 ? 1 : 0.35;
-  const base = clamp(financeScore - trendDirection * 22 * rangeWeight - stressLevel, 12, 82);
-  return Array.from({ length: points }, (_, index) => clamp(base + (index * (trendDirection * 5.5 * rangeWeight)) + (Math.sin(index * 0.9 + stressLevel * 0.2) * volatility) - (pressure ? index * 2.8 * rangeWeight : 0), 10, 96));
+  const trend = pressure ? -1 : savingsRate > 25 ? 1 : 0.35;
+  const base = clamp(financeScore - trend * 22 * rangeWeight - stressLevel, 12, 82);
+  return Array.from({ length: points }, (_, i) => clamp(base + (i * (trend * 5.5 * rangeWeight)) + (Math.sin(i * 0.9 + stressLevel * 0.2) * volatility) - (pressure ? i * 2.8 * rangeWeight : 0), 10, 96));
 }
 
-function buildLinePoints(series) { return buildPointData(series).map((point) => `${point.x},${point.y}`).join(' '); }
-function buildPointData(series) {
-  const step = 352 / Math.max(series.length - 1, 1);
-  return series.map((value, index) => ({ x: 8 + index * step, y: 140 - value * 1.25 }));
-}
+function buildLinePoints(s) { return buildPointData(s).map(p => `${p.x},${p.y}`).join(' '); }
+function buildPointData(s) { const step = 352 / Math.max(s.length - 1, 1); return s.map((v, i) => ({ x: 8 + i * step, y: 140 - v * 1.25 })); }
 
 function buildAlignmentBars({ sleepHours, studyHours, exerciseFrequency, stressLevel, rawSavingsRate, healthScore, financeScore, productivityScore, recoveryScore, burnoutRisk, hasGithub, hasLeetcode }) {
-  const sleepAlignment = clamp(35 + sleepHours * 7 - Math.max(0, studyHours - 7) * 4, 8, 96);
-  const stressAlignment = clamp(100 - stressLevel * 8 + exerciseFrequency * 4, 8, 96);
-  const financeAlignment = clamp(55 + rawSavingsRate * 0.75 - stressLevel * 2, 8, 96);
-  const careerAlignment = clamp(productivityScore + (hasGithub ? 4 : 0) + (hasLeetcode ? 4 : 0) - Math.max(0, 6 - sleepHours) * 3, 8, 96);
-  const recoveryAlignment = clamp((recoveryScore + sleepAlignment + stressAlignment) / 3, 8, 96);
-  const twinAlignment = clamp((healthScore + financeScore + careerAlignment + recoveryAlignment + (100 - burnoutRisk)) / 5, 8, 96);
-  return [recoveryAlignment, sleepAlignment, careerAlignment, financeAlignment, stressAlignment, twinAlignment];
+  const sleep = clamp(35 + sleepHours * 7 - Math.max(0, studyHours - 7) * 4, 8, 96);
+  const stress = clamp(100 - stressLevel * 8 + exerciseFrequency * 4, 8, 96);
+  const finance = clamp(55 + rawSavingsRate * 0.75 - stressLevel * 2, 8, 96);
+  const career = clamp(productivityScore + (hasGithub ? 4 : 0) + (hasLeetcode ? 4 : 0) - Math.max(0, 6 - sleepHours) * 3, 8, 96);
+  const recovery = clamp((recoveryScore + sleep + stress) / 3, 8, 96);
+  const twin = clamp((healthScore + financeScore + career + recovery + (100 - burnoutRisk)) / 5, 8, 96);
+  return [recovery, sleep, career, finance, stress, twin];
 }
 
 function buildRitualCalendar(date, insights) {
   const year = date.getFullYear(); const month = date.getMonth(); const today = date.getDate();
   const daysInMonth = new Date(year, month + 1, 0).getDate(); const firstDay = new Date(year, month, 1).getDay();
-  const shortFormatter = new Intl.DateTimeFormat('en-US', { month: 'short' });
   const streak = insights.streak || normalizeStreak();
-  const completedDates = new Set(streak.completedDailyGoals.map((entry) => entry.date));
-  const blanks = Array.from({ length: firstDay }, (_, index) => ({ key: `blank-${index}`, type: 'blank' }));
-  const days = Array.from({ length: daysInMonth }, (_, index) => {
-    const value = index + 1; const isToday = value === today; const isFuture = value > today;
+  const completedDates = new Set(streak.completedDailyGoals.map(e => e.date));
+  const blanks = Array.from({ length: firstDay }, (_, i) => ({ key: `b-${i}`, type: 'blank' }));
+  const days = Array.from({ length: daysInMonth }, (_, i) => {
+    const value = i + 1; const isToday = value === today; const isFuture = value > today;
     const completed = completedDates.has(formatDateKey(year, month, value));
-    return { key: `day-${value}`, type: 'day', value, state: isToday && completed ? 'today-complete' : isToday ? 'today' : isFuture ? 'future' : completed ? 'done' : streak.streakStarted ? 'missed' : 'empty' };
+    return { key: `d-${value}`, type: 'day', value, state: isToday && completed ? 'today-complete' : isToday ? 'today' : isFuture ? 'future' : completed ? 'done' : streak.streakStarted ? 'missed' : 'empty' };
   });
-  return { today, monthShort: shortFormatter.format(date), currentStreak: streak.currentStreak, streakStarted: streak.streakStarted, days: [...blanks, ...days] };
+  return { today, monthShort: new Intl.DateTimeFormat('en-US', { month: 'short' }).format(date), currentStreak: streak.currentStreak, streakStarted: streak.streakStarted, days: [...blanks, ...days] };
 }
 
-function normalizeStreak(rawStreak = {}) {
-  return { currentStreak: Number(rawStreak.currentStreak || 0), streakStarted: Boolean(rawStreak.streakStarted), lastGoalCompletionDate: rawStreak.lastGoalCompletionDate || '', completedDailyGoals: Array.isArray(rawStreak.completedDailyGoals) ? rawStreak.completedDailyGoals : [] };
-}
-
-function formatDateKey(year, month, day) { return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`; }
-function formatTimeLeft(date) {
-  const endOfDay = new Date(date); endOfDay.setHours(23, 59, 59, 999);
-  const secondsLeft = Math.max(0, Math.floor((endOfDay.getTime() - date.getTime()) / 1000));
-  return [Math.floor(secondsLeft / 3600), Math.floor((secondsLeft % 3600) / 60), secondsLeft % 60].map((v) => String(v).padStart(2, '0')).join(':');
-}
-function formatMoney(value) { return Number.isNaN(value) ? 'Add data' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(value); }
-function clamp(value, min, max) { return Math.min(Math.max(value, min), max); }
-
-// Icon components
-function WalletIcon({ className }) { return <svg className={className} viewBox="0 0 24 24" fill="none"><path d="M4 7.5A2.5 2.5 0 0 1 6.5 5H19v14H6.5A2.5 2.5 0 0 1 4 16.5v-9Z" stroke="currentColor" strokeWidth="2" /><path d="M16 12h4v4h-4a2 2 0 0 1 0-4Z" stroke="currentColor" strokeWidth="2" /></svg>; }
-function MoonIcon({ className }) { return <svg className={className} viewBox="0 0 24 24" fill="none"><path d="M20 15.5A8.5 8.5 0 0 1 8.5 4 8.5 8.5 0 1 0 20 15.5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>; }
-function BriefIcon({ className }) { return <svg className={className} viewBox="0 0 24 24" fill="none"><path d="M9 7V5h6v2m-9 3h12m-14 0h18v10H4V10Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>; }
-function CheckIcon({ className }) { return <svg className={className} viewBox="0 0 24 24" fill="none"><path d="m5 12 4 4L19 6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
+function normalizeStreak(r = {}) { return { currentStreak: Number(r.currentStreak || 0), streakStarted: Boolean(r.streakStarted), lastGoalCompletionDate: r.lastGoalCompletionDate || '', completedDailyGoals: Array.isArray(r.completedDailyGoals) ? r.completedDailyGoals : [] }; }
+function formatDateKey(y, m, d) { return `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`; }
+function formatTimeLeft(date) { const end = new Date(date); end.setHours(23, 59, 59, 999); const s = Math.max(0, Math.floor((end - date) / 1000)); return [Math.floor(s / 3600), Math.floor((s % 3600) / 60), s % 60].map(v => String(v).padStart(2, '0')).join(':'); }
+function formatMoney(v) { return Number.isNaN(v) ? 'Add data' : new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR', maximumFractionDigits: 0 }).format(v); }
+function clamp(v, min, max) { return Math.min(Math.max(v, min), max); }
 
 export default Dashboard;

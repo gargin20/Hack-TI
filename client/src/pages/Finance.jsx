@@ -1,59 +1,100 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import toast from 'react-hot-toast';
 import axios from 'axios';
-// ✅ Import the Gamification Hook
 import { useGamification } from '../context/GamificationContext';
 
 const glassCardClass = 'rounded-2xl border border-white/10 bg-[#0f1320]/84 shadow-[0_20px_60px_rgba(0,0,0,0.42)] backdrop-blur-xl transition hover:-translate-y-0.5 hover:border-[#c8a84b]/30 hover:shadow-[0_28px_70px_rgba(0,0,0,0.52)]';
 
 const overviewMetrics = [
-  {
-    label: 'Savings Consistency',
-    value: 'Peak',
-    detail: '12-day active streak',
-    tone: 'primary',
-    bar: 100,
-  },
-  {
-    label: 'Financial Stability',
-    value: '82%',
-    detail: '+2.4% this month',
-    tone: 'primary',
-    icon: ShieldIcon,
-    ring: 82,
-  },
-  {
-    label: 'Spending Balance',
-    value: 'Balanced',
-    detail: 'Allocated: $3,420 / $4,500',
-    tone: 'neutral',
-    segments: true,
-  },
-  {
-    label: 'Stress Spending',
-    value: 'Rising',
-    detail: 'Anomaly detected',
-    tone: 'warm',
-    spark: [18, 42, 34, 66, 78, 92],
-  },
+  { label: 'Savings Consistency', value: 'Peak', detail: '12-day active streak', tone: 'primary', bar: 100 },
+  { label: 'Financial Stability', value: '82%', detail: '+2.4% this month', tone: 'primary', icon: ShieldIcon, ring: 82 },
+  { label: 'Spending Balance', value: 'Balanced', detail: 'Allocated: $3,420 / $4,500', tone: 'neutral', segments: true },
+  { label: 'Stress Spending', value: 'Rising', detail: 'Anomaly detected', tone: 'warm', spark: [18, 42, 34, 66, 78, 92] },
 ];
 
 function Finance() {
-  // ✅ Omniscient Form State
-  const [activeTab, setActiveTab] = useState('expense'); // 'expense' or 'income'
+  const [activeTab, setActiveTab] = useState('expense');
   const [amount, setAmount] = useState('');
   const [category, setCategory] = useState('food');
   const [isImpulse, setIsImpulse] = useState(false);
   
-  // ✅ Initialize the Hook
+  // ✅ NEW: API Sync State
+  const [isSyncingBank, setIsSyncingBank] = useState(false);
+  // ✅ NEW: Read Onboarding Profile to check if Plaid is connected
+  const [isBankConnected, setIsBankConnected] = useState(false);
+
+  useEffect(() => {
+    const profile = JSON.parse(localStorage.getItem('lifetwinOnboardingProfile') || '{}');
+    const isConnected = profile?.integrations?.banking?.status === 'connected';
+    
+    if (isConnected) {
+      setIsBankConnected(true);
+
+      // AUTONOMOUS GAMIFICATION TRIGGER
+      const runAutonomousSync = async () => {
+        try {
+          const token = localStorage.getItem('authToken');
+          const response = await axios.get(`${API_BASE_URL}/api/integrations/finance`, {
+            headers: { Authorization: `Bearer ${token}` }
+          });
+
+          if (response.data.success) {
+            const data = response.data.data;
+            
+            // Smart Gamification Rule 1: High Credit Score
+            if (data.creditScore >= 750) {
+              setTimeout(() => {
+                triggerReward(100, ['Excellent Credit'], 100);
+                toast.success(`Plaid Sync: Prime Credit Score Verified (${data.creditScore}). +100 XP`, { icon: '🏦' });
+              }, 2000);
+            }
+
+            // Smart Gamification Rule 2: Avoiding Impulse Buys
+            // If the latest transaction isn't flagged as an impulse buy
+            if (!data.metrics.unusualSpikeDetected) {
+               setTimeout(() => {
+                triggerReward(40, ['Disciplined Spender'], 140);
+                toast.success(`Plaid Sync: No impulse spikes detected this week. +40 XP`, { icon: '🛡️' });
+              }, 4500);
+            }
+          }
+        } catch (error) {
+          console.error("Autonomous bank sync failed", error);
+        }
+      };
+
+      runAutonomousSync();
+    }
+  }, []);
+  
   const { triggerReward } = useGamification();
   const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  
+  // ✅ NEW: API Sync Function
+  const handleBankSync = async () => {
+    setIsSyncingBank(true);
+    try {
+      const token = localStorage.getItem('authToken');
+      const response = await axios.get(`${API_BASE_URL}/api/integrations/finance`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
 
-  // ✅ Submit Function linked to the new Omniscient Route
+      if (response.data.success) {
+        const data = response.data.data;
+        triggerReward(50, [], 50); 
+        alert(`Successfully synced via ${data.source}!\nCredit Score updated to: ${data.creditScore}\nFetched ${data.recentTransactions.length} new transactions.`);
+      }
+    } catch (error) {
+      console.error('Failed to sync bank:', error);
+    } finally {
+      setIsSyncingBank(false);
+    }
+  };
+
   const handleLogTransaction = async (e) => {
     e.preventDefault();
     try {
       const token = localStorage.getItem('authToken');
-      
       const response = await axios.post(`${API_BASE_URL}/api/finance/transaction`, {
         type: activeTab,
         amount: Number(amount),
@@ -62,18 +103,11 @@ function Finance() {
       }, { headers: { Authorization: `Bearer ${token}` } });
 
       if (response.data.success) {
-        // Clear fields
         setAmount('');
         setIsImpulse(false);
-        
-        // Trigger the cinematic popup!
         const gamificationData = response.data.gamification;
         if (gamificationData) {
-          triggerReward(
-            gamificationData.xpAwarded, 
-            gamificationData.newBadges, 
-            gamificationData.newTotalXP
-          );
+          triggerReward(gamificationData.xpAwarded, gamificationData.newBadges, gamificationData.newTotalXP);
         }
       }
     } catch (error) {
@@ -94,9 +128,27 @@ function Finance() {
             Comprehensive tracking of behavioral spending metrics, global macroeconomic factors, and financial projections.
           </p>
         </div>
+        {/* ✅ NEW: Bank Sync Button */}
+        {/* ✅ NEW: Autonomous UI Logic */}
+        {isBankConnected ? (
+          <div className="flex items-center gap-2 rounded-xl border border-[#16a34a]/30 bg-[#16a34a]/10 px-5 py-2.5 text-sm font-bold text-[#16a34a]">
+            <span className="relative flex h-2.5 w-2.5">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#16a34a] opacity-75"></span>
+              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#16a34a]"></span>
+            </span>
+            Banking API Active
+          </div>
+        ) : (
+          <button 
+            onClick={handleBankSync}
+            disabled={isSyncingBank}
+            className="flex items-center justify-center gap-2 rounded-xl border border-[#10c7a1]/50 bg-[#10c7a1]/10 px-5 py-2.5 text-sm font-bold text-[#10c7a1] transition-all hover:bg-[#10c7a1]/20 disabled:opacity-50"
+          >
+            {isSyncingBank ? 'Establishing Secure Connection...' : '🏦 Sync Banking API (Plaid)'}
+          </button>
+        )}
       </section>
 
-      {/* ✅ UPGRADED: Omniscient Gamification Form */}
       <section className="mb-6">
         <article className={`${glassCardClass} flex flex-col gap-5 p-6`}>
           <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/10 pb-4">
@@ -151,16 +203,13 @@ function Finance() {
         </article>
       </section>
 
-      {/* 4 Required Metric Cards */}
       <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {overviewMetrics.map((metric) => (
           <OverviewCard key={metric.label} metric={metric} />
         ))}
       </section>
 
-      {/* Unusual Spending Spike & Macro Market Analysis */}
       <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* Unusual Spending Spike Detector */}
         <article className={`${glassCardClass} p-6 xl:col-span-7`}>
           <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
@@ -206,40 +255,21 @@ function Finance() {
           </div>
         </article>
 
-        {/* Macro Market Context Card */}
         <article className={`${glassCardClass} flex flex-col p-6 xl:col-span-5`}>
           <div className="mb-5">
               <h2 className="text-xl font-semibold text-white">Macro Market Analysis</h2>
               <p className="mt-1 text-sm text-white/60">Global catalysts: Political, Legal, Conflict, & Health updates</p>
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto max-h-[280px] pr-1">
-            <MarketImpactRow 
-              title="Geopolitical Conflict / War Risks" 
-              detail="Supply chain disruptions detected in energy sectors. Expect minor inflationary spikes in regional utility and fuel costs." 
-              type="danger" 
-            />
-            <MarketImpactRow 
-              title="Tax Law Amendments" 
-              detail="New capital gains structural changes passed. Portfolio reassessment recommended prior to end-of-quarter cycles." 
-              type="warning" 
-            />
-            <MarketImpactRow 
-              title="Political / Policy Shifts" 
-              detail="Tech sector regulatory updates impacting high-growth assets. Shifting allocation safely toward defensive indexes." 
-              type="info" 
-            />
-            <MarketImpactRow 
-              title="Public Health / Pandemics" 
-              detail="Healthcare buffer thresholds optimized automatically following global biosurveillance warning models." 
-              type="info" 
-            />
+            <MarketImpactRow title="Geopolitical Conflict / War Risks" detail="Supply chain disruptions detected in energy sectors. Expect minor inflationary spikes in regional utility and fuel costs." type="danger" />
+            <MarketImpactRow title="Tax Law Amendments" detail="New capital gains structural changes passed. Portfolio reassessment recommended prior to end-of-quarter cycles." type="warning" />
+            <MarketImpactRow title="Political / Policy Shifts" detail="Tech sector regulatory updates impacting high-growth assets. Shifting allocation safely toward defensive indexes." type="info" />
+            <MarketImpactRow title="Public Health / Pandemics" detail="Healthcare buffer thresholds optimized automatically following global biosurveillance warning models." type="info" />
           </div>
         </article>
       </section>
 
-      {/* Observation & Suggestions and Cross Intelligence */}
       <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* Finance Observation & Suggestion */}
         <article className={`${glassCardClass} p-6 xl:col-span-6`}>
           <h2 className="mb-4 text-xl font-semibold">Finance Observation & Suggestions</h2>
           <div className="space-y-4">
@@ -264,7 +294,6 @@ function Finance() {
           </div>
         </article>
 
-        {/* Cross Intelligence */}
         <article className={`${glassCardClass} p-6 space-y-4 xl:col-span-6`}>
               <h2 className="text-xl font-semibold text-white">Cross Intelligence</h2>
           <RecommendationCard
@@ -282,7 +311,6 @@ function Finance() {
         </article>
       </section>
 
-      {/* Financial Trajectory (Future Projection Graph) */}
       <section className="grid grid-cols-1 gap-6">
         <article className={`${glassCardClass} p-6`}>
           <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
@@ -322,8 +350,7 @@ function Finance() {
   );
 }
 
-{/* --- Sub-Components --- */}
-
+{/* Sub-Components */}
 function MarketImpactRow({ title, detail, type }) {
   let badgeColor = "bg-white/5 text-white/72 border-white/10";
   if (type === "danger") badgeColor = "bg-[#111722] text-[#c8a84b] border-[#c8a84b]/20";

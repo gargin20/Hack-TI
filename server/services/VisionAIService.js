@@ -5,12 +5,15 @@ dotenv.config();
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
 class VisionAIService {
-  static async analyzeImage(mimeType, base64Data, contextType) {
+  // Helper function to pause execution (sleep)
+  static delay(ms) {
+    return new Promise(resolve => setTimeout(resolve, ms));
+  }
+
+  static async analyzeImage(mimeType, base64Data, contextType, retries = 2) {
     try {
-      // ✅ FIXED: Pointing to the newer model version supported by your new API key
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-      // Create the image payload for Gemini
       const imagePart = {
         inlineData: {
           data: base64Data,
@@ -18,7 +21,6 @@ class VisionAIService {
         },
       };
 
-      // Define the exact JSON structure we want Gemini to return
       let prompt = '';
       if (contextType === 'food') {
         prompt = `You are a master nutritionist. Analyze this food image and return ONLY a valid, raw JSON object (no markdown, no backticks). Structure: 
@@ -35,12 +37,17 @@ class VisionAIService {
       const result = await model.generateContent([prompt, imagePart]);
       const responseText = result.response.text();
 
-      // Clean up the text in case Gemini wraps it in ```json ... ```
       const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-      
       return JSON.parse(cleanedText);
 
     } catch (error) {
+      // ✅ NEW: Automatic Retry Logic for 503 Server Overload
+      if (error.status === 503 && retries > 0) {
+        console.warn(`⚠️ Google Servers busy (503). Retrying in 3 seconds... (${retries} attempts left)`);
+        await this.delay(3000); // Wait 3 seconds
+        return this.analyzeImage(mimeType, base64Data, contextType, retries - 1);
+      }
+
       console.error('Vision AI Error:', error);
       return null;
     }

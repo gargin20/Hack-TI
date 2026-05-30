@@ -19,7 +19,6 @@ import Landing from './pages/Landing';
 import { GamificationProvider } from './context/GamificationContext';
 import ToastOverlay from './components/ToastOverlay';
 import DailySyncModal from './components/DailySyncModal';
-
 function App() {
   return (
     // ✅ The Provider MUST wrap everything!
@@ -49,6 +48,7 @@ function App() {
             <Route path="/settings" element={<Settings />} />
             <Route path="/copilot" element={<Copilot />} />
             <Route path="/simulation" element={<Simulation />} />
+
           </Route>
         </Routes>
       </BrowserRouter>

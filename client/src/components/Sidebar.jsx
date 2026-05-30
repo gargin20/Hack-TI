@@ -1,12 +1,19 @@
-import { useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { NavLink, useLocation } from 'react-router-dom';
 import DigitalTwinLogo from './DigitalTwinLogo';
 
+// ✅ MODIFIED: Grouped Health, Finance, and Career under Dashboard's subItems
 const navItems = [
-  { label: 'Dashboard', href: '/dashboard', icon: HomeIcon },
-  { label: 'Health', href: '/health', icon: HeartIcon },
-  { label: 'Finance', href: '/finance', icon: WalletIcon },
-  { label: 'Career', href: '/career', icon: BriefIcon },
+  { 
+    label: 'Dashboard', 
+    href: '/dashboard', 
+    icon: HomeIcon,
+    subItems: [
+      { label: 'Health', href: '/health', icon: HeartIcon },
+      { label: 'Finance', href: '/finance', icon: WalletIcon },
+      { label: 'Career', href: '/career', icon: BriefIcon },
+    ]
+  },
   { label: 'Goals', href: '/goals', icon: TargetIcon },
   { label: 'Intelligence', href: '/intelligence', icon: SparkIcon },
   { label: 'Simulation', href: '/simulation', icon: BranchIcon },
@@ -69,40 +76,113 @@ function Sidebar() {
 
       <nav className="relative mt-9 space-y-1">
         {navItems.map((item) => (
-          <SidebarNavItem key={item.label} item={item} isCollapsed={isCollapsed} />
+          <SidebarNavItem 
+            key={item.label} 
+            item={item} 
+            isCollapsed={isCollapsed} 
+            setIsCollapsed={setIsCollapsed} 
+          />
         ))}
       </nav>
 
       <nav className="relative mt-auto border-t border-white/10 pt-4">
-        <SidebarNavItem item={settingsItem} isCollapsed={isCollapsed} />
+        <SidebarNavItem item={settingsItem} isCollapsed={isCollapsed} setIsCollapsed={setIsCollapsed} />
       </nav>
       </div>
     </aside>
   );
 }
 
-function SidebarNavItem({ item, isCollapsed }) {
+// ✅ MODIFIED: Added Dropdown / Accordion Logic
+function SidebarNavItem({ item, isCollapsed, setIsCollapsed }) {
+  const location = useLocation();
   const Icon = item.icon;
+  const hasSubItems = !!item.subItems;
+  
+  // Check if any sub-item is the current active route
+  const isSubItemActive = hasSubItems && item.subItems.some((sub) => location.pathname === sub.href);
+  
+  // State to manage dropdown visibility
+  const [isOpen, setIsOpen] = useState(isSubItemActive);
+
+  // Auto-expand if a sub-item becomes active
+  useEffect(() => {
+    if (isSubItemActive) {
+      setIsOpen(true);
+    }
+  }, [isSubItemActive, location.pathname]);
+
+  const handleParentClick = (e) => {
+    if (hasSubItems) {
+      setIsOpen(!isOpen);
+      // If user clicks the parent while collapsed, auto-expand the sidebar
+      if (isCollapsed) {
+        setIsCollapsed(false);
+        setIsOpen(true);
+      }
+    }
+  };
 
   return (
-    <NavLink
-      to={item.href}
-      title={isCollapsed ? item.label : undefined}
-      className={({ isActive }) =>
-        `group flex items-center rounded-2xl py-2.5 text-sm font-semibold transition-all duration-200 ${
-          isCollapsed ? 'justify-center px-0' : 'gap-3 px-3'
-        } ${
-          isActive
-            ? 'border border-white/10 bg-gradient-to-r from-[#ff7a00]/20 via-[#ff007f]/18 to-[#7b61ff]/18 text-white shadow-[0_14px_32px_-18px_rgba(255,122,0,0.8)]'
-            : 'border border-transparent text-white/62 hover:border-white/10 hover:bg-white/5 hover:text-white'
-        }`
-      }
-    >
-      <Icon className="h-4 w-4 shrink-0 text-inherit transition-transform duration-200 group-hover:scale-105" />
-      {!isCollapsed && <span>{item.label}</span>}
-    </NavLink>
+    <div className="flex flex-col">
+      <NavLink
+        to={item.href}
+        title={isCollapsed ? item.label : undefined}
+        onClick={handleParentClick}
+        className={({ isActive }) =>
+          `group flex items-center justify-between rounded-2xl py-2.5 text-sm font-semibold transition-all duration-200 ${
+            isCollapsed ? 'px-0 justify-center' : 'px-3'
+          } ${
+            isActive || isSubItemActive
+              ? 'border border-white/10 bg-gradient-to-r from-[#ff7a00]/20 via-[#ff007f]/18 to-[#7b61ff]/18 text-white shadow-[0_14px_32px_-18px_rgba(255,122,0,0.8)]'
+              : 'border border-transparent text-white/62 hover:border-white/10 hover:bg-white/5 hover:text-white'
+          }`
+        }
+      >
+        <div className="flex items-center gap-3">
+          <Icon className="h-4 w-4 shrink-0 text-inherit transition-transform duration-200 group-hover:scale-105" />
+          {!isCollapsed && <span>{item.label}</span>}
+        </div>
+        
+        {hasSubItems && !isCollapsed && (
+          <button
+            onClick={(e) => {
+              e.preventDefault(); // Prevent navigating, just toggle
+              setIsOpen(!isOpen);
+            }}
+            className="p-1 text-white/40 hover:text-white transition-colors"
+          >
+            <ChevronDownIcon className={`h-4 w-4 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`} />
+          </button>
+        )}
+      </NavLink>
+
+      {/* ✅ NEW: Dropdown Items Rendering */}
+      {hasSubItems && isOpen && !isCollapsed && (
+        <div className="mt-1 flex flex-col gap-1 pl-9 pr-2 mb-2 overflow-hidden transition-all">
+          {item.subItems.map((sub) => (
+            <NavLink
+              key={sub.label}
+              to={sub.href}
+              className={({ isActive }) =>
+                `flex items-center gap-3 rounded-xl py-2 px-3 text-xs font-medium transition-all duration-200 ${
+                  isActive
+                    ? 'text-white bg-white/10 border border-white/10 shadow-sm'
+                    : 'text-white/40 hover:text-white/90 hover:bg-white/5 border border-transparent'
+                }`
+              }
+            >
+              <sub.icon className="h-3.5 w-3.5 shrink-0" />
+              {sub.label}
+            </NavLink>
+          ))}
+        </div>
+      )}
+    </div>
   );
 }
+
+// ─── Icons ─────────────────────────────────────────────────────────────────
 
 function HomeIcon({ className }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none"><path d="M4 10.5 12 4l8 6.5V20a1 1 0 0 1-1 1h-5v-6h-4v6H5a1 1 0 0 1-1-1v-9.5Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></svg>;
@@ -150,6 +230,11 @@ function ChevronLeftIcon({ className }) {
 
 function ChevronRightIcon({ className }) {
   return <svg className={className} viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
+}
+
+// ✅ NEW: Added Chevron Down for the dropdown accordion
+function ChevronDownIcon({ className }) {
+  return <svg className={className} viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>;
 }
 
 export default Sidebar;

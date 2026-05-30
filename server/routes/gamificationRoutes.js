@@ -1,86 +1,112 @@
 import express from 'express';
-import UserGamification from '../models/UserGamification.js';
-import BadgeDefinition from '../models/BadgeDefinition.js';
-// ✅ Import the engine so we can award XP!
-import GamificationEngine from '../services/GamificationEngine.js'; 
-import { authenticateToken } from '../middleware/auth.js'; 
+import { authenticateToken } from '../middleware/auth.js';
+import GamificationProfile from '../models/GamificationProfile.js';
 
 const router = express.Router();
 
-// @desc    Get user's gamification profile
-// @route   GET /api/gamification/me
-router.get('/me', authenticateToken, async (req, res) => {
-  try {
-    const userId = req.user.userId; 
+// Define available badges and their XP thresholds
+const BADGE_DICTIONARY = [
+  { id: 'first_step', title: 'Genesis Sync', xpNeeded: 50, icon: '⚡', requirement: 'Connect your first live API link' },
+  { id: 'disciplined_spender', title: 'Frugal Titan', xpNeeded: 150, icon: '🛡️', requirement: 'Log 3 consecutive non-impulse days' },
+  { id: 'sleep_master', title: 'Circadian King', xpNeeded: 300, icon: '💤', requirement: 'Achieve >7.5 hours of tracked sleep' },
+  { id: 'deep_worker', title: '10x Architect', xpNeeded: 500, icon: '💻', requirement: 'Pass 30 GitHub commits in a cycle' }
+];
 
-    let gamification = await UserGamification.findOne({ userId });
-    
-    if (!gamification) {
-      return res.status(200).json({
-        success: true,
-        data: {
-          totalXP: 0,
-          level: 1,
-          streaks: {
-            finance: { current: 0, best: 0 },
-            health: { current: 0, best: 0 },
-            career: { current: 0, best: 0 }
-          },
-          badges: [],
-          weeklyXP: 0
-        }
-      });
-    }
-
-    res.status(200).json({
-      success: true,
-      data: gamification
-    });
-  } catch (error) {
-    console.error('Error fetching gamification data:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
-
-// @desc    Get all available badges
-// @route   GET /api/gamification/badges
-router.get('/badges', async (req, res) => {
-  try {
-    const badges = await BadgeDefinition.find({});
-    res.status(200).json({
-      success: true,
-      data: badges
-    });
-  } catch (error) {
-    res.status(500).json({ success: false, message: 'Server Error' });
-  }
-});
-
-// ✅ NEW: Handle the Morning Gamified Sync
-// @route   POST /api/gamification/daily-sync
-router.post('/daily-sync', authenticateToken, async (req, res) => {
+// @desc    Evaluate background API data against rules and award XP
+// @route   POST /api/gamification/evaluate-sync
+router.post('/evaluate-sync', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
-    const { sleepTime, wakeTime, amountCredited, amountSpent, spendCategory } = req.body;
+    const { healthData, financeData, careerData } = req.body;
 
-    // Process Gamification XP via the Engine
-    const gamificationResult = await GamificationEngine.logEvent(
-      userId, 
-      'DAILY_SYNC_COMPLETED', 
-      { sleepTime, wakeTime, amountCredited, amountSpent, spendCategory }
-    );
+    // 1. Fetch or Create the User's Gamification Profile
+    let profile = await GamificationProfile.findOne({ userId });
+    if (!profile) {
+      profile = new GamificationProfile({ userId });
+    }
 
-    // Later: We will save this data to LifeProfile here!
+    let xpEarnedThisSync = 0;
+    let newLogs = [];
 
+    // ==========================================
+    // 2. THE LOGIC RULES (Now Crash-Proof with '?.' Optional Chaining)
+    // ==========================================
+
+    // Rule 1: Health Goal - Steps
+    if (healthData?.metrics?.steps >= 8000) {
+      xpEarnedThisSync += 50;
+      newLogs.push({ activity: `Hit daily movement target (${healthData.metrics.steps} steps)`, points: 50, emoji: '👟' });
+    }
+
+    // Rule 2: Health Goal - Deep Recovery
+    if (healthData?.metrics?.sleepHours >= 7 && healthData?.metrics?.hrv > 60) {
+      xpEarnedThisSync += 75;
+      newLogs.push({ activity: 'Optimal sleep & HRV recovery detected', points: 75, emoji: '💤' });
+    }
+
+    // Rule 3: Finance Goal - Credit / Savings
+    if (financeData?.creditScore >= 750) {
+      xpEarnedThisSync += 100;
+      newLogs.push({ activity: `Maintained Prime Credit (${financeData.creditScore})`, points: 100, emoji: '🏦' });
+    }
+
+    // Rule 4: Career Goal - Deep Work (Fixed path to githubCommitsThisWeek)
+    if (careerData?.githubCommitsThisWeek > 20) {
+      xpEarnedThisSync += 60;
+      newLogs.push({ activity: `High-volume deep work session verified (${careerData.githubCommitsThisWeek} commits)`, points: 60, emoji: '💻' });
+    }
+
+    // ==========================================
+    // 3. APPLY UPDATES & UNLOCK BADGES
+    // ==========================================
+    
+    // Only update if points were actually earned
+    let newlyUnlockedBadges = [];
+    if (xpEarnedThisSync > 0) {
+      profile.totalXP += xpEarnedThisSync;
+      profile.level = Math.floor(profile.totalXP / 500) + 1; // Level up every 500 XP
+      
+      // Add new logs to history
+      profile.history.push(...newLogs);
+
+      // Check for new badges
+      BADGE_DICTIONARY.forEach(badge => {
+        if (profile.totalXP >= badge.xpNeeded && !profile.unlockedBadges.includes(badge.id)) {
+          profile.unlockedBadges.push(badge.id);
+          newlyUnlockedBadges.push(badge);
+        }
+      });
+
+      profile.lastSyncDate = new Date();
+      await profile.save();
+    }
+
+    // 4. Return the updated truth to the frontend
     res.status(200).json({
       success: true,
-      message: 'Daily sync complete. Systems updated.',
-      gamification: gamificationResult
+      data: profile,
+      syncResults: {
+        xpEarned: xpEarnedThisSync,
+        logs: newLogs,
+        newBadges: newlyUnlockedBadges
+      }
     });
 
   } catch (error) {
-    console.error('Daily Sync Error:', error);
-    res.status(500).json({ success: false, message: 'Server Error' });
+    console.error('Gamification Evaluation Error:', error);
+    res.status(500).json({ success: false, message: 'Gamification Engine Error' });
+  }
+});
+
+// @desc    Get Current Gamification State
+// @route   GET /api/gamification/status
+router.get('/status', authenticateToken, async (req, res) => {
+  try {
+    let profile = await GamificationProfile.findOne({ userId: req.user.userId });
+    if (!profile) profile = await GamificationProfile.create({ userId: req.user.userId });
+    res.status(200).json({ success: true, data: profile, availableBadges: BADGE_DICTIONARY });
+  } catch (error) {
+    res.status(500).json({ success: false });
   }
 });
 
