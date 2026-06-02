@@ -1,6 +1,8 @@
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 
 import ProtectedRoute from './components/ProtectedRoute';
+import PublicRoute from './components/PublicRoute';
+import OnboardingRoute from './components/OnboardingRoute';
 import MainLayout from './layouts/MainLayout';
 import Career from './pages/Career';
 import Copilot from './pages/Copilot';
@@ -18,6 +20,7 @@ import Simulation from './pages/Simulation';
 import Landing from './pages/Landing';
 import { GamificationProvider } from './context/GamificationContext';
 import ToastOverlay from './components/ToastOverlay';
+import DailySyncModal from './components/DailySyncModal';
 
 function App() {
   return (
@@ -25,25 +28,26 @@ function App() {
     <GamificationProvider>
       <BrowserRouter>
         <Routes>
-          <Route path="/" element={<Landing />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/signup" element={<Signup />} />
+          <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
+          <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
+          <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
           <Route
             path="/onboarding"
             element={
-              <ProtectedRoute>
+              <OnboardingRoute>
                 <Onboarding />
-              </ProtectedRoute>
+              </OnboardingRoute>
             }
           />
 
-          <Route element={<MainLayout />}>
+          <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
             <Route path="/health" element={<Health />} />
             <Route path="/finance" element={<Finance />} />
             <Route path="/career" element={<Career />} />
             <Route path="/goals" element={<Goals />} />
             <Route path="/intelligence" element={<Intelligence />} />
+            <Route path="/ai-intelligence" element={<Intelligence />} />
             <Route path="/notifications" element={<Notifications />} />
             <Route path="/settings" element={<Settings />} />
             <Route path="/copilot" element={<Copilot />} />
