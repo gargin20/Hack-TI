@@ -18,7 +18,7 @@ import Simulation from './pages/Simulation';
 import Landing from './pages/Landing';
 import { GamificationProvider } from './context/GamificationContext';
 import ToastOverlay from './components/ToastOverlay';
-import DailySyncModal from './components/DailySyncModal';
+
 function App() {
   return (
     // ✅ The Provider MUST wrap everything!
@@ -55,7 +55,7 @@ function App() {
       
       {/* ✅ The Toast Overlay sits here, listening for XP! */}
       <ToastOverlay />
-      <DailySyncModal />
+      
     </GamificationProvider>
   );
 }

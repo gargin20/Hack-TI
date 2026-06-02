@@ -18,6 +18,8 @@ const XP_TABLE = {
   MEDS_TAKEN: { xp: 20, domain: 'health' },
   GOAL_SET: { xp: 25, domain: 'career' },
   GOAL_MILESTONE_HIT: { xp: 50, domain: 'career' },
+  GOAL_PROGRESS_LOGGED: { xp: 5,  domain: 'career' },
+  GOAL_COMPLETED:       { xp: 100, domain: 'career' },
   
 };
 

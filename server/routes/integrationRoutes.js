@@ -7,25 +7,48 @@ const router = express.Router();
 const simulateNetwork = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 
 // 1. HEALTH: Simulate Apple Health / Fitbit API
+// ── PASTE THIS INTO YOUR backend/routes/integrations.js ──────────────────────
+// Replace the existing router.get('/health', ...) block with this.
+// The only change: Math.random() → seeded deterministic values based on today's date.
+// This means the numbers stay the same for a full day (convincing demo),
+// but change the next day (feels alive over time).
+
 router.get('/health', authenticateToken, async (req, res) => {
-  await simulateNetwork(1500); // 1.5s delay
-  
+  await simulateNetwork(800); // reduced from 1500ms for snappier UX
+
+  // Seed from today's date + userId so values are stable within a day
+  // but different per user and change daily.
+  const today = new Date().toISOString().slice(0, 10).replace(/-/g, '');
+  const userId = String(req.user?.userId || 'default');
+  const seed = parseInt(today, 10) + userId.charCodeAt(0) + (userId.charCodeAt(1) || 0);
+
+  // Simple seeded pseudo-random (no library needed)
+  const rng = (offset, min, max) => {
+    const x = Math.sin(seed + offset) * 10000;
+    const t = x - Math.floor(x); // 0..1
+    return Math.floor(t * (max - min + 1)) + min;
+  };
+
+  const steps        = rng(1, 5500, 11800);
+  const sleepRaw     = (rng(2, 45, 85) / 10).toFixed(1);   // 4.5h – 8.5h
+  const avgHeartRate = rng(3, 62, 84);
+  const restingHR    = rng(4, 58, 78);
+  const hrv          = rng(5, 32, 78);
+  const activeCalories = rng(6, 280, 880);
+
   const mockHealthData = {
-    source: 'Apple Health / Fitbit',
+    source: 'Fitbit (Demo)',
     lastSync: new Date().toISOString(),
     metrics: {
-      // Existing metrics (Kept intact to prevent frontend crashes)
-      steps: Math.floor(Math.random() * (12000 - 4000) + 4000),
-      activeCalories: Math.floor(Math.random() * (900 - 300) + 300),
-      sleepHours: (Math.random() * (8.5 - 4.5) + 4.5).toFixed(1),
-      avgHeartRate: Math.floor(Math.random() * (85 - 60) + 60),
-      
-      // ✅ NEW: Smart Signals for deep Copilot physical burnout detection
-      restingHeartRate: Math.floor(Math.random() * (75 - 55) + 55),
-      hrv: Math.floor(Math.random() * (80 - 30) + 30) // Heart Rate Variability (Stress indicator)
-    }
+      steps,
+      activeCalories,
+      sleepHours: sleepRaw,
+      avgHeartRate,
+      restingHeartRate: restingHR,
+      hrv,
+    },
   };
-  
+
   res.status(200).json({ success: true, data: mockHealthData });
 });
 

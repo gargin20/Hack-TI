@@ -11,9 +11,9 @@ const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000
    MAIN COMPONENT
    ═══════════════════════════════════════════════ */
 function Finance() {
-  const { triggerReward } = useGamification();
+  const { triggerReward, history = [], unlockedBadges = [], availableBadges = [] } = useGamification();
 
-  // ── Bank connection state (retained from original autonomous logic) ──
+  // ── Bank connection state ──
   const [isSyncingBank, setIsSyncingBank] = useState(false);
   const [isBankConnected, setIsBankConnected] = useState(false);
 
@@ -31,9 +31,6 @@ function Finance() {
   const [exchangeLoading, setExchangeLoading] = useState(true);
   const [exchangeError, setExchangeError] = useState(null);
   const [lastExchangeUpdate, setLastExchangeUpdate] = useState(null);
-
-  // ── Achievements state ──
-  const [achievements, setAchievements] = useState([]);
 
   // ═════════════════════════════════════════════
   // 1. Check onboarding profile for bank connection + autonomous sync
@@ -95,6 +92,8 @@ function Finance() {
         });
         if (response.data.success) {
           setFinanceData(response.data.data);
+          // ✅ Mark bank as connected if backend successfully returns valid integration data
+          setIsBankConnected(true);
         }
       } catch (err) {
         console.error('Failed to fetch finance data:', err);
@@ -159,21 +158,9 @@ function Finance() {
     return () => clearInterval(interval);
   }, [fetchExchangeRates]);
 
-  // ═════════════════════════════════════════════
-  // 5. Build achievements from gamification context
-  // ═════════════════════════════════════════════
-  useEffect(() => {
-    const defaultAchievements = [
-      { id: 1, emoji: '💰', text: 'Saved 20% this week', xp: 50, color: '#10c7a1' },
-      { id: 2, emoji: '🛡️', text: 'Reduced discretionary spending', xp: 40, color: '#7b61ff' },
-      { id: 3, emoji: '📊', text: 'Maintained budget for 7 days', xp: 25, color: '#c8a84b' },
-      { id: 4, emoji: '❤️‍🔥', text: 'Financial health score improved', xp: 30, color: '#ff4d7d' },
-    ];
-    setAchievements(defaultAchievements);
-  }, []);
 
   // ═════════════════════════════════════════════
-  // Bank Sync handler (retained)
+  // Bank Sync handler
   // ═════════════════════════════════════════════
   const handleBankSync = async () => {
     setIsSyncingBank(true);
@@ -188,6 +175,7 @@ function Finance() {
         triggerReward(50, [], 50);
         setFinanceData(data);
         toast.success(`Successfully synced via ${data.source}! Credit Score: ${data.creditScore}`, { icon: '🏦' });
+        setIsBankConnected(true);
       }
     } catch (error) {
       console.error('Failed to sync bank:', error);
@@ -197,14 +185,19 @@ function Finance() {
     }
   };
 
-  // ═════════════════════════════════════════════
-  // Derived: overview metrics from backend data
-  // ═════════════════════════════════════════════
-  const overviewMetrics = buildOverviewMetrics(financeData, financeLoading, financeError);
+  const financeHistory = history.filter(log => ['🏦', '💰', '📉', '🛡️', '💳'].includes(log.emoji)).slice(0, 4);
+  
+  const fallbackBadges = [
+    { id: 'f1', title: 'Savings Champion', requirement: 'Save 20% of income', xpNeeded: 200, icon: '💰' },
+    { id: 'f2', title: 'Credit Prime', requirement: 'Reach 750+ Credit Score', xpNeeded: 500, icon: '🏦' },
+    { id: 'f3', title: 'Discipline', requirement: 'No impulse buys for 7 days', xpNeeded: 150, icon: '🛡️' }
+  ];
 
-  // ═════════════════════════════════════════════
-  // Derived: Retail Therapy Alert logic
-  // ═════════════════════════════════════════════
+  const dbFinanceBadges = availableBadges.filter(b => ['plaid', 'budget', 'savings', 'credit'].some(key => b.id.includes(key)));
+  const financeBadges = dbFinanceBadges.length > 0 ? dbFinanceBadges : fallbackBadges;
+
+  // Derived metrics
+  const overviewMetrics = buildOverviewMetrics(financeData, financeLoading, financeError);
   const retailAlert = computeRetailTherapyAlert(healthData, financeData, healthLoading, financeLoading);
 
   // ═══════════════════════════════════════════════
@@ -219,23 +212,25 @@ function Finance() {
       <section className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <h1 className="text-4xl font-semibold tracking-tight text-white">Finance Intelligence</h1>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/68">
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-white/90">
             Autonomous tracking of behavioral spending metrics, global macroeconomic factors, and AI-powered financial projections.
           </p>
         </div>
+        
+        {/* ✅ FIXED: Now matches the exact layout & visual toggle from the Health page */}
         {isBankConnected ? (
           <div className="flex items-center gap-2 rounded-xl border border-[#16a34a]/30 bg-[#16a34a]/10 px-5 py-2.5 text-sm font-bold text-[#16a34a]">
             <span className="relative flex h-2.5 w-2.5">
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#16a34a] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-[#16a34a]"></span>
             </span>
-            Banking API Active
+            Banking Sync Active
           </div>
         ) : (
           <button
             onClick={handleBankSync}
             disabled={isSyncingBank}
-            className="flex items-center justify-center gap-2 rounded-xl border border-[#10c7a1]/50 bg-[#10c7a1]/10 px-5 py-2.5 text-sm font-bold text-[#10c7a1] transition-all hover:bg-[#10c7a1]/20 disabled:opacity-50"
+            className="flex items-center justify-center gap-2 rounded-xl border border-[#c8a84b]/50 bg-[#c8a84b]/10 px-5 py-2.5 text-sm font-bold text-[#c8a84b] transition-all hover:bg-[#c8a84b]/20 disabled:opacity-50"
           >
             {isSyncingBank ? 'Establishing Secure Connection...' : '🏦 Sync Banking API (Plaid)'}
           </button>
@@ -244,46 +239,58 @@ function Finance() {
 
       {/* ── 🏆 Autonomous Achievements ── */}
       <section className="mb-6">
-        <article className={`${glassCardClass} p-6`}>
-          <div className="flex items-center gap-3 border-b border-white/10 pb-4 mb-5">
-            <span className="text-2xl">🏆</span>
+        <article className="rounded-2xl border border-[#c8a84b]/20 bg-gradient-to-br from-[#c8a84b]/5 to-[#05070d] p-6 shadow-[0_18px_48px_rgba(200,168,75,0.08)] backdrop-blur-xl">
+          <div className="mb-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 border-b border-white/5 pb-4">
             <div>
-              <h2 className="text-xl font-semibold">Autonomous Achievements</h2>
-              <p className="mt-1 text-sm text-white/60">AI-verified financial milestones earned this week</p>
+              <h2 className="text-xl font-bold flex items-center gap-2 text-white">
+                <span className="text-2xl">🏆</span> Autonomous Financial Achievements
+              </h2>
+              <p className="mt-1 text-sm text-white/80">Your connected banking APIs automatically validate your financial milestones.</p>
             </div>
-            <span className="ml-auto rounded-full border border-[#c8a84b]/30 bg-[#c8a84b]/10 px-3 py-1 text-xs font-bold uppercase tracking-wider text-[#c8a84b]">
-              +{achievements.reduce((sum, a) => sum + a.xp, 0)} XP Total
-            </span>
           </div>
-          <div className="grid gap-3 sm:grid-cols-2">
-            {achievements.map((ach, index) => (
-              <div
-                key={ach.id}
-                className="finance-achievement-enter flex items-center gap-4 rounded-xl border border-white/8 bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06] hover:border-white/15"
-                style={{ animationDelay: `${index * 120}ms` }}
-              >
-                <div
-                  className="grid h-10 w-10 shrink-0 place-items-center rounded-xl text-lg"
-                  style={{ background: `${ach.color}15`, boxShadow: `0 0 20px ${ach.color}10` }}
-                >
-                  {ach.emoji}
-                </div>
-                <div className="min-w-0 flex-1">
-                  <p className="text-sm font-medium text-white/90">{ach.text}</p>
-                </div>
-                <span
-                  className="shrink-0 rounded-lg px-3 py-1 text-xs font-bold"
-                  style={{ background: `${ach.color}18`, color: ach.color }}
-                >
-                  +{ach.xp} XP
-                </span>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            {/* Recent Validations */}
+            <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-white/60 mb-3">Recent Validations</h3>
+              <div className="space-y-2">
+                {financeHistory.length > 0 ? financeHistory.map((log, i) => (
+                  <div key={i} className="flex items-center justify-between p-2.5 rounded-lg bg-white/5 border border-white/5">
+                    <div className="flex items-center gap-3">
+                      <span className="text-lg">{log.emoji}</span>
+                      <span className="text-sm font-medium text-white/90">{log.activity}</span>
+                    </div>
+                    <span className="text-xs font-bold text-[#c8a84b]">+{log.points} XP</span>
+                  </div>
+                )) : (
+                  <p className="text-sm text-white/50 italic">No financial syncs logged yet. APIs run autonomously in the background.</p>
+                )}
               </div>
-            ))}
+            </div>
+
+            {/* Financial Badges */}
+            <div className="bg-black/20 rounded-xl p-4 border border-white/5">
+              <h3 className="text-xs font-bold uppercase tracking-widest text-white/60 mb-3">Financial Badges</h3>
+              <div className="grid grid-cols-1 gap-3">
+                {financeBadges.map(badge => {
+                  const isUnlocked = unlockedBadges.includes(badge.id);
+                  return (
+                    <div key={badge.id} className={`flex items-center gap-3 p-3 rounded-lg border ${isUnlocked ? 'bg-[#c8a84b]/10 border-[#c8a84b]/30' : 'bg-white/5 border-white/5 opacity-60'}`}>
+                      <span className="text-2xl">{badge.icon}</span>
+                      <div>
+                        <p className={`text-sm font-bold ${isUnlocked ? 'text-[#c8a84b]' : 'text-white/80'}`}>{badge.title}</p>
+                        <p className="text-[10px] text-white/60">{badge.requirement}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </article>
       </section>
 
-      {/* ── Overview Metrics (Backend-Connected) ── */}
+      {/* ── Overview Metrics ── */}
       <section className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-4">
         {overviewMetrics.map((metric) => (
           <OverviewCard key={metric.label} metric={metric} />
@@ -292,12 +299,10 @@ function Finance() {
 
       {/* ── ⚠️ Retail Therapy Alert + 📈 Live Market Snapshot ── */}
       <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
-        {/* Retail Therapy Alert */}
         <article className={`${glassCardClass} p-6 xl:col-span-7`}>
           <RetailTherapyAlert alert={retailAlert} />
         </article>
 
-        {/* Live Market Snapshot */}
         <article className={`${glassCardClass} p-6 xl:col-span-5`}>
           <LiveMarketSnapshot
             rates={exchangeRates}
@@ -314,8 +319,8 @@ function Finance() {
         <article className={`${glassCardClass} p-6 xl:col-span-7`}>
           <div className="mb-7 flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Unusual Spending Spike Detector</h2>
-              <p className="mt-1 text-sm text-white/60">AI behavioral anomaly detection</p>
+              <h2 className="text-xl font-semibold text-white">Unusual Spending Spike Detector</h2>
+              <p className="mt-1 text-sm text-white/80">AI behavioral anomaly detection</p>
             </div>
             <span className="w-fit rounded-full border border-white/10 bg-white/5 px-3 py-1 text-xs font-bold uppercase tracking-[0.12em] text-[#c8a84b]">
               Action recommended
@@ -329,7 +334,7 @@ function Finance() {
                   <WarningIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#c8a84b]" />
                   <div>
                     <p className="text-base font-semibold text-white">Weekend food delivery spending increased 28%</p>
-                    <p className="mt-1 text-sm leading-6 text-white/68">
+                    <p className="mt-1 text-sm leading-6 text-white/90">
                       This spike correlates with a 15% reduction in sleep consistency during high-stress windows.
                     </p>
                   </div>
@@ -351,7 +356,7 @@ function Finance() {
                   />
                 ))}
               </div>
-              <p className="absolute bottom-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/48">Activity variance</p>
+              <p className="absolute bottom-3 text-[10px] font-bold uppercase tracking-[0.16em] text-white/70">Activity variance</p>
             </div>
           </div>
         </article>
@@ -359,7 +364,7 @@ function Finance() {
         <article className={`${glassCardClass} flex flex-col p-6 xl:col-span-5`}>
           <div className="mb-5">
               <h2 className="text-xl font-semibold text-white">Macro Market Analysis</h2>
-              <p className="mt-1 text-sm text-white/60">Global catalysts: Political, Legal, Conflict, & Health updates</p>
+              <p className="mt-1 text-sm text-white/80">Global catalysts: Political, Legal, Conflict, & Health updates</p>
           </div>
           <div className="flex-1 space-y-4 overflow-y-auto max-h-[280px] pr-1">
             <MarketImpactRow title="Geopolitical Conflict / War Risks" detail="Supply chain disruptions detected in energy sectors. Expect minor inflationary spikes in regional utility and fuel costs." type="danger" />
@@ -373,7 +378,7 @@ function Finance() {
       {/* ── Finance Observation & Suggestions + Cross Intelligence ── */}
       <section className="mb-6 grid grid-cols-1 gap-6 xl:grid-cols-12">
         <article className={`${glassCardClass} p-6 xl:col-span-6`}>
-          <h2 className="mb-4 text-xl font-semibold">Finance Observation & Suggestions</h2>
+          <h2 className="mb-4 text-xl font-semibold text-white">Finance Observation & Suggestions</h2>
           <div className="space-y-4">
             <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
               <div className="grid h-8 w-8 shrink-0 place-items-center rounded-full bg-[#7b61ff]/15 text-[#7b61ff]">
@@ -381,7 +386,7 @@ function Finance() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Impulse Spending Trigger Mitigated</p>
-                <p className="mt-1 text-xs leading-5 text-white/60">Identified a loop of 10 PM social media surfing causing stress buys. Restricting shopping apps after 9 PM could yield up to $140/mo in direct savings.</p>
+                <p className="mt-1 text-xs leading-5 text-white/80">Identified a loop of 10 PM social media surfing causing stress buys. Restricting shopping apps after 9 PM could yield up to $140/mo in direct savings.</p>
               </div>
             </div>
             <div className="flex items-start gap-4 rounded-2xl border border-white/10 bg-white/5 p-4">
@@ -390,7 +395,7 @@ function Finance() {
               </div>
               <div>
                 <p className="text-sm font-semibold text-white">Liquidity Optimization Target</p>
-                <p className="mt-1 text-xs leading-5 text-white/60">To counter market volatility, freeze all speculative certification/luxury purchases for 90 days. Redirect excess funds entirely into your Savings Shield.</p>
+                <p className="mt-1 text-xs leading-5 text-white/80">To counter market volatility, freeze all speculative certification/luxury purchases for 90 days. Redirect excess funds entirely into your Savings Shield.</p>
               </div>
             </div>
           </div>
@@ -418,12 +423,12 @@ function Finance() {
         <article className={`${glassCardClass} p-6`}>
           <div className="mb-7 flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
             <div>
-              <h2 className="text-xl font-semibold">Financial Trajectory</h2>
-              <p className="mt-1 text-sm text-white/60">AI forecasting based on current lifestyle habits versus optimized stability tracks</p>
+              <h2 className="text-xl font-semibold text-white">Financial Trajectory</h2>
+              <p className="mt-1 text-sm text-white/80">AI forecasting based on current lifestyle habits versus optimized stability tracks</p>
             </div>
             <div className="flex flex-wrap gap-4 text-sm">
               <Legend color="#c8a84b" label="Current path" />
-              <Legend color="#7b61ff" label="Stable path" />
+              <Legend color="#7df3cc" label="Stable path" />
             </div>
           </div>
           <div className="relative h-72">
@@ -435,7 +440,7 @@ function Finance() {
               <path d="M0 168 Q200 152 400 120 T800 48" fill="none" stroke="#7df3cc" strokeLinecap="round" strokeWidth="4" />
               <circle cx="400" cy="120" fill="#7df3cc" r="7" />
             </svg>
-            <div className="absolute inset-x-0 bottom-0 flex justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-white/48">
+            <div className="absolute inset-x-0 bottom-0 flex justify-between text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">
               <span>Current</span>
               <span>6 months</span>
               <span>1 year</span>
@@ -443,7 +448,7 @@ function Finance() {
             </div>
           </div>
           <div className="mt-6 flex items-center justify-between rounded-2xl border border-white/10 bg-white/5 p-4">
-            <p className="text-sm text-white/60">Projected difference in 24 months:</p>
+            <p className="text-sm text-white/80">Projected difference in 24 months:</p>
             <span className="text-xl font-semibold text-[#c8a84b]">+$18,450.00</span>
           </div>
         </article>
@@ -586,7 +591,7 @@ function RetailTherapyAlert({ alert }) {
       <div className="space-y-4">
         <div className="flex items-center gap-3">
           <span className="text-2xl">⚠️</span>
-          <h2 className="text-xl font-semibold">Retail Therapy Alert</h2>
+          <h2 className="text-xl font-semibold text-white">Retail Therapy Alert</h2>
         </div>
         <div className="space-y-3">
           {[1, 2, 3].map(i => (
@@ -603,8 +608,8 @@ function RetailTherapyAlert({ alert }) {
         <div className="flex items-center gap-3">
           <span className="text-2xl">⚠️</span>
           <div>
-            <h2 className="text-xl font-semibold">Retail Therapy Alert</h2>
-            <p className="mt-1 text-sm text-white/60">Cross-domain AI analysis: Health × Finance</p>
+            <h2 className="text-xl font-semibold text-white">Retail Therapy Alert</h2>
+            <p className="mt-1 text-sm text-white/80">Cross-domain AI analysis: Health × Finance</p>
           </div>
         </div>
         <span
@@ -626,7 +631,7 @@ function RetailTherapyAlert({ alert }) {
               <WarningIcon className="mt-0.5 h-5 w-5 shrink-0 text-[#ff4d7d]" />
               <div>
                 <p className="text-base font-semibold text-white">Stress-Driven Spending Pattern Detected</p>
-                <p className="mt-1 text-sm leading-6 text-white/68">
+                <p className="mt-1 text-sm leading-6 text-white/90">
                   Your stress levels were elevated this week (HRV: {alert.hrv}ms, Sleep: {alert.sleepHours}h) and discretionary spending increased by {alert.spendingChange}%. Consider a 24-hour pause before making non-essential purchases.
                 </p>
               </div>
@@ -648,7 +653,7 @@ function RetailTherapyAlert({ alert }) {
             </div>
             <div>
               <p className="text-sm font-semibold text-[#10c7a1]">All Clear — No Alerts</p>
-              <p className="mt-0.5 text-xs text-white/60">Stress-spending correlation within healthy bounds. Keep it up!</p>
+              <p className="mt-0.5 text-xs text-white/80">Stress-spending correlation within healthy bounds. Keep it up!</p>
             </div>
           </div>
           <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -669,7 +674,7 @@ function RetailTherapyAlert({ alert }) {
 function AlertMetricChip({ label, value, color }) {
   return (
     <div className="rounded-xl border border-white/8 bg-white/[0.03] p-3 transition-all hover:bg-white/[0.06]">
-      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/48">{label}</p>
+      <p className="mb-1 text-[10px] font-bold uppercase tracking-[0.14em] text-white/70">{label}</p>
       <p className="text-sm font-bold" style={{ color }}>{value}</p>
     </div>
   );
@@ -686,12 +691,12 @@ function LiveMarketSnapshot({ rates, loading, error, lastUpdate, onRefresh }) {
           <span className="text-2xl">📈</span>
           <div>
             <h2 className="text-xl font-semibold text-white">Live Market Snapshot</h2>
-            <p className="mt-1 text-sm text-white/60">Real-time forex exchange rates</p>
+            <p className="mt-1 text-sm text-white/80">Real-time forex exchange rates</p>
           </div>
         </div>
         <button
           onClick={onRefresh}
-          className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/60 transition hover:bg-white/10 hover:text-white"
+          className="grid h-8 w-8 place-items-center rounded-lg border border-white/10 bg-white/5 text-white/80 transition hover:bg-white/10 hover:text-white"
           title="Refresh rates"
         >
           <RefreshIcon className="h-4 w-4" />
@@ -707,10 +712,10 @@ function LiveMarketSnapshot({ rates, loading, error, lastUpdate, onRefresh }) {
       ) : error && !rates ? (
         <div className="flex-1 flex items-center justify-center">
           <div className="text-center">
-            <p className="text-sm text-white/60">{error}</p>
+            <p className="text-sm text-white/80">{error}</p>
             <button
               onClick={onRefresh}
-              className="mt-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/70 hover:bg-white/10"
+              className="mt-3 rounded-lg border border-white/10 bg-white/5 px-4 py-2 text-xs font-bold text-white/90 hover:bg-white/10"
             >
               Retry
             </button>
@@ -739,10 +744,10 @@ function LiveMarketSnapshot({ rates, loading, error, lastUpdate, onRefresh }) {
               <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-[#10c7a1] opacity-75"></span>
               <span className="relative inline-flex rounded-full h-2 w-2 bg-[#10c7a1]"></span>
             </span>
-            <span className="text-[11px] font-medium text-white/50">
+            <span className="text-[11px] font-medium text-white/70">
               Last Updated: {lastUpdate ? lastUpdate.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit', second: '2-digit' }) : '—'}
             </span>
-            <span className="ml-auto text-[10px] text-white/30">Auto-refresh: 60s</span>
+            <span className="ml-auto text-[10px] text-white/60">Auto-refresh: 60s</span>
           </div>
         </div>
       ) : null}
@@ -758,11 +763,11 @@ function ExchangeRateRow({ pair, flag1, flag2, rate, color }) {
     <div className="flex items-center gap-4 rounded-xl border border-white/8 bg-white/[0.03] p-4 transition-all hover:bg-white/[0.06]">
       <div className="flex items-center gap-1.5 text-xl">
         <span>{flag1}</span>
-        <ArrowRightIcon className="h-3 w-3 text-white/30" />
+        <ArrowRightIcon className="h-3 w-3 text-white/50" />
         <span>{flag2}</span>
       </div>
       <div className="flex-1">
-        <p className="text-xs font-bold uppercase tracking-wider text-white/50">{pair}</p>
+        <p className="text-xs font-bold uppercase tracking-wider text-white/70">{pair}</p>
       </div>
       <p className="text-xl font-bold tabular-nums" style={{ color }}>
         {rate?.toFixed(2) || '—'}
@@ -775,14 +780,14 @@ function ExchangeRateRow({ pair, flag1, flag2, rate, color }) {
    SUB-COMPONENTS (preserved from original)
    ═══════════════════════════════════════════════ */
 function MarketImpactRow({ title, detail, type }) {
-  let badgeColor = "bg-white/5 text-white/72 border-white/10";
+  let badgeColor = "bg-white/5 text-white/90 border-white/10";
   if (type === "danger") badgeColor = "bg-[#111722] text-[#c8a84b] border-[#c8a84b]/20";
   if (type === "warning") badgeColor = "bg-[#111722] text-[#ffb38a] border-[#ff7a00]/20";
 
   return (
     <div className={`flex flex-col gap-1 rounded-lg border p-3 ${badgeColor}`}>
       <h4 className="text-xs font-bold uppercase tracking-wider">{title}</h4>
-      <p className="text-sm leading-relaxed text-white/72">{detail}</p>
+      <p className="text-sm leading-relaxed text-white/80">{detail}</p>
     </div>
   );
 }
@@ -809,9 +814,9 @@ function OverviewCard({ metric }) {
       <div className="absolute right-0 top-0 h-24 w-24 -translate-y-12 translate-x-10 rounded-full bg-[#c8a84b]/10" />
       <div className="relative flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/48">{metric.label}</p>
+          <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">{metric.label}</p>
           <h3 className="text-2xl font-semibold" style={{ color: tone }}>{metric.value}</h3>
-          <p className="mt-2 flex items-center gap-1 text-sm text-white/60">
+          <p className="mt-2 flex items-center gap-1 text-sm text-white/80">
             {metric.tone === 'primary' && <ArrowUpIcon className="h-4 w-4 text-[#7df3cc]" />}
             {metric.detail}
           </p>
@@ -866,9 +871,9 @@ function ProgressRing({ value, color }) {
 function MiniStat({ label, value, delta }) {
   return (
       <div className="rounded-lg border border-white/10 bg-white/5 p-4">
-      <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/48">{label}</p>
-      <p className="text-lg font-semibold">
-        {value} {delta && <span className="text-sm text-[#8b4e3f]">{delta}</span>}
+      <p className="mb-1 text-[11px] font-bold uppercase tracking-[0.14em] text-white/70">{label}</p>
+      <p className="text-lg font-semibold text-white">
+        {value} {delta && <span className="text-sm text-[#c8a84b]">{delta}</span>}
       </p>
     </div>
   );
@@ -876,7 +881,7 @@ function MiniStat({ label, value, delta }) {
 
 function Legend({ color, label }) {
   return (
-    <div className="flex items-center gap-2 text-white/60">
+    <div className="flex items-center gap-2 text-white/80">
       <span className="h-3 w-3 rounded-full" style={{ backgroundColor: color }} />
       <span>{label}</span>
     </div>
@@ -892,7 +897,7 @@ function RecommendationCard({ icon: Icon, title, detail, tone }) {
         <Icon className={`h-5 w-5 ${warm ? 'text-[#8b4e3f]' : 'text-[#416f82]'}`} />
         <ArrowRightIcon className="h-4 w-4 text-[#596467]/50 transition group-hover:text-[#416f82]" />
       </div>
-      <p className="font-semibold text-sm">{title}</p>
+      <p className="font-semibold text-sm text-gray-900">{title}</p>
       <p className="mt-1 text-xs leading-5 text-[#596467]">{detail}</p>
     </button>
   );
@@ -913,6 +918,7 @@ function ShieldIcon({ className, style }) {
   return <IconBase className={className} style={style}><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /><path d="m9 12 2 2 4-5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></IconBase>;
 }
 
+// ✅ Rest of your teammate's SVG icons remain unmodified down here...
 function ArrowUpIcon({ className }) {
   return <IconBase className={className}><path d="M12 19V5M6 11l6-6 6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></IconBase>;
 }
@@ -925,6 +931,7 @@ function ArrowRightIcon({ className }) {
   return <IconBase className={className}><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></IconBase>;
 }
 
+// ... Keep everything exactly the same to protect execution stability!
 function BoltIcon({ className }) {
   return <IconBase className={className}><path d="m13 2-8 12h6l-1 8 8-12h-6l1-8Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round" /></IconBase>;
 }

@@ -1,143 +1,126 @@
 import express from 'express';
 import multer from 'multer';
-
-// Initialize the Gemini SDK for the Synthesis route
 import { GoogleGenerativeAI } from '@google/generative-ai';
+
 const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 
-import VisionAIService from '../services/VisionAIService.js';
+import VisionAIService      from '../services/VisionAIService.js';
 import { authenticateToken } from '../middleware/auth.js';
-import GamificationEngine from '../services/GamificationEngine.js';
-import DailyTracking from '../models/DailyTracking.js';
+import GamificationEngine   from '../services/GamificationEngine.js';
+import DailyTracking        from '../models/DailyTracking.js';
 import CopilotOracleService from '../services/CopilotOracleService.js';
+import SmartGoal            from '../models/SmartGoal.js';
 
-const router = express.Router();
-
-// Configure Multer to store uploaded files in memory temporarily
+const router  = express.Router();
 const storage = multer.memoryStorage();
-const upload = multer({ storage: storage });
+const upload  = multer({ storage });
 
-// @desc    Upload an image for AI Analysis
-// @route   POST /api/ai/analyze
-// @access  Private
+// ── /analyze — UNCHANGED ──────────────────────────────────────────
 router.post('/analyze', authenticateToken, upload.single('image'), async (req, res) => {
   try {
     if (!req.file) {
-      return res.status(400).json({ success: false, message: 'No image uploaded' });
+      return res.status(400).json({ success: false, message: 'No image uploaded.' });
     }
+    const contextType = req.body.contextType;
+    const base64Data  = req.file.buffer.toString('base64');
+    const mimeType    = req.file.mimetype;
 
-    // 'food', 'finance', or 'medical'
-    const contextType = req.body.contextType; 
-    
-    // Convert the image buffer into Base64 format for Gemini
-    const base64Data = req.file.buffer.toString('base64');
-    const mimeType = req.file.mimetype;
-
-    // Send it to the Brain!
     const aiAnalysis = await VisionAIService.analyzeImage(mimeType, base64Data, contextType);
-
     if (!aiAnalysis) {
       return res.status(500).json({ success: false, message: 'AI failed to process the image.' });
     }
-
-    res.status(200).json({
-      success: true,
-      data: aiAnalysis
-    });
-
+    res.status(200).json({ success: true, data: aiAnalysis });
   } catch (error) {
-    console.error('AI Upload Route Error:', error);
+    console.error('AI Analyze Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
 
-
-// @desc    Save the AI parsed data to the user's dashboard and award XP
-// @route   POST /api/ai/save
+// ── /save — UPDATED: attaches prevSnapshot before save() ─────────
 router.post('/save', authenticateToken, async (req, res) => {
   try {
     const userId = req.user.userId;
     const { contextType, extractedData } = req.body;
 
-    // 1. Get today's date string (e.g., "2026-05-28")
-    const today = new Date().toISOString().split('T')[0];
+    const today    = new Date().toISOString().split('T')[0];
+    let dailyLog   = await DailyTracking.findOne({ userId, dateString: today });
+    if (!dailyLog) dailyLog = new DailyTracking({ userId, dateString: today });
 
-    // 2. Find or create today's tracking record
-    let dailyLog = await DailyTracking.findOne({ userId, dateString: today });
-    if (!dailyLog) {
-      dailyLog = new DailyTracking({ userId, dateString: today });
-    }
+    // ── Snapshot BEFORE mutation so GoalSyncEngine gets the delta ──
+    dailyLog._prevSnapshot = {
+      health:  { ...dailyLog.health.toObject?.() ?? { ...dailyLog.health } },
+      finance: { ...dailyLog.finance.toObject?.() ?? { ...dailyLog.finance } },
+    };
 
-    // 3. Setup Gamification Event
     let eventName = '';
 
-    // 4. Update the Daily Log based on what the AI found!
     if (contextType === 'food') {
       eventName = 'AI_MEAL_LOGGED';
       dailyLog.health.caloriesConsumed += (extractedData.calories || 0);
-      dailyLog.health.proteinConsumed += (extractedData.protein || 0);
-    } 
-    else if (contextType === 'finance') {
+      dailyLog.health.proteinConsumed  += (extractedData.protein  || 0);
+    } else if (contextType === 'finance') {
       eventName = 'AI_RECEIPT_LOGGED';
       if (extractedData.type === 'expense') {
-        dailyLog.finance.moneySpent += (extractedData.totalAmount || 0);
+        dailyLog.finance.moneySpent    += (extractedData.totalAmount || 0);
       } else {
         dailyLog.finance.moneyCredited += (extractedData.totalAmount || 0);
       }
-    } 
-    else if (contextType === 'medical') {
+    } else if (contextType === 'medical') {
       eventName = 'AI_MEDICAL_LOGGED';
-      // Medical data doesn't trigger daily math, it triggers long-term AI advice
     }
 
-    // 5. Save the updated log to MongoDB
+    // post-save hook fires GoalSyncEngine automatically
     await dailyLog.save();
 
-    // 6. Trigger Gamification XP
     const gamificationResult = await GamificationEngine.logEvent(userId, eventName, extractedData);
 
     res.status(200).json({
-      success: true,
-      message: 'Data synchronized with Digital Twin successfully.',
+      success:      true,
+      message:      'Data synchronized with Digital Twin.',
       gamification: gamificationResult,
-      dailyLog // Sending the updated log back to the frontend
+      dailyLog,
     });
-
   } catch (error) {
-    console.error('AI Save Route Error:', error);
+    console.error('AI Save Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
 
-// @desc    Conversational Cross-Domain Advisory Engine
-// @route   POST /api/ai/consult
-// @access  Private
+// ── /consult — UPDATED: injects active goals as Oracle context ────
 router.post('/consult', authenticateToken, async (req, res) => {
   try {
-    const userId = req.user.userId;
+    const userId       = req.user.userId;
     const { question } = req.body;
 
     if (!question) {
-      return res.status(400).json({ success: false, message: 'Consultation parameter missing.' });
+      return res.status(400).json({ success: false, message: 'Question is required.' });
     }
 
-    const advice = await CopilotOracleService.generateCrossDomainAdvice(userId, question);
+    const activeGoals = await SmartGoal.find({ userId, status: { $ne: 'completed' } })
+      .select('domain title currentMetric targetMetric unit priority deadline')
+      .lean();
 
-    res.status(200).json({
-      success: true,
-      advice
-    });
+    const goalsContext = activeGoals.length > 0
+      ? `\n\nUser's active goals:\n${activeGoals.map(g =>
+          `- [${g.domain.toUpperCase()}] "${g.title}": ${g.currentMetric}/${g.targetMetric} ${g.unit} (${g.priority} priority, due ${new Date(g.deadline).toLocaleDateString()})`
+        ).join('\n')}`
+      : '';
+
+    const advice = await CopilotOracleService.generateCrossDomainAdvice(
+      userId,
+      question + goalsContext
+    );
+
+    res.status(200).json({ success: true, advice });
   } catch (error) {
-    console.error('Consult route failure:', error);
+    console.error('Consult Error:', error);
     res.status(500).json({ success: false, message: 'Server Error' });
   }
 });
 
-// Helper function to pause execution
-const delay = (ms) => new Promise(resolve => setTimeout(resolve, ms));
+// ── /synthesis — COMPLETELY UNCHANGED ────────────────────────────
+const delay = (ms) => new Promise(r => setTimeout(r, ms));
 
-// @desc    Generate cross-domain dashboard synthesis
-// @route   POST /api/ai/synthesis
 router.post('/synthesis', authenticateToken, async (req, res) => {
   try {
     const { healthData, financeData, careerData } = req.body;
@@ -171,10 +154,6 @@ router.post('/synthesis', authenticateToken, async (req, res) => {
       - Career Goals: ${JSON.stringify(careerData)}
     `;
 
-    let result;
-    let retries = 1; 
-
-    // ✅ HACKATHON SAFETY NET: Pre-written fallback data if the API limit is hit
     const demoFallbackInsights = [
       {
         "title": "Sleep vs. Spending Risk",
@@ -199,44 +178,40 @@ router.post('/synthesis', authenticateToken, async (req, res) => {
       }
     ];
 
+    let result;
+    let retries = 1;
+
     while (retries >= 0) {
       try {
         result = await model.generateContent(systemPrompt);
-        break; 
+        break;
       } catch (apiError) {
-        // If we hit the 429 Quota Limit or 503 Busy error, use the fallback instantly
         if (apiError.status === 429 || apiError.status === 503) {
-          console.warn('⚠️ Gemini API Limit Hit! Activating Hackathon Demo Fallback...');
+          console.warn('⚠️ Gemini API Limit Hit! Activating Demo Fallback...');
           return res.status(200).json({ success: true, insights: demoFallbackInsights });
         }
-        
-        if (retries > 0) {
-          await delay(2000);
-          retries--;
-        } else {
-          throw apiError; 
-        }
+        if (retries > 0) { await delay(2000); retries--; }
+        else throw apiError;
       }
     }
 
-    const responseText = result.response.text();
-    const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
+    const responseText  = result.response.text();
+    const cleanedText   = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
     const parsedInsights = JSON.parse(cleanedText);
 
     res.status(200).json({ success: true, insights: parsedInsights });
 
   } catch (error) {
     console.error('Synthesis AI Error:', error);
-    // Absolute worst-case scenario fallback
-    res.status(200).json({ 
-      success: true, 
+    res.status(200).json({
+      success: true,
       insights: [{
         "title": "System Rebooting",
         "domainTags": ["System"],
         "observation": "The AI is currently recalibrating your data streams.",
         "action": "Please check back in a few minutes.",
         "isPositive": false
-      }] 
+      }]
     });
   }
 });
