@@ -71,6 +71,37 @@ const SYNC_RULES = [
     unitPatterns: [/save/i, /saving/i, /invest/i, /credit/i],
     mode:         'increment',
   },
+  {
+    source:       'finance.portfolioValue',
+    domain:       'finance',
+    unitPatterns: [/portfolio/i, /invest/i, /value/i, /holding/i, /mutual/i, /fund/i],
+    mode:         'set',
+  },
+  // ── CAREER ──────────────────────────────────────────────────────
+  {
+    source:       'career.studyHours',
+    domain:       'career',
+    unitPatterns: [/hour/i, /study/i, /learn/i, /\bhr/i, /class/i],
+    mode:         'increment',
+  },
+  {
+    source:       'career.completedCourses',
+    domain:       'career',
+    unitPatterns: [/course/i, /cert/i, /certificate/i, /degree/i],
+    mode:         'increment',
+  },
+  {
+    source:       'career.githubCommits',
+    domain:       'career',
+    unitPatterns: [/commit/i, /push/i, /code/i, /contribution/i],
+    mode:         'increment',
+  },
+  {
+    source:       'career.projectsCompleted',
+    domain:       'career',
+    unitPatterns: [/project/i, /app\b/i, /repo/i, /build/i],
+    mode:         'increment',
+  },
 ];
 
 // ── Utility: read nested value from object by dot-path ────────────

@@ -1,0 +1,107 @@
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+import { io } from 'socket.io-client';
+
+const DashboardSyncContext = createContext(null);
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+
+export function DashboardSyncProvider({ children }) {
+  const [dashboardData, setDashboardData] = useState(() => {
+    try {
+      const cached = localStorage.getItem('digitalTwinDashboardData');
+      return cached ? JSON.parse(cached) : null;
+    } catch {
+      return null;
+    }
+  });
+  const [isLoading, setIsLoading] = useState(true);
+  const [socket, setSocket] = useState(null);
+
+  const fetchDashboard = useCallback(async () => {
+    const token = localStorage.getItem('authToken');
+    if (!token) {
+      setIsLoading(false);
+      return;
+    }
+    try {
+      const response = await axios.get(`${API_BASE_URL}/api/dashboard`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      if (response.data.success) {
+        setDashboardData(response.data.data);
+        localStorage.setItem('digitalTwinDashboardData', JSON.stringify(response.data.data));
+      }
+    } catch (e) {
+      console.error('DashboardSyncContext fetch error:', e);
+    } finally {
+      setIsLoading(false);
+    }
+  }, []);
+
+  // Sync when notifications or updates occur
+  useEffect(() => {
+    fetchDashboard();
+
+    const handleUpdate = () => {
+      fetchDashboard();
+    };
+    window.addEventListener('daily-update-completed', handleUpdate);
+    window.addEventListener('upload-history-updated', handleUpdate);
+
+    return () => {
+      window.removeEventListener('daily-update-completed', handleUpdate);
+      window.removeEventListener('upload-history-updated', handleUpdate);
+    };
+  }, [fetchDashboard]);
+
+  // Connect WebSockets for real-time pushing
+  useEffect(() => {
+    const token = localStorage.getItem('authToken');
+    if (!token) return;
+
+    const newSocket = io(API_BASE_URL, {
+      auth: { token }
+    });
+
+    newSocket.on('connect', () => {
+      console.log('[DashboardSyncContext] Socket connected');
+    });
+
+    newSocket.on('dashboard:sync', (data) => {
+      console.log('[DashboardSyncContext] Real-time dashboard sync received:', data);
+      setDashboardData(data);
+      localStorage.setItem('digitalTwinDashboardData', JSON.stringify(data));
+      
+      // Notify other legacy window event listeners
+      window.dispatchEvent(new CustomEvent('dashboard-synced', { detail: data }));
+    });
+
+    setSocket(newSocket);
+
+    return () => {
+      newSocket.disconnect();
+    };
+  }, []);
+
+  const value = {
+    dashboardData,
+    setDashboardData,
+    isLoading,
+    refreshDashboard: fetchDashboard,
+    socket
+  };
+
+  return (
+    <DashboardSyncContext.Provider value={value}>
+      {children}
+    </DashboardSyncContext.Provider>
+  );
+}
+
+export function useDashboardSync() {
+  const ctx = useContext(DashboardSyncContext);
+  if (!ctx) throw new Error('useDashboardSync must be used inside <DashboardSyncProvider>');
+  return ctx;
+}
+
+export default DashboardSyncContext;

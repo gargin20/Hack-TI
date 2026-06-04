@@ -573,7 +573,7 @@ function buildThresholdState({ score, status, label }) {
   };
 }
 
-function buildDashboardResponse(profile) {
+export function buildDashboardResponse(profile) {
   const cleanProfile = profile.toObject ? profile.toObject() : profile;
   const charts = buildCharts(cleanProfile);
   const signals = buildSignals(cleanProfile);

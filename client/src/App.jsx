@@ -18,16 +18,19 @@ import Settings from './pages/Settings';
 import Signup from './pages/Signup';
 import Simulation from './pages/Simulation';
 import Landing from './pages/Landing';
+import DocumentUpload from './pages/DocumentUpload';
 import { GamificationProvider } from './context/GamificationContext';
-import ToastOverlay from './components/ToastOverlay';
 import { IntegrationProvider } from './context/IntegrationContext';
+import { DashboardSyncProvider } from './context/DashboardSyncContext';
+import ToastOverlay from './components/ToastOverlay';
 
 function App() {
   return (
     // ✅ The Provider MUST wrap everything!
     <GamificationProvider>
       <IntegrationProvider>
-      <BrowserRouter>
+        <DashboardSyncProvider>
+          <BrowserRouter>
         <Routes>
           <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
           <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
@@ -54,12 +57,13 @@ function App() {
             <Route path="/copilot" element={<Copilot />} />
             <Route path="/simulation" element={<Simulation />} />
             <Route path="/daily-update" element={<DailyUpdate />} />
-
+            <Route path="/document-upload" element={<DocumentUpload />} />
           </Route>
         </Routes>
       </BrowserRouter>
     
       <ToastOverlay />
+        </DashboardSyncProvider>
       </IntegrationProvider>
     </GamificationProvider>
   );

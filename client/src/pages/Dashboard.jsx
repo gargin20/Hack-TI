@@ -14,6 +14,7 @@ import {
 } from 'lucide-react';
 import { useGamification } from '../context/GamificationContext';
 import { useIntegrations } from '../context/IntegrationContext';
+import { useDashboardSync } from '../context/DashboardSyncContext';
 import useNotificationCount from '../hooks/useNotificationCount';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
@@ -43,8 +44,7 @@ const fallbackProfile = {
 // ─── Main Dashboard ─────────────────────────────────────────────────────────
 function Dashboard() {
   const navigate = useNavigate();
-  const [dashboardData, setDashboardData] = useState(() => getStoredDashboardData());
-  const [isLoadingDashboard, setIsLoadingDashboard] = useState(true);
+  const { dashboardData, isLoading: isLoadingDashboard } = useDashboardSync();
   const user = getStoredUser();
   const firstName = user?.firstName || 'Anjali';
   const profile = useMemo(() => normalizeProfile(dashboardData?.profile || getStoredProfile()), [dashboardData]);
@@ -52,24 +52,7 @@ function Dashboard() {
   const insights = useMemo(() => buildInsights(profile, dashboardData, integrations), [profile, dashboardData, integrations]);
   const today = new Date().toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
-  
   const { totalXP = 0, level = 1, history = [], unlockedBadges = [], availableBadges = [] } = useGamification();
-
-  useEffect(() => {
-    const fetchDashboard = async () => {
-      const token = localStorage.getItem('authToken');
-      if (!token) { setIsLoadingDashboard(false); return; }
-      try {
-        const response = await axios.get(`${API_BASE_URL}/api/dashboard`, { headers: { Authorization: `Bearer ${token}` } });
-        setDashboardData(response.data.data);
-        localStorage.setItem('digitalTwinDashboardData', JSON.stringify(response.data.data));
-      } catch (e) { console.error('Dashboard fetch error:', e); }
-      finally { setIsLoadingDashboard(false); }
-    };
-    fetchDashboard();
-    window.addEventListener('daily-update-completed', fetchDashboard);
-    return () => window.removeEventListener('daily-update-completed', fetchDashboard);
-  }, []);
 
   return (
     <div className="flex min-h-screen min-w-0 flex-1 overflow-hidden bg-[#05070c] text-white" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>

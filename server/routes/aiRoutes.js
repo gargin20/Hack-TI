@@ -11,6 +11,13 @@ import DailyTracking        from '../models/DailyTracking.js';
 import CopilotOracleService from '../services/CopilotOracleService.js';
 import SmartGoal            from '../models/SmartGoal.js';
 
+import DocumentExtractionService from '../services/DocumentExtractionService.js';
+import { recalculateScoresAfterUpload } from '../services/ScoreRecalculationService.js';
+import { emitDashboardSync, createNotification } from '../services/notificationService.js';
+import { buildDashboardResponse } from '../controllers/onboardingController.js';
+import OnboardingProfile from '../models/OnboardingProfile.js';
+import Upload from '../models/Upload.js';
+
 const router  = express.Router();
 const storage = multer.memoryStorage();
 const upload  = multer({ storage });
@@ -213,6 +220,201 @@ router.post('/synthesis', authenticateToken, async (req, res) => {
         "isPositive": false
       }]
     });
+  }
+});
+
+// ── /upload — NEW: Handles PDF/Excel/CSV/Word/Image uploads ─────────
+router.post('/upload', authenticateToken, upload.single('file'), async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({ success: false, message: 'No file uploaded.' });
+    }
+
+    const userId = req.user.userId;
+    const fileName = req.file.originalname;
+    const fileMimeType = req.file.mimetype;
+    const fileBuffer = req.file.buffer;
+
+    // AI Extraction
+    const extractedData = await DocumentExtractionService.extractDocumentData(fileBuffer, fileName, fileMimeType);
+    if (!extractedData || !extractedData.domain) {
+      return res.status(400).json({ success: false, message: 'Failed to extract structured data from document.' });
+    }
+
+    const domain = extractedData.domain;
+
+    // Get today's daily log
+    const today = new Date().toISOString().split('T')[0];
+    let dailyLog = await DailyTracking.findOne({ userId, dateString: today });
+    if (!dailyLog) {
+      dailyLog = new DailyTracking({ userId, dateString: today });
+    }
+
+    // Attach prevSnapshot so GoalSyncEngine calculates deltas correctly
+    dailyLog._prevSnapshot = {
+      health:  { ...dailyLog.health.toObject?.() ?? { ...dailyLog.health } },
+      finance: { ...dailyLog.finance.toObject?.() ?? { ...dailyLog.finance } },
+      career:  { ...dailyLog.career.toObject?.() ?? { ...dailyLog.career } },
+    };
+
+    // Apply extracted data to daily log
+    let xpEvent = '';
+    if (domain === 'finance') {
+      const fin = extractedData.financeData || {};
+      if (extractedData.subType === 'bank') {
+        xpEvent = 'AI_RECEIPT_LOGGED';
+        dailyLog.finance.moneySpent += (fin.moneySpent || 0);
+        dailyLog.finance.moneyCredited += (fin.moneyCredited || 0);
+        if (Array.isArray(fin.transactions)) {
+          dailyLog.finance.transactions.push(...fin.transactions);
+        }
+      } else if (extractedData.subType === 'mutual_fund') {
+        xpEvent = 'AI_RECEIPT_LOGGED'; // Map mutual fund statements to receipt logging XP
+        dailyLog.finance.portfolioValue = fin.portfolioValue || 0;
+        dailyLog.finance.returns = fin.returns || 0;
+        if (Array.isArray(fin.holdings)) {
+          dailyLog.finance.holdings = fin.holdings;
+        }
+      }
+    } else if (domain === 'health') {
+      xpEvent = 'AI_MEDICAL_LOGGED';
+      const hl = extractedData.healthData || {};
+      if (Array.isArray(hl.deficiencies)) {
+        dailyLog.health.deficiencies = Array.from(new Set([...(dailyLog.health.deficiencies || []), ...hl.deficiencies]));
+      }
+      if (Array.isArray(hl.medications)) {
+        dailyLog.health.medications = Array.from(new Set([...(dailyLog.health.medications || []), ...hl.medications]));
+        hl.medications.forEach(med => {
+          if (!dailyLog.health.medicationsTaken.some(m => m.name === med)) {
+            dailyLog.health.medicationsTaken.push({ name: med, timeTaken: new Date() });
+          }
+        });
+      }
+      if (hl.vitals) {
+        dailyLog.health.vitals = { ...(dailyLog.health.vitals || {}), ...hl.vitals };
+      }
+    } else if (domain === 'career') {
+      xpEvent = 'COURSE_DONE'; // Default career event
+      const car = extractedData.careerData || {};
+      dailyLog.career.studyHours += (car.studyHours || 0);
+      dailyLog.career.completedCourses += (car.completedCourses || 0);
+      dailyLog.career.githubCommits += (car.githubCommits || 0);
+      dailyLog.career.projectsCompleted += (car.projectsCompleted || 0);
+    }
+
+    // ── Apply Cross-Domain Side Effects ──
+    const crossEffects = extractedData.crossDomainEffects || {};
+    
+    // Apply health effects (e.g. food receipts containing calories)
+    if (crossEffects.health) {
+      const hlEff = crossEffects.health;
+      dailyLog.health.caloriesConsumed += (hlEff.caloriesConsumed || 0);
+      dailyLog.health.proteinConsumed += (hlEff.proteinConsumed || 0);
+      if (Array.isArray(hlEff.workouts)) {
+        dailyLog.health.workouts.push(...hlEff.workouts);
+      }
+      if (Array.isArray(hlEff.medications)) {
+        dailyLog.health.medications = Array.from(new Set([...(dailyLog.health.medications || []), ...hlEff.medications]));
+        hlEff.medications.forEach(med => {
+          if (!dailyLog.health.medicationsTaken.some(m => m.name === med)) {
+            dailyLog.health.medicationsTaken.push({ name: med, timeTaken: new Date() });
+          }
+        });
+      }
+    }
+
+    // Apply finance effects (e.g. fitness receipt cost)
+    if (crossEffects.finance) {
+      const finEff = crossEffects.finance;
+      dailyLog.finance.moneySpent += (finEff.moneySpent || 0);
+      dailyLog.finance.moneyCredited += (finEff.moneyCredited || 0);
+      if (Array.isArray(finEff.transactions)) {
+        dailyLog.finance.transactions.push(...finEff.transactions);
+      }
+    }
+
+    // Apply career effects (e.g. bootcamp receipt study hours)
+    if (crossEffects.career) {
+      const carEff = crossEffects.career;
+      dailyLog.career.studyHours += (carEff.studyHours || 0);
+      dailyLog.career.completedCourses += (carEff.completedCourses || 0);
+    }
+
+    // Save DailyTracking. GoalSyncEngine post-save hook runs automatically here!
+    await dailyLog.save();
+
+    // Query for recently updated goals to notify the client
+    const updatedGoals = await SmartGoal.find({
+      userId,
+      lastLoggedAt: { $gte: new Date(Date.now() - 3000) }
+    }).select('title currentMetric targetMetric unit').lean();
+
+    // Recalculate scores inside OnboardingProfile
+    const updatedProfile = await recalculateScoresAfterUpload(userId, domain, extractedData);
+
+    // Save upload history
+    const uploadRecord = await Upload.create({
+      userId,
+      fileName,
+      fileType: fileMimeType,
+      domain,
+      extractedData,
+    });
+
+    // Run Gamification Event
+    let gamificationResult = null;
+    if (xpEvent) {
+      gamificationResult = await GamificationEngine.logEvent(userId, xpEvent, extractedData);
+    }
+
+    // Create Notification based on domain
+    try {
+      await createNotification({
+        userId,
+        category: domain,
+        subType: 'document-processed',
+        title: `${domain.charAt(0).toUpperCase() + domain.slice(1)} Document Sync'd`,
+        message: `Your Digital Twin has processed "${fileName}" and extracted structured ${domain} signals.`,
+        priority: 'medium',
+        actionLink: `/${domain}`,
+      });
+    } catch (err) {
+      console.error('[aiRoutes] Failed to trigger upload notification:', err.message);
+    }
+
+    // Push live update to frontend via WebSockets
+    if (updatedProfile) {
+      const dashboardPayload = buildDashboardResponse(updatedProfile);
+      emitDashboardSync(userId, dashboardPayload);
+    }
+
+    res.status(200).json({
+      success: true,
+      message: 'Document processed and Digital Twin synchronized.',
+      data: {
+        domain,
+        extractedData,
+        uploadRecord,
+        gamification: gamificationResult,
+        updatedGoals,
+      }
+    });
+
+  } catch (error) {
+    console.error('[aiRoutes] Upload Endpoint Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error processing document upload.' });
+  }
+});
+
+// ── /uploads — NEW: Retrieves user's upload history ────────────────
+router.get('/uploads', authenticateToken, async (req, res) => {
+  try {
+    const userId = req.user.userId;
+    const history = await Upload.find({ userId }).sort({ createdAt: -1 }).limit(50).lean();
+    res.status(200).json({ success: true, data: history });
+  } catch (error) {
+    console.error('[aiRoutes] Fetch Upload History Error:', error);
+    res.status(500).json({ success: false, message: 'Server Error fetching upload history.' });
   }
 });
 

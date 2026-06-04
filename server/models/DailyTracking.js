@@ -12,6 +12,9 @@ const dailyTrackingSchema = new mongoose.Schema({
     sleepHours:        { type: Number, default: 0 },
     medicationsTaken:  [{ name: { type: String }, timeTaken: { type: Date, default: Date.now } }],
     workouts:          [{ type: { type: String }, durationMinutes: { type: Number } }],
+    deficiencies:      [{ type: String }],
+    medications:       [{ type: String }],
+    vitals:            { type: mongoose.Schema.Types.Mixed, default: {} },
   },
   finance: {
     moneySpent:    { type: Number, default: 0 },
@@ -22,6 +25,19 @@ const dailyTrackingSchema = new mongoose.Schema({
       type:      { type: String, enum: ['income', 'expense'] },
       isImpulse: { type: Boolean, default: false },
     }],
+    portfolioValue: { type: Number, default: 0 },
+    returns:        { type: Number, default: 0 },
+    holdings:       [{
+      assetName: { type: String },
+      value:     { type: Number },
+      shares:    { type: Number },
+    }],
+  },
+  career: {
+    studyHours:        { type: Number, default: 0 },
+    completedCourses:  { type: Number, default: 0 },
+    githubCommits:     { type: Number, default: 0 },
+    projectsCompleted: { type: Number, default: 0 },
   },
 }, { timestamps: true });
 

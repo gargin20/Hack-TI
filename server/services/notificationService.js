@@ -31,6 +31,11 @@ export function setNotificationSocket(io) {
   socketServer = io;
 }
 
+export function emitDashboardSync(userId, data) {
+  if (!socketServer) return;
+  socketServer.to(String(userId)).emit('dashboard:sync', data);
+}
+
 export async function createNotification({
   userId,
   category = 'system',

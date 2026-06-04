@@ -625,10 +625,23 @@ export default function Goals() {
   useEffect(() => {
     fetchGoals();
     fetchSyncStatus();
-    // Poll every 60 seconds for auto-sync updates
+    
+    const handleSync = () => {
+      fetchGoals();
+      fetchSyncStatus();
+    };
+    window.addEventListener('dashboard-synced', handleSync);
+    window.addEventListener('daily-update-completed', handleSync);
+    window.addEventListener('upload-history-updated', handleSync);
+
     const interval = setInterval(() => fetchSyncStatus(), 60000);
-    return () => clearInterval(interval);
-  }, []);
+    return () => {
+      clearInterval(interval);
+      window.removeEventListener('dashboard-synced', handleSync);
+      window.removeEventListener('daily-update-completed', handleSync);
+      window.removeEventListener('upload-history-updated', handleSync);
+    };
+  }, [fetchGoals, fetchSyncStatus]);
 
   const handleCreateGoal = async (e) => {
     e.preventDefault();
