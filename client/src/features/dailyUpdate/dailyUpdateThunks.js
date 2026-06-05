@@ -37,8 +37,10 @@ export const submitDailyUpdate = createAsyncThunk(
         { ...payload, date: localDateKey() },
         { headers: authHeaders() },
       );
+      const dailyUpdateLastSubmittedAt = Date.now();
+      localStorage.setItem('dailyUpdateLastSubmittedAt', String(dailyUpdateLastSubmittedAt));
       window.dispatchEvent(new Event('daily-update-completed'));
-      return response.data;
+      return { ...response.data, dailyUpdateLastSubmittedAt };
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || 'Unable to submit daily update.');
     }

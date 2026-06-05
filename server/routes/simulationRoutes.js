@@ -155,7 +155,7 @@ router.get('/current', authenticateToken, async (req, res) => {
 
 router.post('/analyze', authenticateToken, async (req, res) => {
   try {
-    const { current, simulated } = req.body;
+    const { current, simulated, simulationContext } = req.body;
     if (!current || !simulated) {
       return res.status(400).json({ success: false, message: 'Current and simulated values are required.' });
     }
@@ -166,56 +166,84 @@ router.post('/analyze', authenticateToken, async (req, res) => {
       return res.status(200).json({ success: true, data: fallback });
     }
 
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const model = genAI.getGenerativeModel({
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        temperature: 0.3,
+        maxOutputTokens: 1400,
+        responseMimeType: 'application/json',
+      },
+    });
     const prompt = `
-You are Personal Digital Twin's simulation engine.
-Analyze the user's current and simulated inputs in real time.
-Return ONLY valid raw JSON. No markdown.
+You are a concise Personal Digital Twin analyst. Use only the provided simulation context.
+Return JSON only. No markdown. Do not calculate scores.
 
-Use this exact JSON structure:
+Schema:
 {
-  "resultCards": [
-    {
-      "title": "Health What-If",
-      "label": "Health",
-      "from": 72,
-      "to": 84,
-      "signals": [
-        { "label": "Energy", "direction": "up" },
-        { "label": "Stress", "direction": "down" },
-        { "label": "Recovery", "direction": "up" }
-      ]
-    }
+  "simulationSummary": "One short forecast.",
+  "summaryHighlights": [
+    "Biggest Positive Change: ...",
+    "Biggest Risk: ...",
+    "Most Influential Habit: ...",
+    "Recommended Next Step: ..."
   ],
-  "impactChains": [
-    {
-      "title": "2-3 word title",
-      "copy": "One short sentence explaining the cross-domain effect.",
-      "steps": ["Input change", "Domain impact", "Second domain impact"]
-    }
+  "healthAnalysis": "2 short sentences.",
+  "financeAnalysis": "2 short sentences. Weigh savings, investments, expenses, and custom finance inputs together.",
+  "careerAnalysis": "2 short sentences.",
+  "overallTwinAnalysis": "2 short sentences about the complete scenario.",
+  "crossDomainAnalysis": [
+    { "title": "Recovery Loop", "status": "Improved|Reduced|Stable|Mixed Impact|High Risk Growth|Stable Growth", "steps": ["Human readable state", "Human readable state"], "analysis": "1 short sentence." },
+    { "title": "Money Impact", "status": "Improved|Reduced|Stable|Mixed Impact|High Risk Growth|Stable Growth", "steps": ["Human readable state", "Human readable state"], "analysis": "1 short sentence." },
+    { "title": "Career Momentum", "status": "Improved|Reduced|Stable|Mixed Impact|High Risk Growth|Stable Growth", "steps": ["Human readable state", "Human readable state"], "analysis": "1 short sentence." }
   ],
-  "twinScore": { "current": 76, "simulated": 87 },
-  "source": "ai"
+  "timeline": {
+    "thirtyDays": "1 short sentence.",
+    "ninetyDays": "1 short sentence.",
+    "oneYear": "1 short sentence."
+  },
+  "tradeoffs": [
+    { "benefit": "Actual benefit.", "risk": "Actual risk." }
+  ],
+  "riskAssessment": {
+    "health": { "level": "Low|Medium|High", "reason": "Short reason." },
+    "finance": { "level": "Low|Medium|High", "reason": "Short reason." },
+    "career": { "level": "Low|Medium|High", "reason": "Short reason." },
+    "overall": { "level": "Low|Medium|High", "reason": "Short reason." }
+  }
 }
 
 Rules:
-- Include exactly 3 resultCards: Health, Finance, Career.
-- Include exactly 3 impactChains.
-- Scores must be integers from 0 to 100.
-- Keep labels short and UI friendly.
+- Never return numeric impact labels such as Focus +26 or Recovery -720.
+- Finance must consider savings, investments, expenses, custom finance inputs, and net tradeoff together.
+- If savings and investments rise while expenses also rise, do not call finance reduced by default; use Mixed Impact, Stable Growth, High Risk Growth, or Improved as appropriate.
+- Only include tradeoffs that exist in the changed inputs.
+- Keep every text field concise.
 
-Current values:
-${JSON.stringify(current)}
-
-Simulated values:
-${JSON.stringify(simulated)}
+Simulation context:
+${JSON.stringify(simulationContext || { currentState: current, simulatedState: simulated })}
 `;
 
     try {
       const result = await model.generateContent(prompt);
       const text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
       const parsed = JSON.parse(text);
-      return res.status(200).json({ success: true, data: { ...fallback, ...parsed, source: 'ai' } });
+      return res.status(200).json({
+        success: true,
+        data: {
+          ...fallback,
+          simulationSummary: String(parsed.simulationSummary || ''),
+          summaryHighlights: Array.isArray(parsed.summaryHighlights) ? parsed.summaryHighlights : [],
+          healthAnalysis: String(parsed.healthAnalysis || ''),
+          financeAnalysis: String(parsed.financeAnalysis || ''),
+          careerAnalysis: String(parsed.careerAnalysis || ''),
+          overallTwinAnalysis: String(parsed.overallTwinAnalysis || ''),
+          crossDomainAnalysis: Array.isArray(parsed.crossDomainAnalysis) ? parsed.crossDomainAnalysis : [],
+          timeline: parsed.timeline && typeof parsed.timeline === 'object' ? parsed.timeline : null,
+          tradeoffs: Array.isArray(parsed.tradeoffs) ? parsed.tradeoffs : [],
+          riskAssessment: parsed.riskAssessment && typeof parsed.riskAssessment === 'object' ? parsed.riskAssessment : null,
+          source: 'ai',
+        },
+      });
     } catch (aiError) {
       console.warn('Simulation AI fallback activated:', aiError.message);
       return res.status(200).json({ success: true, data: fallback });

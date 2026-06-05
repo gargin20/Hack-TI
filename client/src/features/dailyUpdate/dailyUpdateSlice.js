@@ -1,10 +1,13 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { fetchTodayDailyUpdate, submitDailyUpdate } from './dailyUpdateThunks';
 
+const dailyUpdateLastSubmittedAt = Number(localStorage.getItem('dailyUpdateLastSubmittedAt')) || null;
+
 const initialState = {
   todayUpdate: null,
   activeGoals: [],
   completed: false,
+  dailyUpdateLastSubmittedAt,
   loading: false,
   error: '',
   success: false,
@@ -18,6 +21,11 @@ const dailyUpdateSlice = createSlice({
       state.error = '';
       state.success = false;
     },
+    clearDailyUpdateCooldown(state) {
+      state.completed = false;
+      state.success = false;
+      state.dailyUpdateLastSubmittedAt = null;
+    },
   },
   extraReducers: (builder) => {
     builder
@@ -30,6 +38,10 @@ const dailyUpdateSlice = createSlice({
         state.todayUpdate = action.payload.data || null;
         state.activeGoals = action.payload.activeGoals || [];
         state.completed = Boolean(action.payload.completed);
+        if (state.completed && !state.dailyUpdateLastSubmittedAt && action.payload.data?.createdAt) {
+          const submittedAt = new Date(action.payload.data.createdAt).getTime();
+          state.dailyUpdateLastSubmittedAt = Number.isNaN(submittedAt) ? null : submittedAt;
+        }
       })
       .addCase(fetchTodayDailyUpdate.rejected, (state, action) => {
         state.loading = false;
@@ -45,6 +57,7 @@ const dailyUpdateSlice = createSlice({
         state.success = true;
         state.completed = true;
         state.todayUpdate = action.payload.data;
+        state.dailyUpdateLastSubmittedAt = action.payload.dailyUpdateLastSubmittedAt;
       })
       .addCase(submitDailyUpdate.rejected, (state, action) => {
         state.loading = false;
@@ -53,5 +66,5 @@ const dailyUpdateSlice = createSlice({
   },
 });
 
-export const { clearDailyUpdateStatus } = dailyUpdateSlice.actions;
+export const { clearDailyUpdateCooldown, clearDailyUpdateStatus } = dailyUpdateSlice.actions;
 export default dailyUpdateSlice.reducer;
