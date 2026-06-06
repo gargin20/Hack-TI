@@ -14,6 +14,7 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
     if (started || socket?.connected || socket?.active) return;
     const token = localStorage.getItem('authToken');
     if (!token) {
+      console.error('[VOICE ERROR] Login is required before Twin Assistant can listen.');
       onError?.('Login is required before Twin Assistant can listen.');
       return;
     }
@@ -24,53 +25,56 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
     socket = io(API_BASE_URL, {
       auth: { token },
       transports: ['websocket'],
-      reconnection: true,
-      reconnectionAttempts: 3,
-      reconnectionDelay: 1000,
-      reconnectionDelayMax: 5000,
+      reconnection: false,
     });
 
     const handleListening = (payload) => {
-      console.log('[Twin Assistant] Deepgram listening:', Boolean(payload.active));
+      console.log('[VOICE] Deepgram listening:', Boolean(payload.active));
       onStatus?.(payload.active ? 'listening' : 'connecting');
       onListening?.(Boolean(payload.active));
     };
 
     const handleTranscript = (payload) => {
-      console.log('[Twin Assistant] Speech received:', payload);
+      console.log('[VOICE] Deepgram transcript payload:', payload);
       onTranscript?.(payload);
     };
 
     const handleError = (payload) => {
-      console.warn('[Twin Assistant] Deepgram error:', payload.message || payload);
+      console.error('[VOICE ERROR] Deepgram authentication/stream error:', payload.message || payload);
       onError?.(payload.message || 'Deepgram assistant error.');
     };
 
     socket.on('voice:connected', () => {
-      console.log('Deepgram Connected');
+      console.log('[VOICE] Deepgram connected');
       onStatus?.('listening');
       onListening?.(true);
     });
     socket.on('voice:disconnected', () => {
-      console.log('Deepgram Disconnected');
-      if (!manuallyStopped) onStatus?.('connecting');
-      if (!manuallyStopped) onListening?.(false);
+      console.error('[VOICE ERROR] Deepgram disconnected');
+      if (!manuallyStopped) {
+        onStatus?.('error');
+        onListening?.(false);
+        onError?.('Deepgram disconnected');
+      }
     });
     socket.on('voice:listening', handleListening);
     socket.on('voice:transcript', handleTranscript);
     socket.on('voice:error', handleError);
     socket.on('connect_error', (error) => {
-      console.warn('[Twin Assistant] Socket connection error:', error.message);
+      console.error('[VOICE ERROR] Deepgram socket connection error:', error.message);
       onStatus?.('error');
       onError?.('Unable to connect to voice service.');
     });
     socket.on('disconnect', (reason) => {
-      console.log('[Twin Assistant] Socket disconnected:', reason);
-      if (!manuallyStopped) onStatus?.('connecting');
-      if (!manuallyStopped) onListening?.(false);
+      console.error('[VOICE ERROR] Deepgram websocket disconnect:', reason);
+      if (!manuallyStopped) {
+        onStatus?.('error');
+        onListening?.(false);
+        onError?.('Deepgram disconnected');
+      }
     });
     socket.on('connect', async () => {
-      console.log('[Twin Assistant] Socket connected');
+      console.log('[VOICE] Deepgram socket connected');
       onStatus?.('connecting');
       socket.emit('voice:start');
       await startMicrophone();
@@ -87,21 +91,19 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
 
       mediaRecorder.ondataavailable = async (event) => {
         if (!event.data?.size || !socket?.connected) return;
-        console.log('MIC AUDIO DETECTED');
         const audioChunk = await event.data.arrayBuffer();
         socket.emit('voice:audio', audioChunk);
         audioChunkCount += 1;
         if (audioChunkCount <= 20 || audioChunkCount % 20 === 0) {
-          console.log('AUDIO CHUNK SENT');
+          console.log('[VOICE] Deepgram audio chunk sent');
         }
       };
 
       mediaRecorder.start(250);
-      console.log('[Twin Assistant] Microphone capture started');
-      console.log('Audio Stream Started');
+      console.log('[VOICE] Microphone capture started');
       onStatus?.('listening');
     } catch (error) {
-      console.warn('[Twin Assistant] Microphone unavailable:', error.message);
+      console.error('[VOICE ERROR] Microphone permission denied/unavailable:', error.message);
       onStatus?.('error');
       onError?.(`Microphone access failed: ${error.message}`);
     }

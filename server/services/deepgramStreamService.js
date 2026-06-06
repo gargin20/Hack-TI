@@ -8,8 +8,7 @@ export function createDeepgramStream({ socket }) {
   let manuallyStopped = false;
   let reconnectTimer = null;
   let keepAliveTimer = null;
-  let reconnectAttempts = 0;
-  const reconnectDelays = [1000, 2000, 5000];
+  let droppedAudioWarningShown = false;
 
   function start() {
     manuallyStopped = false;
@@ -27,9 +26,9 @@ export function createDeepgramStream({ socket }) {
     });
 
     deepgramSocket.on('open', () => {
-      console.log('[Twin Assistant] Deepgram Connected');
+      console.log('[VOICE] Deepgram Connected');
       isOpen = true;
-      reconnectAttempts = 0;
+      droppedAudioWarningShown = false;
       startKeepAlive();
       emitVoiceConnected(socket);
     });
@@ -39,25 +38,31 @@ export function createDeepgramStream({ socket }) {
     });
 
     deepgramSocket.on('close', () => {
-      console.log('[Twin Assistant] Deepgram Disconnected');
+      console.warn('[VOICE ERROR] Deepgram Disconnected');
       isOpen = false;
       stopKeepAlive();
-      emitVoiceDisconnected(socket);
-      scheduleReconnect();
+      deepgramSocket = null;
+      if (!manuallyStopped) {
+        emitVoiceDisconnected(socket);
+        emitVoiceError(socket, 'Deepgram disconnected. Switching voice provider.');
+      }
     });
 
     deepgramSocket.on('error', (error) => {
-      console.warn('[Twin Assistant] Deepgram stream error:', error.message);
+      console.warn('[VOICE ERROR] Deepgram stream error:', error.message);
       isOpen = false;
       stopKeepAlive();
+      deepgramSocket = null;
       emitVoiceError(socket, error.message || 'Deepgram stream error.');
-      scheduleReconnect();
     });
   }
 
   function sendAudio(chunk) {
     if (!isOpen || !deepgramSocket || deepgramSocket.readyState !== WebSocket.OPEN) {
-      if (!deepgramSocket || deepgramSocket.readyState === WebSocket.CLOSED) start();
+      if (!droppedAudioWarningShown) {
+        console.warn('[VOICE] Dropping audio chunk because Deepgram is not connected.');
+        droppedAudioWarningShown = true;
+      }
       return;
     }
     deepgramSocket.send(chunk);
@@ -77,23 +82,6 @@ export function createDeepgramStream({ socket }) {
   }
 
   return { start, sendAudio, stop };
-
-  function scheduleReconnect() {
-    if (manuallyStopped || reconnectTimer) return;
-
-    if (reconnectAttempts >= reconnectDelays.length) {
-      emitVoiceError(socket, 'Voice Assistant Offline');
-      return;
-    }
-
-    const delay = reconnectDelays[reconnectAttempts];
-    reconnectAttempts += 1;
-    reconnectTimer = setTimeout(() => {
-      reconnectTimer = null;
-      if (!manuallyStopped && socket.connected) start();
-    }, delay);
-  }
-
   function startKeepAlive() {
     stopKeepAlive();
     keepAliveTimer = setInterval(() => {

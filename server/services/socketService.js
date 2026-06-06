@@ -35,8 +35,8 @@ export async function initializeSocketServer(httpServer) {
 
       const sendVoiceAudio = (chunk) => {
         assistantAudioChunks += 1;
-        if (assistantAudioChunks <= 20 || assistantAudioChunks % 20 === 0) {
-          console.log('[Twin Assistant] AUDIO CHUNK RECEIVED BY SERVER');
+        if (assistantAudioChunks === 1 || assistantAudioChunks % 200 === 0) {
+          console.log(`[VOICE] Audio chunks received by server: ${assistantAudioChunks}`);
         }
         assistantStream.sendAudio(chunk);
       };

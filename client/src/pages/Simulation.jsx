@@ -172,7 +172,7 @@ const impactChains = [
   },
 ];
 
-const processingSteps = ['Analyzing Health', 'Analyzing Finance', 'Analyzing Career', 'Generating Cross Impact'];
+const processingSteps = ['Analyzing Digital Twin', 'Evaluating Health Impact', 'Evaluating Financial Impact', 'Evaluating Career Impact', 'Generating AI Insights'];
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 const domainIcons = { Health: HeartPulse, Finance: CircleDollarSign, Career: Briefcase };
 const domainAccents = { Health: 'text-[#10c7a1]', Finance: 'text-[#c8a84b]', Career: 'text-[#7b61ff]' };
@@ -234,6 +234,33 @@ function normalizeAnalysis(data) {
     resultCards: resultCardsWithChrome,
     impactChains: normalizeImpactChains(data?.impactChains?.length ? data.impactChains : impactChains),
     twinScore: data?.twinScore || defaultAnalysis.twinScore,
+    summary: data?.summary || '',
+    simulationSummary: data?.simulationSummary || '',
+    summaryHighlights: Array.isArray(data?.summaryHighlights) ? data.summaryHighlights : [],
+    healthScoreCurrent: data?.healthScoreCurrent,
+    healthScoreSimulated: data?.healthScoreSimulated,
+    financeScoreCurrent: data?.financeScoreCurrent,
+    financeScoreSimulated: data?.financeScoreSimulated,
+    careerScoreCurrent: data?.careerScoreCurrent,
+    careerScoreSimulated: data?.careerScoreSimulated,
+    overallTwinCurrent: data?.overallTwinCurrent,
+    overallTwinSimulated: data?.overallTwinSimulated,
+    healthReasoning: data?.healthReasoning || '',
+    financeReasoning: data?.financeReasoning || '',
+    careerReasoning: data?.careerReasoning || '',
+    overallReasoning: data?.overallReasoning || '',
+    healthAnalysis: data?.healthAnalysis || '',
+    financeAnalysis: data?.financeAnalysis || '',
+    careerAnalysis: data?.careerAnalysis || '',
+    overallTwinAnalysis: data?.overallTwinAnalysis || '',
+    crossDomainAnalysis: Array.isArray(data?.crossDomainAnalysis) ? data.crossDomainAnalysis : [],
+    timeline: data?.timeline && typeof data.timeline === 'object' ? data.timeline : null,
+    tradeoffs: Array.isArray(data?.tradeoffs) ? data.tradeoffs : [],
+    timelineForecast: Array.isArray(data?.timelineForecast) ? data.timelineForecast : [],
+    tradeOffAnalysis: Array.isArray(data?.tradeOffAnalysis) ? data.tradeOffAnalysis : [],
+    riskAssessment: data?.riskAssessment || [],
+    keyDrivers: Array.isArray(data?.keyDrivers) ? data.keyDrivers : [],
+    recommendations: Array.isArray(data?.recommendations) ? data.recommendations : [],
     source: data?.source || 'fallback',
   };
 }
@@ -292,13 +319,22 @@ function averageScores(scores) {
   return Math.round(numbers.reduce((sum, score) => sum + score, 0) / numbers.length);
 }
 
-function applySimulationResultLogic(analysis, dashboardScores, currentScenario = {}, simulatedScenario = {}) {
+function applySimulationResultLogic(analysis, dashboardScores, currentScenario = {}, simulatedScenario = {}, scenarioFields = []) {
+  const changesByDomain = buildScenarioChanges(currentScenario, simulatedScenario, scenarioFields);
   const resultCardsWithCurrent = analysis.resultCards.map((card) => ({
     ...card,
-    from: dashboardScores[card.label] ?? card.from,
+    from: getCurrentDomainScore(card.label, dashboardScores, currentScenario),
   }));
-  const resultCardsWithSignals = resultCardsWithCurrent.map((card) => ({
+  const resultCardsWithScores = resultCardsWithCurrent.map((card) => {
+    const scoreDelta = calculateDomainScoreDelta(changesByDomain[domainKeyFromLabel(card.label)] || []);
+    return {
+      ...card,
+      to: clampNumber(Math.round(Number(card.from) + scoreDelta), 0, 100),
+    };
+  });
+  const resultCardsWithSignals = resultCardsWithScores.map((card) => ({
     ...card,
+    analysis: getDomainAnalysis(analysis, card.label, changesByDomain[domainKeyFromLabel(card.label)] || []),
     signals: buildScoreSignals(card.label, Number(card.to) - Number(card.from)),
   }));
   const currentTwinScore = averageScores([
@@ -308,19 +344,305 @@ function applySimulationResultLogic(analysis, dashboardScores, currentScenario =
   ]);
   const simulatedTwinScore = averageScores(resultCardsWithSignals.map((card) => card.to));
 
+  const dynamicImpactChains = buildDynamicImpactChains(currentScenario, simulatedScenario, scenarioFields);
+  const dynamicSummaryPoints = buildDynamicSummaryPoints(currentScenario, simulatedScenario, {
+    current: currentTwinScore,
+    simulated: simulatedTwinScore,
+  }, scenarioFields);
+
   return {
     ...analysis,
     resultCards: resultCardsWithSignals,
-    impactChains: buildDynamicImpactChains(currentScenario, simulatedScenario),
-    summaryPoints: buildDynamicSummaryPoints(currentScenario, simulatedScenario, {
-      current: currentTwinScore,
-      simulated: simulatedTwinScore,
-    }),
+    impactChains: analysis.source === 'ai'
+      ? buildAiImpactChains(analysis, dynamicImpactChains)
+      : dynamicImpactChains,
+    summaryPoints: analysis.source === 'ai'
+      ? buildAiSummaryPoints(analysis, dynamicSummaryPoints)
+      : dynamicSummaryPoints,
+    timelineForecast: analysis.timeline
+      ? normalizeTimeline(analysis.timeline)
+      : analysis.timelineForecast?.length
+        ? normalizeTimelineForecast(analysis.timelineForecast)
+      : buildTimelineForecast(changesByDomain),
+    tradeOffAnalysis: analysis.tradeoffs?.length
+      ? normalizeTradeOffAnalysis(analysis.tradeoffs)
+      : analysis.tradeOffAnalysis?.length
+        ? normalizeTradeOffAnalysis(analysis.tradeOffAnalysis)
+      : buildTradeOffAnalysis(changesByDomain),
+    riskAssessment: normalizeRiskAssessment(analysis.riskAssessment, changesByDomain),
     twinScore: {
       current: currentTwinScore,
       simulated: simulatedTwinScore,
     },
   };
+}
+
+function getCurrentDomainScore(label, dashboardScores, currentScenario = {}) {
+  const dashboardScore = dashboardScores[label];
+  if (Number.isFinite(Number(dashboardScore))) return clampNumber(Math.round(Number(dashboardScore)), 0, 100);
+  return calculateCurrentScoreFromInputs(label, currentScenario);
+}
+
+function calculateCurrentScoreFromInputs(label, values = {}) {
+  if (label === 'Health') {
+    return clampNumber(Math.round(
+      42
+      + firstFiniteNumber(values.sleep) * 5
+      + firstFiniteNumber(values.water) * 4
+      + firstFiniteNumber(values.exercise) * 3,
+    ), 0, 100);
+  }
+
+  if (label === 'Finance') {
+    const savings = firstFiniteNumber(values.savings);
+    const investment = firstFiniteNumber(values.investment);
+    const expenses = firstFiniteNumber(values.expenses);
+    return clampNumber(Math.round(
+      52
+      + Math.min(savings, 80) * 0.55
+      + Math.min(investment, 80) * 0.35
+      - Math.min(expenses, 80) * 0.25,
+    ), 0, 100);
+  }
+
+  return clampNumber(Math.round(
+    45
+    + firstFiniteNumber(values.study) * 5
+    + firstFiniteNumber(values.projects) * 4
+    + firstFiniteNumber(values.leetcodeProblems) * 0.035,
+  ), 0, 100);
+}
+
+function getDomainAnalysis(analysis, label, changes = []) {
+  const aiByLabel = {
+    Health: analysis.healthReasoning || analysis.healthAnalysis,
+    Finance: analysis.financeReasoning || analysis.financeAnalysis,
+    Career: analysis.careerReasoning || analysis.careerAnalysis,
+  };
+  if (aiByLabel[label]) return aiByLabel[label];
+  return summarizeDomainChanges(label, changes);
+}
+
+function buildAiSummaryPoints(analysis, fallbackPoints) {
+  const points = [
+    ...analysis.summaryHighlights.map((point) => String(point)),
+    analysis.simulationSummary,
+    analysis.overallReasoning || analysis.overallTwinAnalysis || analysis.summary,
+  ].filter(Boolean);
+  return points.length ? compactSummaryPoints(points).slice(0, 4) : fallbackPoints;
+}
+
+function compactSummaryPoints(points = []) {
+  return points.map((point) => {
+    const text = String(point).replace(/\s+/g, ' ').trim();
+    const [label, rest] = text.split(/:\s(.+)/);
+    const sentence = (rest || label || text).split(/(?<=[.!?])\s+/)[0]?.trim() || text;
+    const compact = sentence.length > 86 ? `${sentence.slice(0, 83).trim()}...` : sentence;
+    return rest ? `${label}: ${compact}` : compact;
+  });
+}
+
+function buildAiImpactChains(analysis, fallbackChains) {
+  const chains = analysis.crossDomainAnalysis?.map((item, index) => {
+    if (typeof item === 'string') {
+      return {
+        title: `AI Chain ${index + 1}`,
+        copy: 'Status: Stable',
+        steps: [{ label: 'AI Analysis', explanation: item }],
+      };
+    }
+
+    return {
+      title: item.title || `AI Chain ${index + 1}`,
+      copy: `Status: ${normalizeStatus(item.status)}`,
+      steps: normalizeHumanImpactSteps(item.steps, item.analysis || item.copy || item.explanation || ''),
+    };
+  }).filter((chain) => chain.copy || chain.steps.length);
+
+  if (!chains?.length) return fallbackChains;
+  return normalizeImpactChains(chains.slice(0, 3));
+}
+
+function normalizeStatus(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'improved') return 'Improved';
+  if (normalized === 'mixed impact') return 'Mixed Impact';
+  if (normalized === 'high risk growth') return 'High Risk Growth';
+  if (normalized === 'stable growth') return 'Stable Growth';
+  if (normalized === 'declined' || normalized === 'reduced') return 'Reduced';
+  if (normalized === 'stable') return 'Stable';
+  return 'Stable';
+}
+
+function normalizeHumanImpactSteps(steps = [], analysis = '') {
+  const normalized = Array.isArray(steps)
+    ? steps.slice(0, 5).map((step) => (
+      typeof step === 'object'
+        ? { label: String(step.label || step.status || 'Impact'), explanation: String(step.explanation || '') }
+        : { label: String(step), explanation: '' }
+    ))
+    : [];
+  if (analysis) normalized.push({ label: 'AI Analysis', explanation: String(analysis) });
+  return normalized.length ? normalized : [{ label: 'AI Analysis', explanation: String(analysis || 'No major cross-domain shift detected.') }];
+}
+
+function domainKeyFromLabel(label) {
+  return String(label || '').toLowerCase();
+}
+
+function withGroupFields(groups = simulationGroups, customFields = []) {
+  return groups.flatMap((group) => [
+    ...group.fields.map((field) => ({ ...field, groupKey: group.key })),
+    ...customFields.filter((field) => field.groupKey === group.key),
+  ]);
+}
+
+function buildScenarioChanges(current = {}, simulated = {}, scenarioFields = []) {
+  const fields = scenarioFields.length ? scenarioFields : withGroupFields(simulationGroups);
+  return fields.reduce((changes, field) => {
+    const currentValue = firstFiniteNumber(current[field.key], field.current);
+    const simulatedValue = firstFiniteNumber(simulated[field.key], field.simulated);
+    const delta = simulatedValue - currentValue;
+    if (delta === 0) return changes;
+
+    const groupKey = field.groupKey || inferDomainFromFieldKey(field.key);
+    const change = {
+      key: field.key,
+      label: field.label,
+      unit: field.unit || '',
+      prefix: field.prefix || '',
+      groupKey,
+      currentValue,
+      simulatedValue,
+      delta,
+      inverse: field.key === 'expenses',
+      custom: field.custom || field.key?.startsWith('custom_'),
+      scoreImpact: calculateMetricScoreImpact(field, groupKey, delta),
+    };
+
+    if (!changes[groupKey]) changes[groupKey] = [];
+    changes[groupKey].push(change);
+    return changes;
+  }, { health: [], finance: [], career: [] });
+}
+
+function buildSimulationPayload({
+  currentValues,
+  simulatedValues,
+  scenarioFields,
+  dashboardScores,
+  dashboardData,
+  dailyUpdate,
+}) {
+  const changesByDomain = buildScenarioChanges(currentValues, simulatedValues, scenarioFields);
+  const customInputs = scenarioFields
+    .filter((field) => field.custom || field.key?.startsWith('custom_'))
+    .map((field) => ({
+      category: field.groupKey,
+      name: field.label,
+      current: firstFiniteNumber(currentValues[field.key], field.current),
+      simulated: firstFiniteNumber(simulatedValues[field.key], field.simulated),
+      unit: field.unit || '',
+    }));
+
+  return {
+    currentState: {
+      health: {
+        score: dashboardScores.Health,
+        sleep: firstFiniteNumber(currentValues.sleep),
+        water: firstFiniteNumber(currentValues.water),
+        exercise: firstFiniteNumber(currentValues.exercise),
+        stress: firstFiniteNumber(dashboardData?.analytics?.burnoutRisk, dashboardData?.profile?.burnoutRisk),
+        steps: firstFiniteNumber(dashboardData?.health?.steps, dashboardData?.healthData?.steps),
+        heartRate: firstFiniteNumber(dashboardData?.health?.heartRate, dashboardData?.healthData?.heartRate),
+      },
+      finance: {
+        score: dashboardScores.Finance,
+        savings: firstFiniteNumber(currentValues.savings),
+        investments: firstFiniteNumber(currentValues.investment),
+        expenses: firstFiniteNumber(currentValues.expenses),
+        income: firstFiniteNumber(dashboardData?.profile?.monthlyIncome, dashboardData?.finance?.monthlyIncome),
+      },
+      career: {
+        score: dashboardScores.Career,
+        studyHours: firstFiniteNumber(currentValues.study),
+        projects: firstFiniteNumber(currentValues.projects),
+        leetcodeSolved: firstFiniteNumber(currentValues.leetcodeProblems),
+        githubActivity: firstFiniteNumber(dashboardData?.career?.githubActivity, dashboardData?.careerData?.githubActivity, currentValues.projects),
+        linkedInActivity: firstFiniteNumber(dashboardData?.career?.linkedInActivity, dashboardData?.careerData?.linkedInActivity),
+      },
+    },
+    simulatedState: {
+      health: {
+        score: dashboardScores.Health,
+        sleep: firstFiniteNumber(simulatedValues.sleep),
+        water: firstFiniteNumber(simulatedValues.water),
+        exercise: firstFiniteNumber(simulatedValues.exercise),
+        stress: firstFiniteNumber(dashboardData?.analytics?.burnoutRisk, dashboardData?.profile?.burnoutRisk),
+        steps: firstFiniteNumber(dashboardData?.health?.steps, dashboardData?.healthData?.steps),
+        heartRate: firstFiniteNumber(dashboardData?.health?.heartRate, dashboardData?.healthData?.heartRate),
+      },
+      finance: {
+        score: dashboardScores.Finance,
+        savings: firstFiniteNumber(simulatedValues.savings),
+        investments: firstFiniteNumber(simulatedValues.investment),
+        expenses: firstFiniteNumber(simulatedValues.expenses),
+        income: firstFiniteNumber(dashboardData?.profile?.monthlyIncome, dashboardData?.finance?.monthlyIncome),
+      },
+      career: {
+        score: dashboardScores.Career,
+        studyHours: firstFiniteNumber(simulatedValues.study),
+        projects: firstFiniteNumber(simulatedValues.projects),
+        leetcodeSolved: firstFiniteNumber(simulatedValues.leetcodeProblems),
+        githubActivity: firstFiniteNumber(dashboardData?.career?.githubActivity, dashboardData?.careerData?.githubActivity, simulatedValues.projects),
+        linkedInActivity: firstFiniteNumber(dashboardData?.career?.linkedInActivity, dashboardData?.careerData?.linkedInActivity),
+      },
+    },
+    customInputs,
+    changedInputs: Object.values(changesByDomain).flat().map((change) => ({
+      category: change.groupKey,
+      name: change.label,
+      current: change.currentValue,
+      simulated: change.simulatedValue,
+      difference: change.delta,
+      unit: change.unit,
+    })),
+    goals: dailyUpdate?.activeGoals || dashboardData?.goals || dashboardData?.activeGoals || [],
+    dailyUpdates: dailyUpdate?.todayUpdate || null,
+    dashboardScores,
+  };
+}
+
+function inferDomainFromFieldKey(key) {
+  if (['sleep', 'exercise', 'water'].includes(key)) return 'health';
+  if (['savings', 'investment', 'expenses'].includes(key)) return 'finance';
+  return 'career';
+}
+
+function calculateMetricScoreImpact(field, groupKey, delta) {
+  const weights = {
+    sleep: 4,
+    exercise: 3,
+    water: 2,
+    savings: 0.6,
+    investment: 0.45,
+    expenses: -0.5,
+    study: 3,
+    projects: 2,
+    leetcodeProblems: 0.08,
+  };
+  if (weights[field.key] != null) return delta * weights[field.key];
+
+  const normalizedDelta = groupKey === 'finance' && Math.abs(delta) >= 1000
+    ? delta / 1000
+    : delta;
+  const customWeights = { health: 0.4, finance: 0.6, career: 0.6 };
+  return normalizedDelta * (customWeights[groupKey] || 0.5);
+}
+
+function calculateDomainScoreDelta(changes = []) {
+  const total = changes.reduce((sum, change) => sum + change.scoreImpact, 0);
+  return clampNumber(total, -35, 35);
 }
 
 function buildScoreSignals(label, delta) {
@@ -336,12 +658,14 @@ function buildScoreSignals(label, delta) {
 function pickDominantCause(causes) {
   const normalized = causes.map((cause) => {
     const delta = Number(cause.delta) || 0;
-    const direction = delta === 0 ? 0 : (cause.inverse ? -Math.sign(delta) : Math.sign(delta));
+    const direction = cause.scoreImpact != null
+      ? Math.sign(cause.scoreImpact)
+      : delta === 0 ? 0 : (cause.inverse ? -Math.sign(delta) : Math.sign(delta));
     return {
       ...cause,
       delta,
       direction,
-      magnitude: Math.abs(delta * (cause.weight || 1)),
+      magnitude: Math.abs(cause.scoreImpact ?? delta * (cause.weight || 1)),
     };
   });
 
@@ -351,8 +675,9 @@ function pickDominantCause(causes) {
 }
 
 function scaleDirectionalImpact(cause, multiplier) {
-  if (!cause?.direction || !cause?.delta) return 0;
-  const magnitude = Math.max(1, Math.round(Math.abs(cause.delta) * multiplier));
+  if (!cause?.direction || (!cause?.delta && !cause?.scoreImpact)) return 0;
+  const base = cause.scoreImpact != null ? Math.abs(cause.scoreImpact) : Math.abs(cause.delta);
+  const magnitude = Math.max(1, Math.round(base * multiplier));
   return cause.direction * magnitude;
 }
 
@@ -370,6 +695,16 @@ function formatDelta(value, unit = '') {
   const number = roundValue(value);
   const sign = number > 0 ? '+' : number < 0 ? '-' : '';
   return `${sign}${Math.abs(number)}${unit}`;
+}
+
+function formatChangeDelta(change) {
+  const delta = roundValue(change.delta);
+  const sign = delta > 0 ? '+' : delta < 0 ? '-' : '';
+  const absolute = Math.abs(delta);
+  if (change.groupKey === 'finance' && !change.unit && absolute >= 1000) {
+    return `${sign}${roundValue(absolute / 1000, 0)}k`;
+  }
+  return `${sign}${change.prefix || ''}${absolute}${change.unit || ''}`;
 }
 
 function describeHealthCause(cause) {
@@ -393,171 +728,230 @@ function describeFinanceCause(cause) {
 function describeCareerCause(cause) {
   if (!cause?.delta) return `${cause.label} is unchanged, so this loop stays neutral.`;
   if (cause.direction > 0) {
-    if (cause.key === 'leetcode') return 'Higher coding practice strengthens problem-solving momentum.';
+    if (cause.key === 'leetcodeProblems') return 'Higher coding practice strengthens problem-solving momentum.';
     if (cause.key === 'projects') return 'More projects strengthen portfolio signal.';
+    if (cause.custom) return `${cause.label} strengthens professional growth.`;
     return 'Additional study time strengthens skill growth.';
   }
-  if (cause.key === 'leetcode') return 'Lower coding practice weakens problem-solving momentum.';
+  if (cause.key === 'leetcodeProblems') return 'Lower coding practice weakens problem-solving momentum.';
   if (cause.key === 'projects') return 'Fewer projects reduce portfolio signal.';
+  if (cause.custom) return `${cause.label} weakens professional growth.`;
   return 'Reduced study time slows skill growth.';
 }
 
-function buildDynamicImpactChains(current = {}, simulated = {}) {
-  const sleepDelta = firstFiniteNumber(simulated.sleep) - firstFiniteNumber(current.sleep);
-  const exerciseDelta = firstFiniteNumber(simulated.exercise) - firstFiniteNumber(current.exercise);
-  const waterDelta = firstFiniteNumber(simulated.water) - firstFiniteNumber(current.water);
-  const healthCause = pickDominantCause([
-    { key: 'sleep', label: 'Sleep', delta: sleepDelta, unit: 'h', weight: 4 },
-    { key: 'exercise', label: 'Exercise', delta: exerciseDelta, unit: '', weight: 3 },
-    { key: 'water', label: 'Water', delta: waterDelta, unit: 'L', weight: 2 },
-  ]);
-  const recoveryImpact = scaleDirectionalImpact(healthCause, 4);
+function buildDynamicImpactChains(current = {}, simulated = {}, scenarioFields = []) {
+  const sleepDelta = Number(simulated.sleep || 0) - Number(current.sleep || 0);
+  const exerciseDelta = Number(simulated.exercise || 0) - Number(current.exercise || 0);
+  const waterDelta = Number(simulated.water || 0) - Number(current.water || 0);
+  const savingsDelta = Number(simulated.savings || 0) - Number(current.savings || 0);
+  const investmentDelta = Number(simulated.investment || 0) - Number(current.investment || 0);
+  const expenseDelta = Number(simulated.expenses || 0) - Number(current.expenses || 0);
+  const studyDelta = Number(simulated.study || 0) - Number(current.study || 0);
+  const projectDelta = Number(simulated.projects || 0) - Number(current.projects || 0);
+  const leetcodeDelta = Number(simulated.leetcodeProblems || 0) - Number(current.leetcodeProblems || 0);
+  const changesByDomain = buildScenarioChanges(current, simulated, scenarioFields);
+  const healthCause = pickDominantCause(changesByDomain.health);
+  const recoveryImpact = scaleDirectionalImpact(healthCause, 0.9);
   const focusFromHealth = scaleDirectionalImpact(healthCause, 2.6);
   const careerFromHealth = scaleDirectionalImpact(healthCause, 1.7);
 
-  const savingsDelta = firstFiniteNumber(simulated.savings) - firstFiniteNumber(current.savings);
-  const investmentDelta = firstFiniteNumber(simulated.investment) - firstFiniteNumber(current.investment);
-  const expensesDelta = firstFiniteNumber(simulated.expenses) - firstFiniteNumber(current.expenses);
-  const financeCause = pickDominantCause([
-    { key: 'savings', label: 'Savings', delta: savingsDelta, unit: 'k', weight: 0.6 },
-    { key: 'investment', label: 'Investments', delta: investmentDelta, unit: 'k', weight: 0.45 },
-    { key: 'expenses', label: 'Expenses', delta: expensesDelta, unit: 'k', weight: 0.5, inverse: true },
-  ]);
-  const financialStress = -scaleDirectionalImpact(financeCause, 0.6);
+  const financeCause = pickDominantCause(changesByDomain.finance);
+  const financialStability = scaleDirectionalImpact(financeCause, 0.8);
+  const financialStress = -scaleDirectionalImpact(financeCause, 0.45);
   const focusFromFinance = scaleDirectionalImpact(financeCause, 0.4);
-  const finalFromFinance = scaleDirectionalImpact(financeCause, 0.25);
+  const finalFromFinance = scaleDirectionalImpact(financeCause, 0.3);
   const finalFinanceLabel = financeCause.key === 'expenses' ? 'Finance' : 'Career';
 
-  const studyDelta = firstFiniteNumber(simulated.study) - firstFiniteNumber(current.study);
-  const projectsDelta = firstFiniteNumber(simulated.projects) - firstFiniteNumber(current.projects);
-  const leetcodeDelta = firstFiniteNumber(simulated.leetcodeProblems) - firstFiniteNumber(current.leetcodeProblems);
-  const careerCause = pickDominantCause([
-    { key: 'study', label: 'Study', delta: studyDelta, unit: 'h', weight: 3 },
-    { key: 'projects', label: 'Projects', delta: projectsDelta, unit: '', weight: 2 },
-    { key: 'leetcode', label: 'LeetCode', delta: leetcodeDelta, unit: '', weight: 0.08 },
-  ]);
+  const careerCause = pickDominantCause(changesByDomain.career);
   const primaryCareerEffectLabel = careerCause.key === 'projects'
     ? 'Portfolio Strength'
-    : careerCause.key === 'leetcode'
+    : careerCause.key === 'leetcodeProblems'
       ? 'Problem Solving'
-      : 'Career';
-  const primaryCareerEffect = scaleDirectionalImpact(careerCause, careerCause.key === 'leetcode' ? 0.08 : 2);
-  const interviewReadiness = scaleDirectionalImpact(careerCause, careerCause.key === 'leetcode' ? 0.1 : 2.6);
+      : careerCause.custom
+        ? 'Professional Growth'
+        : 'Career';
+  const primaryCareerEffect = scaleDirectionalImpact(careerCause, 0.8);
+  const interviewReadiness = scaleDirectionalImpact(careerCause, 0.65);
   const incomePotential = scaleDirectionalImpact(careerCause, careerCause.key === 'projects' ? 1 : 1.7);
   const financeFromCareer = scaleDirectionalImpact(careerCause, 1);
 
   return [
     {
       title: 'Recovery Loop',
-      copy: buildHealthCopy({ sleepDelta, exerciseDelta, waterDelta, healthImpact: recoveryImpact }),
+      copy: `Status: ${getDomainStatus(changesByDomain.health)}`,
       steps: [
         {
-          label: `${healthCause.label} ${formatDelta(healthCause.delta, healthCause.unit)}`,
-          explanation: describeHealthCause(healthCause),
-        },
-        {
-          label: `Recovery ${signedNumber(recoveryImpact)}`,
-          explanation: describeHealthImpact(recoveryImpact, exerciseDelta, waterDelta),
-        },
-        {
-          label: `Focus ${signedNumber(focusFromHealth)}`,
-          explanation: focusFromHealth > 0
-            ? 'Better recovery improves concentration and decision quality.'
-            : focusFromHealth < 0
-              ? 'Lower recovery weakens concentration and raises fatigue risk.'
-              : 'Focus remains stable because recovery inputs did not materially change.',
-        },
-        {
-          label: `Career ${signedNumber(careerFromHealth)}`,
-          explanation: careerFromHealth > 0
-            ? 'Higher focus creates a positive spillover into career output.'
-            : careerFromHealth < 0
-              ? 'Reduced focus creates a negative spillover into career output.'
-              : 'Career impact from health remains neutral.',
+          label: 'AI Analysis',
+          explanation: buildDomainCopy('Health', changesByDomain.health, recoveryImpact),
         },
       ],
     },
     {
-      title: 'Money Calm',
-      copy: buildFinanceCopy({ savingsDelta, investmentDelta, expensesDelta, financeImpact: scaleDirectionalImpact(financeCause, 0.6) }),
+      title: 'Money Impact',
+      copy: `Status: ${getFinanceFallbackStatus(changesByDomain.finance)}`,
       steps: [
         {
-          label: `${financeCause.label} ${formatDelta(financeCause.delta, financeCause.unit)}`,
-          explanation: describeFinanceCause(financeCause),
-        },
-        {
-          label: `Financial Stress ${signedMagnitude(financialStress)}`,
-          explanation: financialStress < 0
-            ? 'Stronger finances lower background stress.'
-            : financialStress > 0
-              ? 'Weaker finances raise background stress.'
-              : 'Financial stress remains stable.',
-        },
-        {
-          label: `Focus ${signedNumber(focusFromFinance)}`,
-          explanation: focusFromFinance > 0
-            ? 'Lower money pressure frees attention for work and learning.'
-            : focusFromFinance < 0
-              ? 'Higher money pressure can pull attention away from work and learning.'
-              : 'Focus is unchanged by the finance scenario.',
-        },
-        {
-          label: `${finalFinanceLabel} ${signedNumber(finalFromFinance)}`,
-          explanation: finalFromFinance > 0
-            ? financeCause.key === 'expenses'
-              ? 'Lower expenses improve overall financial health.'
-              : 'Better focus creates a positive career spillover.'
-            : finalFromFinance < 0
-              ? financeCause.key === 'expenses'
-                ? 'Higher expenses reduce overall financial health.'
-                : 'Financial pressure creates a drag on career momentum.'
-              : `${finalFinanceLabel} impact remains neutral.`,
+          label: 'AI Analysis',
+          explanation: buildDomainCopy('Finance', changesByDomain.finance, financialStability),
         },
       ],
     },
     {
-      title: 'Skill Flywheel',
-      copy: buildCareerCopy({ studyDelta, projectsDelta, leetcodeDelta, careerImpact: primaryCareerEffect }),
+      title: 'Career Momentum',
+      copy: `Status: ${getDomainStatus(changesByDomain.career)}`,
       steps: [
         {
-          label: `${careerCause.label} ${formatDelta(careerCause.delta, careerCause.unit)}`,
-          explanation: describeCareerCause(careerCause),
-        },
-        {
-          label: `${primaryCareerEffectLabel} ${signedNumber(primaryCareerEffect)}`,
-          explanation: primaryCareerEffect > 0
-            ? `${primaryCareerEffectLabel} improves from the stronger career input.`
-            : primaryCareerEffect < 0
-              ? `${primaryCareerEffectLabel} declines from the weaker career input.`
-              : `${primaryCareerEffectLabel} remains unchanged.`,
-        },
-        {
-          label: `Interview Readiness ${signedNumber(interviewReadiness)}`,
-          explanation: interviewReadiness > 0
-            ? 'Interview readiness improves with stronger preparation momentum.'
-            : interviewReadiness < 0
-              ? 'Interview readiness drops as preparation momentum weakens.'
-              : 'Interview readiness remains stable.',
-        },
-        {
-          label: `Income Potential ${signedNumber(incomePotential)}`,
-          explanation: incomePotential > 0
-            ? 'Higher career strength improves future income potential.'
-            : incomePotential < 0
-              ? 'Lower career strength reduces future income potential.'
-              : 'Future income potential remains neutral.',
-        },
-        {
-          label: `Finance ${signedNumber(financeFromCareer)}`,
-          explanation: financeFromCareer > 0
-            ? 'Higher income potential creates a positive finance spillover.'
-            : financeFromCareer < 0
-              ? 'Lower income potential creates a finance drag.'
-              : 'Finance impact from career remains neutral.',
+          label: 'AI Analysis',
+          explanation: buildDomainCopy('Career', changesByDomain.career, primaryCareerEffect),
         },
       ],
     },
   ];
+}
+
+function getDomainStatus(changes = []) {
+  const delta = calculateDomainScoreDelta(changes);
+  if (delta > 0.5) return 'Improved';
+  if (delta < -0.5) return 'Reduced';
+  return 'Stable';
+}
+
+function getFinanceFallbackStatus(changes = []) {
+  const byKey = Object.fromEntries(changes.map((change) => [change.key, change.delta]));
+  if ((byKey.savings > 0 || byKey.investment > 0) && byKey.expenses > 0) return 'Mixed Impact';
+  return getDomainStatus(changes);
+}
+
+function normalizeTimelineForecast(items = []) {
+  return ['30 Day Outlook', '90 Day Outlook', '1 Year Outlook'].map((period, index) => {
+    const item = items.find((entry) => entry.period === period) || items[index] || {};
+    return {
+      period,
+      forecast: String(item.forecast || item.analysis || item.copy || 'Projection remains stable for this period.'),
+    };
+  });
+}
+
+function normalizeTimeline(timeline = {}) {
+  return [
+    { period: '30 Day Outlook', forecast: String(timeline.thirtyDays || 'The first month projection remains stable.') },
+    { period: '90 Day Outlook', forecast: String(timeline.ninetyDays || 'The 90 day projection remains stable.') },
+    { period: '1 Year Outlook', forecast: String(timeline.oneYear || 'The one year projection remains stable.') },
+  ];
+}
+
+function buildTimelineForecast(changesByDomain = {}) {
+  const statuses = {
+    health: getDomainStatus(changesByDomain.health),
+    finance: getDomainStatus(changesByDomain.finance),
+    career: getDomainStatus(changesByDomain.career),
+  };
+  return [
+    { period: '30 Day Outlook', forecast: `Early signals show health ${statuses.health.toLowerCase()}, finance ${statuses.finance.toLowerCase()}, and career ${statuses.career.toLowerCase()} as the scenario begins.` },
+    { period: '90 Day Outlook', forecast: 'The most changed inputs start compounding into clearer habit, money, and productivity patterns.' },
+    { period: '1 Year Outlook', forecast: 'The simulated direction becomes a stronger twin forecast if the new values are maintained consistently.' },
+  ];
+}
+
+function normalizeTradeOffAnalysis(items = []) {
+  return items.slice(0, 4).map((item) => ({
+    benefit: String(item.benefit || 'Potential benefit'),
+    risk: String(item.risk || 'Potential risk'),
+    impact: String(item.impact || item.analysis || 'This trade-off should be monitored as the scenario develops.'),
+  }));
+}
+
+function buildTradeOffAnalysis(changesByDomain = {}) {
+  const changes = Object.values(changesByDomain).flat();
+  const positive = changes.find((change) => change.scoreImpact > 0);
+  const negative = changes.find((change) => change.scoreImpact < 0);
+  if (positive && negative) {
+    return [{
+      benefit: `${positive.label} ${formatChangeDelta(positive)}`,
+      risk: `${negative.label} ${formatChangeDelta(negative)}`,
+      impact: 'The scenario improves one area while creating pressure in another, so the gain should be balanced against the risk.',
+    }];
+  }
+  if (positive) {
+    return [{
+      benefit: `${positive.label} ${formatChangeDelta(positive)}`,
+      risk: 'Consistency requirement',
+      impact: 'The main upside depends on sustaining the simulated behavior long enough for the twin to register durable progress.',
+    }];
+  }
+  return [{
+    benefit: 'Stable baseline',
+    risk: 'Limited upside',
+    impact: 'With few positive changes, the scenario protects stability but may not create a meaningful future lift.',
+  }];
+}
+
+function normalizeRiskAssessment(items = [], changesByDomain = {}) {
+  if (!Array.isArray(items) && items && typeof items === 'object') {
+    return [
+      {
+        domain: 'Health Risk',
+        status: normalizeRiskStatus(items.health?.level),
+        analysis: String(items.health?.reason || 'Health risk remains watchable based on the simulated values.'),
+      },
+      {
+        domain: 'Finance Risk',
+        status: normalizeRiskStatus(items.finance?.level),
+        analysis: String(items.finance?.reason || 'Finance risk remains watchable based on the simulated values.'),
+      },
+      {
+        domain: 'Career Risk',
+        status: normalizeRiskStatus(items.career?.level),
+        analysis: String(items.career?.reason || 'Career risk remains watchable based on the simulated values.'),
+      },
+      {
+        domain: 'Overall Risk',
+        status: normalizeRiskStatus(items.overall?.level),
+        analysis: String(items.overall?.reason || 'Overall risk reflects the complete simulated scenario.'),
+      },
+    ];
+  }
+  if (!Array.isArray(items) || !items.length) return buildRiskAssessment(changesByDomain);
+  const fallback = ['Health Risk', 'Finance Risk', 'Career Risk'];
+  return fallback.map((domain, index) => {
+    const item = items.find((entry) => entry.domain === domain) || items[index] || {};
+    return {
+      domain,
+      status: normalizeRiskStatus(item.status),
+      analysis: String(item.analysis || item.reason || 'Risk remains watchable based on the simulated values.'),
+    };
+  });
+}
+
+function buildRiskAssessment(changesByDomain = {}) {
+  return [
+    buildDomainRisk('Health Risk', changesByDomain.health),
+    buildDomainRisk('Finance Risk', changesByDomain.finance),
+    buildDomainRisk('Career Risk', changesByDomain.career),
+    buildDomainRisk('Overall Risk', Object.values(changesByDomain).flat()),
+  ];
+}
+
+function buildDomainRisk(domain, changes = []) {
+  const scoreDelta = calculateDomainScoreDelta(changes);
+  const status = scoreDelta < -8 ? 'High' : scoreDelta < 0 ? 'Medium' : 'Low';
+  return {
+    domain,
+    status,
+    analysis: status === 'Low'
+      ? 'The simulated values point toward a manageable risk profile.'
+      : status === 'Medium'
+        ? 'The simulated values introduce some pressure that should be monitored.'
+        : 'The simulated values create a meaningful downside risk in this domain.',
+  };
+}
+
+function normalizeRiskStatus(status) {
+  const normalized = String(status || '').toLowerCase();
+  if (normalized === 'low') return 'Low';
+  if (normalized === 'medium') return 'Medium';
+  if (normalized === 'high') return 'High';
+  return 'Medium';
 }
 
 function buildHealthCopy({ sleepDelta, exerciseDelta, waterDelta, healthImpact }) {
@@ -590,6 +984,13 @@ function buildCareerCopy({ studyDelta, projectsDelta, leetcodeDelta, careerImpac
   return `${changes.join(', ')}. ${careerImpact > 0 ? 'Career readiness improves and income potential rises.' : careerImpact < 0 ? 'Career momentum declines and income potential weakens.' : 'Career impact remains balanced.'}`;
 }
 
+function buildDomainCopy(domainLabel, changes = [], impact = 0) {
+  if (!changes.length) return `${domainLabel} inputs remain unchanged, so this chain stays stable.`;
+  const changedLabels = changes.map((change) => `${change.label} ${formatChangeDelta(change)}`);
+  const direction = impact > 0 ? 'improves' : impact < 0 ? 'declines' : 'stays balanced';
+  return `${changedLabels.join(', ')}. ${domainLabel} ${direction} through the combined scenario changes.`;
+}
+
 function describeSleepChange(delta) {
   if (delta > 0) return `Sleep increases by ${roundValue(delta)} hours, improving rest and recovery capacity.`;
   if (delta < 0) return `Sleep decreases by ${Math.abs(roundValue(delta))} hours, increasing fatigue risk.`;
@@ -602,25 +1003,22 @@ function describeHealthImpact(impact, exerciseDelta, waterDelta) {
   return 'Recovery stays stable because health gains and losses balance out.';
 }
 
-function buildDynamicSummaryPoints(current = {}, simulated = {}, twinScore = {}) {
-  const sleepDelta = firstFiniteNumber(simulated.sleep) - firstFiniteNumber(current.sleep);
-  const exerciseDelta = firstFiniteNumber(simulated.exercise) - firstFiniteNumber(current.exercise);
-  const waterDelta = firstFiniteNumber(simulated.water) - firstFiniteNumber(current.water);
-  const savingsDelta = firstFiniteNumber(simulated.savings) - firstFiniteNumber(current.savings);
-  const investmentDelta = firstFiniteNumber(simulated.investment) - firstFiniteNumber(current.investment);
-  const expensesDelta = firstFiniteNumber(simulated.expenses) - firstFiniteNumber(current.expenses);
-  const studyDelta = firstFiniteNumber(simulated.study) - firstFiniteNumber(current.study);
-  const projectsDelta = firstFiniteNumber(simulated.projects) - firstFiniteNumber(current.projects);
-  const leetcodeDelta = firstFiniteNumber(simulated.leetcodeProblems) - firstFiniteNumber(current.leetcodeProblems);
-
+function buildDynamicSummaryPoints(current = {}, simulated = {}, twinScore = {}, scenarioFields = []) {
+  const changesByDomain = buildScenarioChanges(current, simulated, scenarioFields);
   const points = [
-    summarizeHealthChange({ sleepDelta, exerciseDelta, waterDelta }),
-    summarizeFinanceChange({ savingsDelta, investmentDelta, expensesDelta }),
-    summarizeCareerChange({ studyDelta, projectsDelta, leetcodeDelta }),
+    summarizeDomainChanges('Health', changesByDomain.health),
+    summarizeDomainChanges('Finance', changesByDomain.finance),
+    summarizeDomainChanges('Career', changesByDomain.career),
     summarizeOverallTwinScore(twinScore.current ?? 0, twinScore.simulated ?? 0),
   ];
 
   return points;
+}
+
+function summarizeDomainChanges(domainLabel, changes = []) {
+  if (!changes.length) return `${domainLabel} remains stable because no ${domainLabel.toLowerCase()} inputs changed.`;
+  const direction = calculateDomainScoreDelta(changes) >= 0 ? 'improves' : 'declines';
+  return `${domainLabel} ${direction} through: ${changes.map((change) => `${change.label} ${formatChangeDelta(change)}`).join(', ')}.`;
 }
 
 function summarizeHealthChange({ sleepDelta, exerciseDelta, waterDelta }) {
@@ -945,6 +1343,11 @@ function Simulation() {
     [careerIntegrations.leetcode?.connected, derivedCurrentValues],
   );
 
+  const allSimulationFields = useMemo(
+    () => withGroupFields(dynamicSimulationGroups, customFields),
+    [customFields, dynamicSimulationGroups],
+  );
+
   useEffect(() => {
     setCurrentValues((current) => ({ ...current, ...derivedCurrentValues }));
     setValues((current) => {
@@ -981,6 +1384,7 @@ function Simulation() {
       groupKey: modalGroup,
       label: newLabel,
       unit: newUnit,
+      custom: true,
       current: currentNum,
       simulated: simulatedNum,
       min: Math.min(currentNum, simulatedNum, 0),
@@ -1017,37 +1421,56 @@ function Simulation() {
     const dotTimer = window.setInterval(() => {
       tick += 1;
       setDotCount((current) => (current === 1 ? 3 : current - 1));
-      if (tick >= 8) {
+      if (tick >= 24) {
         window.clearInterval(dotTimer);
       }
     }, 300);
 
-    const minimumRunTime = new Promise((resolve) => window.setTimeout(resolve, 2800));
+    const simulationContext = buildSimulationPayload({
+      currentValues: nextCurrentValues,
+      simulatedValues: nextValues,
+      scenarioFields: allSimulationFields,
+      dashboardScores,
+      dashboardData,
+      dailyUpdate,
+    });
+
+    const controller = new AbortController();
+    const timeoutId = window.setTimeout(() => controller.abort(), 10000);
+    const minimumRunTime = new Promise((resolve) => window.setTimeout(resolve, 1800));
 
     try {
       const responsePromise = axios.post(
         `${API_BASE_URL}/api/simulation/analyze`,
-        { current: nextCurrentValues, simulated: nextValues },
-        { headers: authHeaders },
+        { current: nextCurrentValues, simulated: nextValues, simulationContext },
+        { headers: authHeaders, signal: controller.signal },
       );
       const [response] = await Promise.all([responsePromise, minimumRunTime]);
-      setAnalysis(applySimulationResultLogic(normalizeAnalysis(response.data?.data), dashboardScores, nextCurrentValues, nextValues));
+      setAnalysis({
+        ...applySimulationResultLogic(normalizeAnalysis(response.data?.data), dashboardScores, nextCurrentValues, nextValues, allSimulationFields),
+        aiLoading: false,
+      });
     } catch (error) {
       await minimumRunTime;
-      setAnalysis(applySimulationResultLogic(normalizeAnalysis(defaultAnalysis), dashboardScores, nextCurrentValues, nextValues));
-      setAnalysisError('AI analysis unavailable. Showing fallback twin analysis.');
+      const timedOut = error.name === 'CanceledError' || error.code === 'ERR_CANCELED';
+      setAnalysis({
+        ...applySimulationResultLogic(normalizeAnalysis(defaultAnalysis), dashboardScores, nextCurrentValues, nextValues, allSimulationFields),
+        aiLoading: false,
+      });
+      setAnalysisError(timedOut ? 'AI insights are taking longer than expected.' : 'AI analysis unavailable. Showing fallback twin analysis.');
       console.warn('Simulation AI fallback:', error.response?.data?.message || error.message);
     } finally {
       window.clearInterval(dotTimer);
+      window.clearTimeout(timeoutId);
       setCompletedSteps(processingSteps.length);
       setPhase('result');
     }
-  }, [authHeaders, currentValues, dashboardScores, values]);
+  }, [allSimulationFields, authHeaders, currentValues, dailyUpdate, dashboardData, dashboardScores, values]);
 
   useEffect(() => {
     if (phase !== 'result') return;
-    setAnalysis((current) => applySimulationResultLogic(current, dashboardScores, currentValues, values));
-  }, [currentValues, dashboardScores, phase, values]);
+    setAnalysis((current) => applySimulationResultLogic(current, dashboardScores, currentValues, values, allSimulationFields));
+  }, [allSimulationFields, currentValues, dashboardScores, phase, values]);
 
   useEffect(() => {
     const assistantSimulation = location.state?.assistantSimulation;
@@ -1379,23 +1802,24 @@ function ProcessingScreen({ completedSteps, dotCount }) {
 
 function ResultScreen({ analysis, analysisError, onReset }) {
   const twinScore = analysis.twinScore || defaultAnalysis.twinScore;
+  const aiLoading = Boolean(analysis.aiLoading);
 
   return (
     <PageShell>
       <div className="mx-auto max-w-7xl space-y-6">
         <HeroPanel eyebrow="Simulation Complete" title="Simulation Result" icon={Check}>
           <p className="mt-3 max-w-2xl text-sm leading-6 text-white/60">
-            {analysis.source === 'ai' ? 'Generated from real-time AI analysis of your current and simulated values.' : analysisError || 'Generated from deterministic fallback analysis.'}
+            {aiLoading ? 'Score cards are ready. AI insights are being generated in the background.' : analysis.source === 'ai' ? 'Generated from real-time AI analysis of your current and simulated values.' : analysisError || 'Generated from deterministic fallback analysis.'}
           </p>
           <div className="mt-6 grid items-stretch gap-4 xl:grid-cols-2">
             <OverallTwinScore current={twinScore.current} simulated={twinScore.simulated} />
-            <SimulationSummary current={twinScore.current} simulated={twinScore.simulated} points={analysis.summaryPoints} />
+            <SimulationSummary current={twinScore.current} simulated={twinScore.simulated} points={analysis.summaryPoints} isLoading={aiLoading} />
           </div>
         </HeroPanel>
 
         <section className="grid gap-5 xl:grid-cols-3">
           {analysis.resultCards.map((card) => (
-            <ResultCard key={card.title} card={card} />
+            <ResultCard key={card.title} card={card} isLoading={aiLoading} />
           ))}
         </section>
 
@@ -1413,11 +1837,20 @@ function ResultScreen({ analysis, analysisError, onReset }) {
             </div>
 
             <div className="grid gap-4 lg:grid-cols-3">
-              {analysis.impactChains.map((chain) => (
-                <ImpactChain key={chain.title} chain={chain} />
-              ))}
+              {aiLoading
+                ? ['Recovery Loop', 'Money Impact', 'Career Momentum'].map((title) => <ImpactChainSkeleton key={title} title={title} />)
+                : analysis.impactChains.map((chain) => (
+                  <ImpactChain key={chain.title} chain={chain} />
+                ))}
             </div>
           </div>
+        </section>
+
+        <TimelineForecast items={analysis.timelineForecast} isLoading={aiLoading} />
+
+        <section className="grid gap-5 lg:grid-cols-2">
+          <TradeOffAnalysis items={analysis.tradeOffAnalysis} isLoading={aiLoading} />
+          <RiskAssessment items={analysis.riskAssessment} isLoading={aiLoading} />
         </section>
 
         <div className="flex flex-col gap-3 sm:flex-row sm:justify-center">
@@ -1442,7 +1875,7 @@ function ResultScreen({ analysis, analysisError, onReset }) {
   );
 }
 
-function SimulationSummary({ current, simulated, points: dynamicPoints }) {
+function SimulationSummary({ current, simulated, points: dynamicPoints, isLoading = false }) {
   const points = dynamicPoints || [
     'Health score improves significantly due to better recovery and energy levels.',
     'Career growth accelerates through increased productivity and learning.',
@@ -1463,7 +1896,13 @@ function SimulationSummary({ current, simulated, points: dynamicPoints }) {
       </div>
 
       <div className="mt-5 grid flex-1 gap-3 md:grid-cols-2">
-        {points.map((point) => (
+        {isLoading ? Array.from({ length: 4 }).map((_, index) => (
+          <div key={`summary-skeleton-${index}`} className="rounded-2xl border border-white/10 bg-[#080d15]/80 p-4">
+            <SkeletonLine className="h-3 w-3/4" />
+            <SkeletonLine className="mt-3 h-3 w-full" />
+            <SkeletonLine className="mt-2 h-3 w-5/6" />
+          </div>
+        )) : points.map((point) => (
           <div key={point} className="flex gap-3 rounded-2xl border border-white/10 bg-[#080d15]/80 p-4">
             <span className="mt-1 h-2 w-2 shrink-0 rounded-full bg-[#10c7a1] shadow-[0_0_10px_rgba(16,199,161,0.75)]" />
             <p className="text-sm leading-6 text-white/66">{point}</p>
@@ -1476,6 +1915,11 @@ function SimulationSummary({ current, simulated, points: dynamicPoints }) {
 
 function OverallTwinScore({ current, simulated }) {
   const progressWidth = `${Math.min(Math.max(Number(simulated || 0), 0), 100)}%`;
+  const directionCopy = Number(simulated) > Number(current)
+    ? 'Your simulated choices improve the full Digital Twin across health, finance, and career signals.'
+    : Number(simulated) < Number(current)
+      ? 'Your simulated choices reduce the full Digital Twin outlook after weighing health, finance, and career trade-offs.'
+      : 'Your simulated choices keep the full Digital Twin outlook stable across health, finance, and career signals.';
 
   return (
     <div className="flex h-full min-h-[360px] flex-col rounded-[1.35rem] border border-white/10 bg-gradient-to-br from-[#1a103d]/88 via-[#231044]/82 to-[#132b35]/88 p-6 text-white shadow-[0_20px_60px_-40px_rgba(0,0,0,0.9)]">
@@ -1483,7 +1927,7 @@ function OverallTwinScore({ current, simulated }) {
         <div>
           <p className="text-xs font-bold uppercase tracking-[0.24em] text-white/48">Overall Twin Score</p>
           <p className="mt-2 text-sm leading-6 text-white/56">
-            Your simulated choices improve the full Digital Twin across health, finance, and career signals.
+            {directionCopy}
           </p>
         </div>
       </div>
@@ -1511,7 +1955,7 @@ function OverallTwinScore({ current, simulated }) {
   );
 }
 
-function ResultCard({ card }) {
+function ResultCard({ card, isLoading = false }) {
   const Icon = card.icon;
 
   return (
@@ -1542,7 +1986,136 @@ function ResultCard({ card }) {
           </div>
         ))}
       </div>
+
+      {isLoading ? (
+        <div className="mt-4 rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+          <SkeletonLine className="h-3 w-2/3" />
+          <SkeletonLine className="mt-3 h-3 w-full" />
+          <SkeletonLine className="mt-2 h-3 w-4/5" />
+        </div>
+      ) : card.analysis && (
+        <p className="mt-4 rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-sm leading-6 text-white/58">
+          {card.analysis}
+        </p>
+      )}
     </article>
+  );
+}
+
+function TimelineForecast({ items = [], isLoading = false }) {
+  return (
+    <section className="rounded-[1.5rem] border border-white/10 bg-[#0b111a]/92 p-5 shadow-[0_20px_60px_-36px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6">
+      <div className="mb-5 border-b border-white/10 pb-4">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#7df3cc]/70">Timeline Visualization</p>
+        <h3 className="mt-1 text-2xl font-black text-white">Future projection timeline</h3>
+      </div>
+      <div className="grid gap-4 md:grid-cols-4">
+        {isLoading ? Array.from({ length: 3 }).map((_, index) => (
+          <div key={`timeline-skeleton-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+            <SkeletonLine className="h-3 w-1/2" />
+            <SkeletonLine className="mt-4 h-3 w-full" />
+            <SkeletonLine className="mt-2 h-3 w-5/6" />
+          </div>
+        )) : items.map((item) => (
+          <div key={item.period} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+            <p className="text-sm font-black text-[#7df3cc]">{item.period}</p>
+            <p className="mt-3 text-sm leading-6 text-white/58">{item.forecast}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function TradeOffAnalysis({ items = [], isLoading = false }) {
+  return (
+    <section className="rounded-[1.5rem] border border-white/10 bg-[#0b111a]/92 p-5 shadow-[0_20px_60px_-36px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6">
+      <div className="mb-5 border-b border-white/10 pb-4">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#c8a84b]/80">Trade-Off Analysis</p>
+        <h3 className="mt-1 text-2xl font-black text-white">Benefits and risks</h3>
+      </div>
+      <div className="space-y-3">
+        {isLoading ? Array.from({ length: 2 }).map((_, index) => (
+          <div key={`tradeoff-skeleton-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+            <SkeletonLine className="h-3 w-1/3" />
+            <SkeletonLine className="mt-3 h-3 w-2/3" />
+            <SkeletonLine className="mt-4 h-3 w-full" />
+          </div>
+        )) : items.map((item) => (
+          <div key={`${item.benefit}-${item.risk}`} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#10c7a1]/70">Benefit</p>
+                <p className="mt-1 text-sm font-black text-white">{item.benefit}</p>
+              </div>
+              <div>
+                <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-[#ff007f]/70">Risk</p>
+                <p className="mt-1 text-sm font-black text-white">{item.risk}</p>
+              </div>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-white/58">{item.impact}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function RiskAssessment({ items = [], isLoading = false }) {
+  return (
+    <section className="rounded-[1.5rem] border border-white/10 bg-[#0b111a]/92 p-5 shadow-[0_20px_60px_-36px_rgba(0,0,0,0.9)] backdrop-blur-xl sm:p-6">
+      <div className="mb-5 border-b border-white/10 pb-4">
+        <p className="text-xs font-bold uppercase tracking-[0.24em] text-[#ff007f]/70">Risk Assessment</p>
+        <h3 className="mt-1 text-2xl font-black text-white">Domain risk levels</h3>
+      </div>
+      <div className="space-y-3">
+        {isLoading ? Array.from({ length: 4 }).map((_, index) => (
+          <div key={`risk-skeleton-${index}`} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+            <SkeletonLine className="h-3 w-1/2" />
+            <SkeletonLine className="mt-3 h-3 w-full" />
+            <SkeletonLine className="mt-2 h-3 w-4/5" />
+          </div>
+        )) : items.map((item) => (
+          <div key={item.domain} className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+            <div className="flex items-center justify-between gap-3">
+              <p className="text-sm font-black text-white">{item.domain}</p>
+              <span className={`rounded-full px-3 py-1 text-xs font-black ${riskStatusClass(item.status)}`}>{item.status}</span>
+            </div>
+            <p className="mt-3 text-sm leading-6 text-white/58">{item.analysis}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+function riskStatusClass(status) {
+  if (status === 'Low') return 'bg-[#10c7a1]/10 text-[#7df3cc] ring-1 ring-[#10c7a1]/25';
+  if (status === 'High') return 'bg-[#ff007f]/10 text-[#ff8dbf] ring-1 ring-[#ff007f]/25';
+  return 'bg-[#c8a84b]/10 text-[#ffe08a] ring-1 ring-[#c8a84b]/25';
+}
+
+function SkeletonLine({ className = '' }) {
+  return <div className={`animate-pulse rounded-full bg-gradient-to-r from-white/8 via-white/18 to-white/8 ${className}`} />;
+}
+
+function ImpactChainSkeleton({ title }) {
+  return (
+    <div className="rounded-[1.25rem] border border-white/10 bg-white/[0.045] p-4">
+      <p className="text-sm font-black text-white">{title}</p>
+      <div className="mt-2 min-h-12">
+        <SkeletonLine className="h-3 w-2/3" />
+        <SkeletonLine className="mt-2 h-3 w-full" />
+      </div>
+      <div className="mt-4 space-y-3">
+        {Array.from({ length: 3 }).map((_, index) => (
+          <div key={`impact-skeleton-${index}`} className="rounded-2xl border border-white/10 bg-[#080d15]/92 p-4">
+            <SkeletonLine className="mx-auto h-3 w-1/2" />
+            <SkeletonLine className="mx-auto mt-3 h-3 w-4/5" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 

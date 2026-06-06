@@ -1,9 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { Activity, BadgeIndianRupee, Briefcase, CheckCircle2, Loader2, Target } from 'lucide-react';
+import { clearDailyUpdateCooldown } from '../features/dailyUpdate/dailyUpdateSlice';
 import { fetchTodayDailyUpdate, submitDailyUpdate } from '../features/dailyUpdate/dailyUpdateThunks';
 
 const concernOptions = ['Headache', 'Fever', 'Fatigue', 'Stress', 'Anxiety', 'Sleep Issues', 'Other'];
+const COOLDOWN_MS = 24 * 60 * 60 * 1000;
 
 const initialForm = {
   health: {
@@ -37,12 +39,41 @@ const initialForm = {
 
 function DailyUpdate() {
   const dispatch = useDispatch();
-  const { activeGoals, completed, error, loading, success } = useSelector((state) => state.dailyUpdate);
+  const { activeGoals, completed, dailyUpdateLastSubmittedAt, error, loading, success } = useSelector((state) => state.dailyUpdate);
   const [form, setForm] = useState(initialForm);
+  const [currentTime, setCurrentTime] = useState(Date.now());
 
   useEffect(() => {
     dispatch(fetchTodayDailyUpdate());
   }, [dispatch]);
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(Date.now());
+    }, 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  const remaining = dailyUpdateLastSubmittedAt
+    ? (dailyUpdateLastSubmittedAt + COOLDOWN_MS) - currentTime
+    : 0;
+  const cooldownText = remaining > 0
+    ? `Next update available in ${formatRemainingTime(remaining)}`
+    : 'Daily update available now';
+
+  useEffect(() => {
+    if (dailyUpdateLastSubmittedAt) {
+      localStorage.setItem('dailyUpdateLastSubmittedAt', String(dailyUpdateLastSubmittedAt));
+    }
+  }, [dailyUpdateLastSubmittedAt]);
+
+  useEffect(() => {
+    if ((completed || success) && remaining <= 0) {
+      localStorage.removeItem('dailyUpdateLastSubmittedAt');
+      dispatch(clearDailyUpdateCooldown());
+    }
+  }, [completed, dispatch, remaining, success]);
 
   const selectedGoal = useMemo(
     () => activeGoals.find((goal) => goal._id === form.goal.goalId),
@@ -61,7 +92,7 @@ function DailyUpdate() {
         <div className="mx-auto flex max-w-3xl flex-col items-center rounded-[1.75rem] border border-[#10c7a1]/25 bg-[#0b111a]/95 p-10 text-center shadow-[0_24px_70px_-36px_rgba(0,0,0,0.9)]">
           <CheckCircle2 className="h-16 w-16 text-[#10c7a1]" />
           <h1 className="mt-5 text-3xl font-black">Today's Twin Check-In Completed</h1>
-          <p className="mt-3 text-white/58">Next update available tomorrow.</p>
+          <p className="mt-3 text-white/58">{cooldownText}</p>
         </div>
       </div>
     );
@@ -299,6 +330,18 @@ function numericTrade(value) {
     quantity: Number(value.quantity || 0),
     amount: Number(value.amount || 0),
   };
+}
+
+function formatRemainingTime(remaining) {
+  const hours = Math.floor(remaining / (1000 * 60 * 60));
+  const minutes = Math.floor(
+    (remaining % (1000 * 60 * 60)) / (1000 * 60),
+  );
+  const seconds = Math.floor(
+    (remaining % (1000 * 60)) / 1000,
+  );
+
+  return `${hours.toString().padStart(2, '0')}h ${minutes.toString().padStart(2, '0')}m ${seconds.toString().padStart(2, '0')}s`;
 }
 
 export default DailyUpdate;

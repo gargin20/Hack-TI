@@ -61,9 +61,21 @@ const userSchema = new mongoose.Schema(
       banking: { type: String, trim: true, default: '' },
     },
     careerIntegrations: {
-      github: { type: String, trim: true, default: '' },
-      leetcode: { type: String, trim: true, default: '' },
-      linkedin: { type: String, trim: true, default: '' },
+      software: {
+        github: { type: String, trim: true, default: '' },
+        leetcode: { type: String, trim: true, default: '' },
+        linkedin: { type: String, trim: true, default: '' },
+      },
+      business: {
+        linkedin: { type: String, trim: true, default: '' },
+        portfolio: { type: String, trim: true, default: '' },
+        businessProfile: { type: String, trim: true, default: '' },
+      },
+      creative: {
+        portfolio: { type: String, trim: true, default: '' },
+        linkedin: { type: String, trim: true, default: '' },
+        behance: { type: String, trim: true, default: '' },
+      },
     },
     healthIntegration: {
       connected: { type: Boolean, default: false },

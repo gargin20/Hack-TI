@@ -50,10 +50,10 @@ const stateConfig = {
 const emptyMessages = [];
 
 const voiceStatusText = {
-  offline: 'Voice offline',
+  offline: '⚠ Disconnected',
   connecting: 'Connecting voice...',
-  listening: 'Listening',
-  error: 'Voice Assistant Offline',
+  listening: '🎤 Listening',
+  error: '⚠ Disconnected',
 };
 
 export default function TwinAssistantButton() {
@@ -74,7 +74,14 @@ export default function TwinAssistantButton() {
   const submitTextCommand = assistant?.submitTextCommand;
 
   const config = stateConfig[assistantState] || stateConfig.disabled;
-  const displayLabel = assistantState === 'ready' && voiceStatus === 'listening' ? 'Listening' : config.label;
+  const statusLabel = assistantState === 'processing'
+    ? '⚡ Processing'
+    : assistantState === 'speaking'
+      ? '🔊 Speaking'
+      : assistantState === 'ready' && voiceStatus === 'listening'
+        ? '🎤 Listening'
+        : config.label;
+  const displayLabel = statusLabel;
   const Icon = config.icon;
 
   useEffect(() => {

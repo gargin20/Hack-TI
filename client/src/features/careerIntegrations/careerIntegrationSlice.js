@@ -3,21 +3,42 @@ import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
 
+export const CAREER_DOMAIN_KEYS = ['software', 'business', 'creative'];
+export const DEFAULT_CAREER_DOMAIN = 'software';
+
+export const CAREER_DOMAIN_LABELS = {
+  software: 'Software & Coding',
+  coding: 'Software & Coding',
+  business: 'Business & MBA',
+  creative: 'Creative & Design',
+};
+
+const emptyDomainLinks = {
+  software: {
+    github: '',
+    leetcode: '',
+    linkedin: '',
+  },
+  business: {
+    linkedin: '',
+    portfolio: '',
+    businessProfile: '',
+  },
+  creative: {
+    portfolio: '',
+    linkedin: '',
+    behance: '',
+  },
+};
+
 const emptyState = {
-  github: {
-    connected: false,
-    username: '',
-    profileUrl: '',
-  },
-  leetcode: {
-    connected: false,
-    username: '',
-    profileUrl: '',
-  },
-  linkedin: {
-    connected: false,
-    profileUrl: '',
-  },
+  domains: emptyDomainLinks,
+  github: buildGithubState(''),
+  leetcode: buildLeetcodeState(''),
+  linkedin: buildLinkedinState(''),
+  portfolio: buildGenericState(''),
+  businessProfile: buildGenericState(''),
+  behance: buildGenericState(''),
 };
 
 const initialState = {
@@ -46,8 +67,16 @@ export const saveCareerIntegrations = createAsyncThunk(
   'careerIntegrations/save',
   async (updates, { getState, rejectWithValue }) => {
     try {
-      const current = selectCareerIntegrationLinks(getState());
-      const next = normalizeCareerLinks({ ...current, ...(updates || {}) });
+      const { domain, links } = parseIntegrationUpdates(updates);
+      const current = selectAllCareerIntegrationLinks(getState());
+      const domainKey = normalizeCareerDomain(domain);
+      const next = normalizeAllCareerLinks({
+        ...current,
+        [domainKey]: {
+          ...(current[domainKey] || {}),
+          ...(links || {}),
+        },
+      });
       const response = await axios.put(
         `${API_BASE_URL}/api/career-integrations`,
         { careerIntegrations: next },
@@ -62,13 +91,16 @@ export const saveCareerIntegrations = createAsyncThunk(
 
 export const disconnectCareerIntegration = createAsyncThunk(
   'careerIntegrations/disconnect',
-  async (provider, { getState, dispatch, rejectWithValue }) => {
-    if (!['github', 'leetcode', 'linkedin'].includes(provider)) {
+  async (payload, { dispatch, rejectWithValue }) => {
+    const provider = typeof payload === 'string' ? payload : payload?.provider;
+    const domain = typeof payload === 'string' ? DEFAULT_CAREER_DOMAIN : payload?.domain;
+    const domainKey = normalizeCareerDomain(domain);
+
+    if (!Object.prototype.hasOwnProperty.call(emptyDomainLinks[domainKey] || {}, provider)) {
       return rejectWithValue('Unknown career integration.');
     }
 
-    const current = selectCareerIntegrationLinks(getState());
-    return dispatch(saveCareerIntegrations({ ...current, [provider]: '' })).unwrap();
+    return dispatch(saveCareerIntegrations({ domain: domainKey, links: { [provider]: '' } })).unwrap();
   }
 );
 
@@ -119,28 +151,102 @@ const careerIntegrationSlice = createSlice({
 export const { setCareerIntegrationLinks, clearCareerIntegrationError } = careerIntegrationSlice.actions;
 export default careerIntegrationSlice.reducer;
 
-export function selectCareerIntegrationLinks(state) {
+export function normalizeCareerDomain(domain = DEFAULT_CAREER_DOMAIN) {
+  const raw = String(domain || DEFAULT_CAREER_DOMAIN).toLowerCase().trim();
+  if (raw === 'coding' || raw === 'software' || raw === 'software & coding') return 'software';
+  if (raw === 'business' || raw === 'business & mba') return 'business';
+  if (raw === 'creative' || raw === 'creative & design') return 'creative';
+  return DEFAULT_CAREER_DOMAIN;
+}
+
+export function selectCareerIntegrationLinks(state, domain = DEFAULT_CAREER_DOMAIN) {
   const career = state.careerIntegrations || emptyState;
-  return {
-    github: career.github?.profileUrl || '',
-    leetcode: career.leetcode?.profileUrl || '',
-    linkedin: career.linkedin?.profileUrl || '',
-  };
+  const domainKey = normalizeCareerDomain(domain);
+  const domains = normalizeAllCareerLinks(career.domains || career);
+  return domains[domainKey] || { ...emptyDomainLinks[domainKey] };
+}
+
+export function selectAllCareerIntegrationLinks(state) {
+  const career = state.careerIntegrations || emptyState;
+  return normalizeAllCareerLinks(career.domains || career);
+}
+
+export function selectCareerDomainIntegrations(state, domain = DEFAULT_CAREER_DOMAIN) {
+  const links = selectCareerIntegrationLinks(state, domain);
+  return buildDomainState(normalizeCareerDomain(domain), links);
 }
 
 function applyCareerLinks(state, links) {
-  const normalized = normalizeCareerLinks(links);
-  state.github = buildGithubState(normalized.github);
-  state.leetcode = buildLeetcodeState(normalized.leetcode);
-  state.linkedin = buildLinkedinState(normalized.linkedin);
+  const normalized = normalizeAllCareerLinks(links);
+  state.domains = normalized;
+
+  state.github = buildGithubState(normalized.software.github);
+  state.leetcode = buildLeetcodeState(normalized.software.leetcode);
+  state.linkedin = buildLinkedinState(normalized.software.linkedin);
+  state.portfolio = buildGenericState(normalized.creative.portfolio || normalized.business.portfolio);
+  state.businessProfile = buildGenericState(normalized.business.businessProfile);
+  state.behance = buildGenericState(normalized.creative.behance);
 }
 
-function normalizeCareerLinks(links = {}) {
+function normalizeAllCareerLinks(links = {}) {
+  const source = links.domains || links;
   return {
-    github: normalizeGithubUrl(links.github),
-    leetcode: normalizeLeetcodeUrl(links.leetcode),
-    linkedin: normalizeLinkedinUrl(links.linkedin),
+    software: normalizeDomainLinks('software', {
+      ...source.software,
+      ...source.coding,
+      github: source.software?.github ?? source.coding?.github ?? source.github,
+      leetcode: source.software?.leetcode ?? source.coding?.leetcode ?? source.leetcode,
+      linkedin: source.software?.linkedin ?? source.coding?.linkedin ?? source.linkedin,
+    }),
+    business: normalizeDomainLinks('business', {
+      ...source.business,
+      linkedin: source.business?.linkedin ?? '',
+      portfolio: source.business?.portfolio ?? source.portfolio ?? '',
+      businessProfile: source.business?.businessProfile ?? '',
+    }),
+    creative: normalizeDomainLinks('creative', {
+      ...source.creative,
+      portfolio: source.creative?.portfolio ?? '',
+      linkedin: source.creative?.linkedin ?? '',
+      behance: source.creative?.behance ?? '',
+    }),
   };
+}
+
+function normalizeDomainLinks(domain, links = {}) {
+  const keys = Object.keys(emptyDomainLinks[domain] || {});
+  return keys.reduce((acc, key) => {
+    acc[key] = normalizeCareerLink(key, links[key]);
+    return acc;
+  }, {});
+}
+
+function buildDomainState(domain, links = {}) {
+  return Object.entries(normalizeDomainLinks(domain, links)).reduce((acc, [key, profileUrl]) => {
+    acc[key] = buildProviderState(key, profileUrl);
+    return acc;
+  }, {});
+}
+
+function parseIntegrationUpdates(updates = {}) {
+  if (updates?.links || updates?.domain) {
+    return {
+      domain: updates.domain || DEFAULT_CAREER_DOMAIN,
+      links: updates.links || {},
+    };
+  }
+
+  return {
+    domain: DEFAULT_CAREER_DOMAIN,
+    links: updates || {},
+  };
+}
+
+function buildProviderState(provider, profileUrl = '') {
+  if (provider === 'github') return buildGithubState(profileUrl);
+  if (provider === 'leetcode') return buildLeetcodeState(profileUrl);
+  if (provider === 'linkedin') return buildLinkedinState(profileUrl);
+  return buildGenericState(profileUrl);
 }
 
 function buildGithubState(profileUrl = '') {
@@ -166,6 +272,20 @@ function buildLinkedinState(profileUrl = '') {
   };
 }
 
+function buildGenericState(profileUrl = '') {
+  return {
+    connected: Boolean(profileUrl),
+    profileUrl,
+  };
+}
+
+function normalizeCareerLink(provider, value = '') {
+  if (provider === 'github') return normalizeGithubUrl(value);
+  if (provider === 'leetcode') return normalizeLeetcodeUrl(value);
+  if (provider === 'linkedin') return normalizeLinkedinUrl(value);
+  return normalizeGenericUrl(value);
+}
+
 function normalizeGithubUrl(value = '') {
   const trimmed = String(value || '').trim();
   if (!trimmed) return '';
@@ -185,6 +305,10 @@ function normalizeLinkedinUrl(value = '') {
   if (!trimmed) return '';
   if (/^https?:\/\//i.test(trimmed)) return trimmed;
   return `https://linkedin.com/in/${trimmed.replace(/^@/, '')}`;
+}
+
+function normalizeGenericUrl(value = '') {
+  return String(value || '').trim();
 }
 
 function extractGithubUsername(value = '') {

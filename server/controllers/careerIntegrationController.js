@@ -2,7 +2,12 @@ import axios from 'axios';
 import User from '../models/User.js';
 import OnboardingProfile from '../models/OnboardingProfile.js';
 
-const CAREER_KEYS = ['github', 'leetcode', 'linkedin'];
+const CAREER_DOMAINS = {
+  software: ['github', 'leetcode', 'linkedin'],
+  coding: ['github', 'leetcode', 'linkedin'],
+  business: ['linkedin', 'portfolio', 'businessProfile'],
+  creative: ['portfolio', 'linkedin', 'behance'],
+};
 
 export const getCareerIntegrations = async (req, res) => {
   const user = await User.findById(req.user.userId);
@@ -26,19 +31,14 @@ export const updateCareerIntegrations = async (req, res) => {
 
   const incoming = req.body?.careerIntegrations || req.body || {};
   const current = buildCareerIntegrations(user);
-  const next = { ...current };
-
-  CAREER_KEYS.forEach((key) => {
-    if (Object.prototype.hasOwnProperty.call(incoming, key)) {
-      next[key] = sanitizeLink(incoming[key]);
-    }
-  });
+  const next = normalizeCareerIntegrations({ ...current, ...incoming });
 
   user.careerIntegrations = next;
   user.links = {
     ...(user.links || {}),
-    github: next.github,
-    linkedin: next.linkedin,
+    github: next.software.github,
+    linkedin: next.software.linkedin,
+    portfolio: next.business.portfolio || next.creative.portfolio || user.links?.portfolio || '',
   };
 
   await Promise.all([
@@ -86,25 +86,56 @@ export const getLeetcodeActivityCalendar = async (req, res) => {
 };
 
 function buildCareerIntegrations(user) {
-  const career = user.careerIntegrations || {};
+  const career = user.careerIntegrations?.toObject?.() || user.careerIntegrations || {};
   const links = user.links || {};
+  const legacyGithub = user.get?.('careerIntegrations.github');
+  const legacyLeetcode = user.get?.('careerIntegrations.leetcode');
+  const legacyLinkedin = user.get?.('careerIntegrations.linkedin');
 
-  return {
-    github: sanitizeLink(career.github || links.github),
-    leetcode: sanitizeLink(career.leetcode),
-    linkedin: sanitizeLink(career.linkedin || links.linkedin),
-  };
+  return normalizeCareerIntegrations({
+    ...career,
+    github: career.github || legacyGithub || links.github,
+    leetcode: career.leetcode || legacyLeetcode,
+    linkedin: career.linkedin || legacyLinkedin || links.linkedin,
+    portfolio: links.portfolio,
+  });
 }
 
 async function syncOnboardingCareerFields(userId, careerIntegrations) {
   const profile = await OnboardingProfile.findOne({ userId });
   const op = profile || new OnboardingProfile({ userId });
 
-  op.githubUsername = extractGithubUsername(careerIntegrations.github);
-  op.leetcodeUsername = extractLeetcodeUsername(careerIntegrations.leetcode);
-  op.linkedinProfile = careerIntegrations.linkedin;
+  op.githubUsername = extractGithubUsername(careerIntegrations.software.github);
+  op.leetcodeUsername = extractLeetcodeUsername(careerIntegrations.software.leetcode);
+  op.linkedinProfile = careerIntegrations.software.linkedin;
 
   await op.save();
+}
+
+function normalizeCareerIntegrations(value = {}) {
+  const source = value || {};
+  return {
+    software: normalizeDomainLinks('software', {
+      ...source.software,
+      ...source.coding,
+      github: source.software?.github ?? source.coding?.github ?? source.github,
+      leetcode: source.software?.leetcode ?? source.coding?.leetcode ?? source.leetcode,
+      linkedin: source.software?.linkedin ?? source.coding?.linkedin ?? source.linkedin,
+    }),
+    business: normalizeDomainLinks('business', {
+      ...source.business,
+      portfolio: source.business?.portfolio ?? source.portfolio,
+    }),
+    creative: normalizeDomainLinks('creative', source.creative),
+  };
+}
+
+function normalizeDomainLinks(domain, links = {}) {
+  const keys = CAREER_DOMAINS[domain] || [];
+  return keys.reduce((acc, key) => {
+    acc[key] = sanitizeLink(links?.[key]);
+    return acc;
+  }, {});
 }
 
 function sanitizeLink(value = '') {

@@ -4,14 +4,17 @@ import { useDispatch, useSelector } from 'react-redux';
 import { useGamification } from '../context/GamificationContext';
 import {
   disconnectCareerIntegration,
+  CAREER_DOMAIN_LABELS,
   fetchCareerIntegrations,
+  normalizeCareerDomain,
   saveCareerIntegrations,
+  selectCareerDomainIntegrations,
 } from '../features/careerIntegrations/careerIntegrationSlice';
 import {
   Code2, TrendingUp, AlertTriangle, Zap, Target, Activity,
   ChevronDown, ChevronUp, Sparkles, RefreshCw, Award,
   CheckCircle, Loader2, X, Plus, Link, ExternalLink,
-  Briefcase, Palette, Terminal, BookOpen, BarChart2,
+  Briefcase, Palette, Terminal, BookOpen, BarChart2, Globe,
   Users, Star, GitCommit, Trophy, Hash, Pencil,
 } from 'lucide-react';
 import { fetchCareerIntegrationStats, getCareerProfileLabel } from '../utils/careerIntegrationStats';
@@ -118,22 +121,22 @@ const DOMAINS = {
         profileUrl: (u) => u,
       },
       {
-        id:          'scholar',
-        name:        'Google Scholar',
-        color:       '#4285f4',
-        icon:        BookOpen,
-        placeholder: 'Your Scholar profile URL',
+        id:          'portfolio',
+        name:        'Professional Portfolio / Personal Website',
+        color:       '#fbbf24',
+        icon:        Globe,
+        placeholder: 'https://your-portfolio.com',
         endpoint:    null,
         comingSoon:  true,
         statsMap:    () => [],
         profileUrl:  (u) => u,
       },
       {
-        id:          'crunchbase',
-        name:        'Crunchbase',
+        id:          'businessProfile',
+        name:        'MBA / Business Profile Link',
         color:       '#10c7a1',
         icon:        BarChart2,
-        placeholder: 'Your Crunchbase profile URL',
+        placeholder: 'https://medium.com/@your-name',
         endpoint:    null,
         comingSoon:  true,
         statsMap:    () => [],
@@ -149,40 +152,112 @@ const DOMAINS = {
     desc:     'Track your portfolio, follower growth, and creative output across platforms.',
     platforms: [
       {
+        id:          'portfolio',
+        name:        'Portfolio Website',
+        color:       '#fbbf24',
+        icon:        Globe,
+        placeholder: 'https://your-portfolio.com',
+        endpoint:    null,
+        comingSoon:  true,
+        statsMap:    () => [],
+        profileUrl:  (u) => u,
+      },
+      {
+        id:          'linkedin',
+        name:        'LinkedIn',
+        color:       '#7b61ff',
+        icon:        Briefcase,
+        placeholder: 'https://linkedin.com/in/your-name',
+        endpoint:    null,
+        comingSoon:  true,
+        statsMap:    () => [],
+        profileUrl:  (u) => u,
+      },
+      {
         id:          'behance',
-        name:        'Behance',
+        name:        'Behance / Dribbble',
         color:       '#1769ff',
         icon:        Palette,
-        placeholder: 'your-username',
+        placeholder: 'https://behance.net/your-name or https://dribbble.com/your-name',
         endpoint:    null,
         comingSoon:  true,
         statsMap:    () => [],
-        profileUrl:  (u) => `https://www.behance.net/${u}`,
-      },
-      {
-        id:          'dribbble',
-        name:        'Dribbble',
-        color:       '#ff4d7d',
-        icon:        Palette,
-        placeholder: 'your-username',
-        endpoint:    null,
-        comingSoon:  true,
-        statsMap:    () => [],
-        profileUrl:  (u) => `https://dribbble.com/${u}`,
-      },
-      {
-        id:          'youtube',
-        name:        'YouTube',
-        color:       '#ff0000',
-        icon:        BarChart2,
-        placeholder: '@your-channel',
-        endpoint:    null,
-        comingSoon:  true,
-        statsMap:    () => [],
-        profileUrl:  (u) => `https://youtube.com/${u}`,
+        profileUrl:  (u) => u,
       },
     ],
   },
+};
+
+const CAREER_LINK_ROWS = {
+  software: [
+    {
+      key: 'github',
+      label: 'GitHub',
+      icon: GithubIcon,
+      placeholder: 'https://github.com/anjali',
+      metricLabels: ['Repositories', 'Followers', 'Stars'],
+    },
+    {
+      key: 'leetcode',
+      label: 'LeetCode',
+      icon: Code2,
+      placeholder: 'https://leetcode.com/u/anjali',
+      metricLabels: ['Problems Solved', 'Contest Rating', 'Rank'],
+    },
+    {
+      key: 'linkedin',
+      label: 'LinkedIn',
+      icon: Briefcase,
+      placeholder: 'https://linkedin.com/in/anjali',
+      metricLabels: ['Profile URL', 'Professional Network'],
+    },
+  ],
+  business: [
+    {
+      key: 'linkedin',
+      label: 'LinkedIn',
+      icon: Briefcase,
+      placeholder: 'https://linkedin.com/in/anjali',
+      metricLabels: ['Network strength'],
+    },
+    {
+      key: 'portfolio',
+      label: 'Professional Portfolio / Personal Website',
+      icon: Globe,
+      placeholder: 'https://your-portfolio.com',
+      metricLabels: ['Content count', 'Activity'],
+    },
+    {
+      key: 'businessProfile',
+      label: 'MBA / Business Profile Link',
+      icon: BarChart2,
+      placeholder: 'https://medium.com/@your-name',
+      metricLabels: ['Professional presence'],
+    },
+  ],
+  creative: [
+    {
+      key: 'portfolio',
+      label: 'Portfolio Website',
+      icon: Globe,
+      placeholder: 'https://your-portfolio.com',
+      metricLabels: ['Projects'],
+    },
+    {
+      key: 'linkedin',
+      label: 'LinkedIn',
+      icon: Briefcase,
+      placeholder: 'https://linkedin.com/in/anjali',
+      metricLabels: ['Professional profile'],
+    },
+    {
+      key: 'behance',
+      label: 'Behance / Dribbble',
+      icon: Palette,
+      placeholder: 'https://behance.net/your-name or https://dribbble.com/your-name',
+      metricLabels: ['Creative work', 'Design shots'],
+    },
+  ],
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -422,19 +497,186 @@ function buildBurnoutForecast(burnoutRisk, studyHours, sleepHours) {
   });
 }
 
-function buildCrossInsights(profile, analytics) {
+function buildCrossInsights({
+  profile,
+  analytics,
+  activeDomain,
+  activeIntegrations,
+  careerActivityCounts,
+  professionalGrowthStats,
+  professionalGrowthMetric,
+  dynamicCareerMetrics,
+}) {
   const insights = [];
   const studyH  = profile?.studyHours  || 4;
   const sleepH  = profile?.sleepHours  || 7;
   const burnout = analytics?.burnoutRisk ?? 50;
   const prod    = analytics?.productivityScore ?? 60;
   const fin     = analytics?.financialHealth ?? 60;
-  if (sleepH < 6 && studyH > 7) insights.push({ icon: '🔥', severity: 'critical', color: '#f87171', title: 'Sleep Debt × Study Overload', body: `${studyH}h study on ${sleepH}h sleep creates compounding cognitive debt. Problem-solving speed drops 22% per night of sub-6h sleep.`, action: 'Cap study at 6h and protect sleep above everything else this week.' });
-  if (burnout > 65 && prod < 60) insights.push({ icon: '⚠️', severity: 'warning', color: '#fbbf24', title: 'Burnout Risk × Productivity Gap', body: `Burnout at ${burnout}% with productivity at ${prod}/100 — you're working hard but outputting less.`, action: 'One full rest day recovers more output than pushing through.' });
-  if (fin < 50 && studyH > 6)    insights.push({ icon: '💸', severity: 'warning', color: '#fbbf24', title: 'Financial Pressure × Study Hours', body: `Financial stress combined with heavy study load kills focus. Anxiety occupies the same working memory you need for deep work.`, action: 'Resolve one pending financial task this week to free cognitive bandwidth.' });
-  if (burnout < 40 && prod > 70) insights.push({ icon: '🚀', severity: 'positive', color: '#4ade80', title: 'Recovery × Performance Alignment', body: `Burnout at ${burnout}% and productivity at ${prod}/100. This is your window — take on the hardest challenge you've been avoiding.`, action: 'This is your peak window — tackle the highest-difficulty item on your roadmap.' });
-  if (!insights.length) insights.push({ icon: '📡', severity: 'neutral', color: '#94a3b8', title: 'Signals Stable', body: 'Career, health, and finance signals are in balance. No critical cross-domain friction detected.', action: 'Maintain current rhythm and keep logging to improve prediction accuracy.' });
-  return insights;
+  const domain = normalizeCareerDomain(activeDomain);
+  const connectedProviders = Object.entries(activeIntegrations || {})
+    .filter(([, integration]) => Boolean(integration?.connected || integration?.profileUrl))
+    .map(([key]) => key);
+  const recent7 = sumRecentActivity(careerActivityCounts, 7);
+  const recent30 = sumRecentActivity(careerActivityCounts, 30);
+  const githubRepos = Number(professionalGrowthStats?.github?.repositories || 0);
+  const githubStars = Number(professionalGrowthStats?.github?.stars || 0);
+  const githubFollowers = Number(professionalGrowthStats?.github?.followers || 0);
+  const leetcodeSolved = Number(professionalGrowthStats?.leetcode?.solved || 0);
+  const leetcodeRating = Number(professionalGrowthStats?.leetcode?.contestRating || 0);
+  const growthScore = professionalGrowthMetric?.score;
+  const codingConsistency = dynamicCareerMetrics?.codingConsistency;
+  const careerMomentum = dynamicCareerMetrics?.careerMomentum;
+
+  if (!connectedProviders.length) {
+    insights.push({
+      icon: '🔌',
+      severity: 'warning',
+      color: '#fbbf24',
+      title: 'Career Signals Are Not Connected',
+      body: `No ${CAREER_DOMAIN_LABELS[domain] || 'career'} integrations are connected, so your twin can only use onboarding values like ${studyH}h study, ${sleepH}h sleep, productivity ${prod}/100, and burnout ${burnout}%.`,
+      action: domain === 'software'
+        ? 'Connect GitHub or LeetCode first so alerts can use real coding activity.'
+        : 'Connect the domain-specific profile cards above so alerts can use your real portfolio and professional signals.',
+    });
+  }
+
+  if (sleepH < 6 && studyH > 6) {
+    insights.push({
+      icon: '🔥',
+      severity: 'critical',
+      color: '#f87171',
+      title: 'Recovery Is Limiting Career Output',
+      body: `${studyH}h study on ${sleepH}h sleep raises burnout risk to ${burnout}% and can reduce the value of your learning time, even when productivity reads ${prod}/100.`,
+      action: 'Protect at least one extra hour of sleep before increasing study workload.',
+    });
+  }
+
+  if (domain === 'software' && connectedProviders.length > 0) {
+    if (recent30 === 0) {
+      insights.push({
+        icon: '📉',
+        severity: 'warning',
+        color: '#fbbf24',
+        title: 'Connected Coding Profiles Show No Recent Activity',
+        body: `GitHub/LeetCode are connected, but the last 30 days show 0 detected activity. That makes coding consistency ${codingConsistency ?? 0}/100 and weakens career momentum.`,
+        action: 'Add one small commit or solve one problem today to restart the activity signal.',
+      });
+    } else if (recent7 >= 5 && burnout > 55) {
+      insights.push({
+        icon: '⚠️',
+        severity: 'warning',
+        color: '#fbbf24',
+        title: 'Strong Coding Push With Burnout Pressure',
+        body: `Your connected profiles show ${recent7} coding activities in the last 7 days while burnout is ${burnout}%. Momentum is real, but recovery risk is rising.`,
+        action: 'Keep the streak, but schedule one low-intensity recovery block this week.',
+      });
+    } else if (recent30 > 0 && prod >= 70) {
+      insights.push({
+        icon: '🚀',
+        severity: 'positive',
+        color: '#4ade80',
+        title: 'Productivity Matches Real Coding Activity',
+        body: `${recent30} detected coding activities in 30 days plus productivity ${prod}/100 means your output signal is backed by actual profile data.`,
+        action: 'Use this window for one visible project milestone or a focused LeetCode set.',
+      });
+    }
+
+    if (growthScore != null && growthScore < 35 && (githubRepos > 0 || leetcodeSolved > 0)) {
+      insights.push({
+        icon: '🧭',
+        severity: 'warning',
+        color: '#fbbf24',
+        title: 'Activity Exists But Professional Signal Is Thin',
+        body: `Your profile has ${githubRepos} repos, ${githubStars} stars, ${githubFollowers} followers, and ${leetcodeSolved} solved problems, but professional growth is only ${growthScore}/100.`,
+        action: 'Turn one active repo or solved-problem theme into a portfolio-ready project summary.',
+      });
+    }
+
+    if (leetcodeRating >= 1600 || leetcodeSolved >= 300) {
+      insights.push({
+        icon: '🏆',
+        severity: 'positive',
+        color: '#4ade80',
+        title: 'Problem-Solving Signal Can Lift Career Readiness',
+        body: `LeetCode shows ${leetcodeSolved} solved problems${leetcodeRating ? ` and rating ${leetcodeRating}` : ''}. That can support interview readiness if paired with visible projects.`,
+        action: 'Match this algorithm strength with one GitHub project that demonstrates product thinking.',
+      });
+    }
+  }
+
+  if (domain === 'business' && connectedProviders.length > 0) {
+    if (!activeIntegrations.linkedin?.connected) {
+      insights.push({
+        icon: '🌐',
+        severity: 'warning',
+        color: '#fbbf24',
+        title: 'Business Domain Missing Network Signal',
+        body: 'Portfolio or business profile data is present, but LinkedIn is not connected. That limits network-strength analysis for MBA and business growth.',
+        action: 'Add LinkedIn so the business profile signal connects to professional network strength.',
+      });
+    } else {
+      insights.push({
+        icon: '📈',
+        severity: fin < 50 ? 'warning' : 'positive',
+        color: fin < 50 ? '#fbbf24' : '#4ade80',
+        title: fin < 50 ? 'Business Growth May Be Under Finance Pressure' : 'Business Profile Supports Cross-Domain Growth',
+        body: `LinkedIn is connected for the business domain while finance health is ${fin}/100 and productivity is ${prod}/100. This links professional presence with execution capacity.`,
+        action: fin < 50 ? 'Balance networking or MBA workload with one finance-stability action this week.' : 'Use the connected profile to track networking and thought-leadership progress.',
+      });
+    }
+  }
+
+  if (domain === 'creative' && connectedProviders.length > 0) {
+    if (!activeIntegrations.portfolio?.connected && !activeIntegrations.behance?.connected) {
+      insights.push({
+        icon: '🎨',
+        severity: 'warning',
+        color: '#fbbf24',
+        title: 'Creative Domain Missing Portfolio Proof',
+        body: 'Creative domain is selected, but no portfolio or Behance/Dribbble link is connected. The twin cannot verify project output yet.',
+        action: 'Connect a portfolio or Behance/Dribbble profile so creative output can influence alerts.',
+      });
+    } else {
+      insights.push({
+        icon: '✨',
+        severity: burnout > 65 ? 'warning' : 'positive',
+        color: burnout > 65 ? '#fbbf24' : '#4ade80',
+        title: burnout > 65 ? 'Creative Output Needs Recovery Protection' : 'Creative Proof Is Connected',
+        body: `Creative profile data is connected with productivity ${prod}/100 and burnout ${burnout}%. This lets the twin connect portfolio output with health and focus pressure.`,
+        action: burnout > 65 ? 'Reduce scope on one creative task and protect recovery before starting a new project.' : 'Keep portfolio updates frequent so your creative signal stays current.',
+      });
+    }
+  }
+
+  if (fin < 45 && studyH > 5) {
+    insights.push({
+      icon: '💸',
+      severity: 'warning',
+      color: '#fbbf24',
+      title: 'Finance Pressure Can Drain Career Focus',
+      body: `Financial health is ${fin}/100 while study load is ${studyH}h/day. Money stress can compete with deep work and interview preparation.`,
+      action: 'Resolve one finance task before adding more study hours.',
+    });
+  }
+
+  if (!insights.length) {
+    insights.push({
+      icon: '📡',
+      severity: 'neutral',
+      color: '#94a3b8',
+      title: 'Live Signals Need More Contrast',
+      body: `Current data shows productivity ${prod}/100, burnout ${burnout}%, finance ${fin}/100, ${connectedProviders.length} connected career profile(s), and ${recent30} detected coding activities in 30 days.`,
+      action: 'Change one input or connect one more profile to give the twin a stronger signal to analyze.',
+    });
+  }
+
+  return insights.slice(0, 4);
+}
+
+function sumRecentActivity(activityCounts = {}, days = 30) {
+  const keys = buildRecentDateKeys(days);
+  return keys.reduce((sum, key) => sum + Number(activityCounts[key] || 0), 0);
 }
 
 // ─── Platform Integration Card ────────────────────────────────────────────────
@@ -791,7 +1033,7 @@ function CompactHeatmap({ careerIntegrations }) {
   );
 }
 
-function CareerLinkCard({ provider, label, icon: Icon, placeholder, integration, saving, onSave, onDisconnect }) {
+function CareerLinkCard({ provider, label, icon: Icon, placeholder, metricLabels = [], integration, saving, onSave, onDisconnect }) {
   const [input, setInput] = useState(integration.profileUrl || '');
   const [editing, setEditing] = useState(!integration.connected);
   const [stats, setStats] = useState(null);
@@ -886,6 +1128,13 @@ function CareerLinkCard({ provider, label, icon: Icon, placeholder, integration,
         />
       )}
 
+      {connected && !['github', 'leetcode'].includes(provider) && metricLabels.length > 0 && (
+        <CareerStatsChips
+          loading={false}
+          items={metricLabels.map((metric) => ['Connected', metric])}
+        />
+      )}
+
       {connected && integration.profileUrl && (
         <a href={integration.profileUrl} target="_blank" rel="noreferrer"
           className="mb-3 flex items-center gap-2 truncate rounded-xl border border-white/8 bg-white/[0.035] px-3 py-2 text-sm font-semibold text-[#7df3cc]/80 hover:text-[#7df3cc]">
@@ -960,6 +1209,11 @@ export default function Career() {
   });
   const [activeDomain, setActiveDomain]     = useState(
     () => localStorage.getItem('career_domain') || 'coding'
+  );
+  const normalizedActiveDomain = normalizeCareerDomain(activeDomain);
+  const activeDomainIntegrations = useMemo(
+    () => selectCareerDomainIntegrations({ careerIntegrations }, activeDomain),
+    [careerIntegrations, activeDomain],
   );
 
   useEffect(() => {
@@ -1039,17 +1293,18 @@ export default function Career() {
   ]);
 
   const saveCareerLinks = async (links) => {
-    await dispatch(saveCareerIntegrations(links)).unwrap();
+    await dispatch(saveCareerIntegrations({ domain: activeDomain, links })).unwrap();
   };
 
   const disconnectCareerLink = async (provider) => {
-    await dispatch(disconnectCareerIntegration(provider)).unwrap();
+    await dispatch(disconnectCareerIntegration({ domain: activeDomain, provider })).unwrap();
   };
 
   // Persist domain choice
   const handleDomainChange = (d) => {
     setActiveDomain(d);
     localStorage.setItem('career_domain', d);
+    window.dispatchEvent(new Event('career-domain-updated'));
   };
 
   async function fetchDashProfile() {
@@ -1150,8 +1405,27 @@ export default function Career() {
   ];
 
   const forecast      = useMemo(() => buildBurnoutForecast(burnoutRisk, profile?.studyHours, profile?.sleepHours), [burnoutRisk, profile]);
-  const crossInsights = useMemo(() => buildCrossInsights(profile, analytics), [profile, analytics]);
-  const domainConfig  = DOMAINS[activeDomain];
+  const crossInsights = useMemo(() => buildCrossInsights({
+    profile,
+    analytics,
+    activeDomain,
+    activeIntegrations: activeDomainIntegrations,
+    careerActivityCounts,
+    professionalGrowthStats,
+    professionalGrowthMetric,
+    dynamicCareerMetrics,
+  }), [
+    profile,
+    analytics,
+    activeDomain,
+    activeDomainIntegrations,
+    careerActivityCounts,
+    professionalGrowthStats,
+    professionalGrowthMetric,
+    dynamicCareerMetrics,
+  ]);
+  const domainConfig  = DOMAINS[activeDomain] || DOMAINS.coding;
+  const activeIntegrationRows = CAREER_LINK_ROWS[normalizedActiveDomain] || CAREER_LINK_ROWS.software;
 
   const productivityInsight = aiInsights.find(i => i.label === 'Productivity');
   const burnoutInsight      = aiInsights.find(i => i.label === 'Burnout Risk');
@@ -1170,9 +1444,7 @@ export default function Career() {
               {profileLoading ? 'Loading your career signals…' :
                burnoutRisk != null && burnoutRisk > 65
                 ? `Burnout risk is at ${burnoutRisk}% — recovery is the highest-leverage career move right now.`
-                : prodScore != null && prodScore >= 75
-                ? `Productivity at ${prodScore}/100 with ${codingScore}/100 coding consistency. You're in a strong window — use it.`
-                : 'Connect your career platforms below to unlock live intelligence.'}
+                : ''}
             </p>
           </div>
           <button onClick={fetchDashProfile} disabled={profileLoading}
@@ -1219,36 +1491,20 @@ export default function Career() {
               </p>
             </div>
             <div className="space-y-3">
-              <CareerLinkCard
-                provider="github"
-                label="GitHub"
-                icon={GithubIcon}
-                placeholder="https://github.com/anjali"
-                integration={careerIntegrations.github}
-                saving={careerIntegrations.saving}
-                onSave={saveCareerLinks}
-                onDisconnect={disconnectCareerLink}
-              />
-              <CareerLinkCard
-                provider="leetcode"
-                label="LeetCode"
-                icon={Code2}
-                placeholder="https://leetcode.com/u/anjali"
-                integration={careerIntegrations.leetcode}
-                saving={careerIntegrations.saving}
-                onSave={saveCareerLinks}
-                onDisconnect={disconnectCareerLink}
-              />
-              <CareerLinkCard
-                provider="linkedin"
-                label="LinkedIn"
-                icon={Briefcase}
-                placeholder="https://linkedin.com/in/anjali"
-                integration={careerIntegrations.linkedin}
-                saving={careerIntegrations.saving}
-                onSave={saveCareerLinks}
-                onDisconnect={disconnectCareerLink}
-              />
+              {activeIntegrationRows.map((row) => (
+                <CareerLinkCard
+                  key={row.key}
+                  provider={row.key}
+                  label={row.label}
+                  icon={row.icon}
+                  placeholder={row.placeholder}
+                  metricLabels={row.metricLabels}
+                  integration={activeDomainIntegrations[row.key] || { connected: false, profileUrl: '' }}
+                  saving={careerIntegrations.saving}
+                  onSave={saveCareerLinks}
+                  onDisconnect={disconnectCareerLink}
+                />
+              ))}
             </div>
             {careerIntegrations.error && (
               <p className="mt-3 rounded-xl border border-[#ff4d7d]/20 bg-[#ff4d7d]/8 px-3 py-2 text-sm text-[#ff8fbd]">
@@ -1259,7 +1515,7 @@ export default function Career() {
 
           {/* Compact heatmap */}
           <div className="mt-6 pt-5 border-t border-white/8">
-            <CompactHeatmap careerIntegrations={careerIntegrations} />
+            <CompactHeatmap careerIntegrations={normalizedActiveDomain === 'software' ? careerIntegrations : activeDomainIntegrations} />
           </div>
 
           {/* LeetCode quick stats if connected — coding domain */}

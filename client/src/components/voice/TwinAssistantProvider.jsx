@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useDispatch } from 'react-redux';
+import toast, { Toaster } from 'react-hot-toast';
 import {
   createGoalFromAssistant,
   deleteGoalFromAssistant,
@@ -32,6 +33,14 @@ export default function TwinAssistantProvider({ children }) {
   const [voiceStatus, setVoiceStatus] = useState('offline');
   const streamRef = useRef(null);
   const startStreamRef = useRef(null);
+  const webSpeechRef = useRef(null);
+  const activeProviderRef = useRef('');
+  const deepgramUnavailableRef = useRef(false);
+  const webSpeechBlockedRef = useRef(false);
+  const manuallyPausedRef = useRef(false);
+  const providerStartTimeoutRef = useRef(null);
+  const providerTranscriptTimeoutRef = useRef(null);
+  const webSpeechRestartTimerRef = useRef(null);
   const isSpeakingRef = useRef(false);
   const speakingIgnoreUntilRef = useRef(0);
   const lastAssistantResponseRef = useRef('');
@@ -39,25 +48,98 @@ export default function TwinAssistantProvider({ children }) {
   const lastProcessedTranscript = useRef('');
   const lastProcessedAt = useRef(0);
   const transcriptSubmitTimerRef = useRef(null);
+  const handleTranscriptPayloadRef = useRef(null);
+  const enabledRef = useRef(false);
+  const preferencesRef = useRef(preferences);
+
+  useEffect(() => {
+    enabledRef.current = enabled;
+  }, [enabled]);
+
+  useEffect(() => {
+    preferencesRef.current = preferences;
+  }, [preferences]);
 
   const addMessage = useCallback((role, text) => {
     if (!text) return;
     setMessages((currentMessages) => [...currentMessages, { role, text }]);
   }, []);
 
+  function clearProviderTimers() {
+    window.clearTimeout(providerStartTimeoutRef.current);
+    window.clearTimeout(providerTranscriptTimeoutRef.current);
+    window.clearTimeout(webSpeechRestartTimerRef.current);
+    providerStartTimeoutRef.current = null;
+    providerTranscriptTimeoutRef.current = null;
+    webSpeechRestartTimerRef.current = null;
+  }
+
+  function stopVoiceInput(options = {}) {
+    window.clearTimeout(transcriptSubmitTimerRef.current);
+    clearProviderTimers();
+
+    try {
+      streamRef.current?.stop();
+    } catch (error) {
+      console.warn('[VOICE ERROR] Deepgram stop failed:', error.message);
+    }
+    streamRef.current = null;
+
+    try {
+      if (webSpeechRef.current) {
+        webSpeechRef.current.onend = null;
+        webSpeechRef.current.onerror = null;
+        webSpeechRef.current.onresult = null;
+        webSpeechRef.current.stop?.();
+        webSpeechRef.current.abort?.();
+      }
+    } catch (error) {
+      console.warn('[VOICE ERROR] Web Speech stop failed:', error.message);
+    }
+    webSpeechRef.current = null;
+    activeProviderRef.current = '';
+
+    if (!options.keepStatus) {
+      setVoiceStatus('offline');
+      setAssistantState(enabledRef.current ? 'ready' : 'disabled');
+    }
+  }
+
+  const fallbackToWebSpeech = useCallback((reason = 'Deepgram unavailable') => {
+    if (!enabledRef.current || manuallyPausedRef.current || isSpeakingRef.current) return;
+    if (activeProviderRef.current === 'web-speech' || webSpeechRef.current) return;
+
+    deepgramUnavailableRef.current = true;
+    console.warn('[VOICE] Deepgram unavailable');
+    console.warn('[VOICE] Switching to Web Speech API');
+    toast('Fallback Activated');
+    setVoiceStatus('connecting');
+    setAssistantMessage('Fallback activated. Starting Web Speech API...');
+
+    try {
+      streamRef.current?.stop();
+    } catch (error) {
+      console.warn('[VOICE ERROR] Deepgram fallback stop failed:', error.message);
+    }
+    streamRef.current = null;
+    activeProviderRef.current = '';
+    startWebSpeech();
+  }, []);
+
   const restartVoiceInput = useCallback(() => {
-    if (!enabled || !preferences.backgroundListening || isSpeakingRef.current || processingRef.current) return;
+    if (!enabledRef.current || !preferencesRef.current.backgroundListening || isSpeakingRef.current || processingRef.current) return;
 
     window.setTimeout(() => {
-      if (!enabled || !preferences.backgroundListening || isSpeakingRef.current || processingRef.current) return;
+      if (!enabledRef.current || !preferencesRef.current.backgroundListening || isSpeakingRef.current || processingRef.current) return;
+      console.log('[VOICE] Resuming microphone listening');
       setAssistantState('ready');
       setAssistantMessage('Ready for commands...');
-      if (!streamRef.current) {
+      if (!streamRef.current && !webSpeechRef.current) {
         setVoiceStatus('connecting');
         startStreamRef.current?.();
       }
-    }, 300);
-  }, [enabled, preferences.backgroundListening]);
+    }, 500);
+  }, []);
 
   const speakAssistantResponse = useCallback((text) => {
     if (!preferences.voiceResponses || !window.speechSynthesis || !text) {
@@ -66,10 +148,11 @@ export default function TwinAssistantProvider({ children }) {
 
     lastAssistantResponseRef.current = normalizeCommandText(text);
     isSpeakingRef.current = true;
+    manuallyPausedRef.current = true;
     setAssistantState('speaking');
     setAssistantMessage(text);
-    console.log('[Twin Assistant] Assistant Speaking');
-    console.log('Speaking Response');
+    console.log('[VOICE] Speech synthesis start');
+    stopVoiceInput({ keepStatus: true });
 
     return new Promise((resolve) => {
       window.speechSynthesis.cancel();
@@ -80,7 +163,9 @@ export default function TwinAssistantProvider({ children }) {
       const finish = () => {
         isSpeakingRef.current = false;
         speakingIgnoreUntilRef.current = Date.now() + 1500;
-        console.log('[Twin Assistant] Listening Resumed');
+        manuallyPausedRef.current = false;
+        console.log('[VOICE] Speech synthesis end');
+        window.setTimeout(() => restartVoiceInput(), 500);
         resolve(true);
       };
 
@@ -88,12 +173,13 @@ export default function TwinAssistantProvider({ children }) {
       utterance.onerror = finish;
       window.speechSynthesis.speak(utterance);
     });
-  }, [preferences.voiceResponses]);
+  }, [preferences.voiceResponses, restartVoiceInput]);
 
   const executeAction = useCallback(async (action) => {
     if (!action) return;
 
     const responseMessage = action.response || action.message || 'Working on it...';
+    console.log(`[VOICE] Intent: ${getIntentLogLabel(action)}`);
     lastAssistantResponseRef.current = normalizeCommandText(responseMessage);
     setAssistantState('responding');
     setAssistantMessage(responseMessage);
@@ -103,11 +189,27 @@ export default function TwinAssistantProvider({ children }) {
     await wait(650);
 
     if (action.action === 'navigate' && action.target) {
-      console.log('[Twin Assistant] Action: navigate');
-      console.log('[Twin Assistant] Target:', action.target);
-      console.log(`NAVIGATING TO ${getNavigationLogLabel(action.target)}`);
-      navigate(action.target);
-      console.log('[Twin Assistant] Navigation executed.');
+      try {
+        console.log('[VOICE] Navigation execution:', action.target);
+        navigate(action.target, action.options || undefined);
+        toast('Navigation Complete');
+        console.log('[VOICE] Action executed successfully');
+      } catch (error) {
+        console.error('[VOICE ERROR] Navigation failed:', error.message);
+      }
+      return;
+    }
+
+    if (action.action === 'refresh_dashboard') {
+      try {
+        console.log('[VOICE] Refresh Dashboard');
+        navigate('/dashboard', { state: { assistantRefreshAt: Date.now() } });
+        window.dispatchEvent(new Event('dashboard-refresh-requested'));
+        toast('Navigation Complete');
+        console.log('[VOICE] Action executed successfully');
+      } catch (error) {
+        console.error('[VOICE ERROR] Navigation failed:', error.message);
+      }
       return;
     }
 
@@ -186,6 +288,7 @@ export default function TwinAssistantProvider({ children }) {
       setAssistantState('processing');
       await dispatch(logoutUser());
       navigate('/', { replace: true });
+      console.log('[VOICE] Action executed successfully');
     }
   }, [addMessage, dispatch, navigate, speakAssistantResponse]);
 
@@ -208,11 +311,10 @@ export default function TwinAssistantProvider({ children }) {
       return;
     }
 
-    console.log('[Twin Assistant] Transcript:', command);
-    console.log(`COMMAND DETECTED: ${commandKey}`);
+    console.log(`[VOICE] Transcript: ${command}`);
+    toast('Command Detected');
     processingRef.current = true;
-    console.log('[Twin Assistant] Assistant Processing');
-    console.log('Processing Request');
+    console.log('[VOICE] Processing');
     lastProcessedTranscript.current = commandKey;
     lastProcessedAt.current = now;
     setAssistantState('processing');
@@ -221,13 +323,21 @@ export default function TwinAssistantProvider({ children }) {
     addMessage('user', command);
 
     try {
-      console.log('[Twin Assistant] Sending command');
-      const action = await processAssistantCommand(command);
-      console.log('[Twin Assistant] Response:', action);
+      let action = parseLocalAssistantCommand(command);
+      if (action) {
+        console.log(`[VOICE] Intent: ${getIntentLogLabel(action)}`);
+      } else {
+        console.log('[VOICE] Sending command to backend parser');
+        action = await processAssistantCommand(command);
+      }
+      console.log('[VOICE] Parsed action:', action);
+      if (!action || action.action === 'unknown') {
+        console.error('[VOICE ERROR] No intent detected');
+      }
       await executeAction(action);
     } catch (error) {
       const errorMessage = error.response?.data?.response || error.response?.data?.message || 'I could not process that command.';
-      console.warn('[Twin Assistant] Command failed:', errorMessage);
+      console.error('[VOICE ERROR] Intent execution error:', errorMessage);
       setAssistantState('responding');
       setAssistantMessage(errorMessage);
       addMessage('assistant', errorMessage);
@@ -248,12 +358,12 @@ export default function TwinAssistantProvider({ children }) {
     const normalizedTranscript = normalizeCommandText(liveText);
 
     if (isSpeakingRef.current || Date.now() < speakingIgnoreUntilRef.current) {
-      console.log('[Twin Assistant] Ignored transcript while speaking.');
+      console.log('[VOICE] Ignored transcript while speaking');
       return;
     }
 
     if (isAssistantEcho(normalizedTranscript, lastAssistantResponseRef.current)) {
-      console.log('[Twin Assistant] Ignored assistant echo:', liveText);
+      console.log('[VOICE] Ignored assistant echo:', liveText);
       return;
     }
 
@@ -263,9 +373,9 @@ export default function TwinAssistantProvider({ children }) {
 
     if (!liveText.trim()) return;
 
-    console.log('[Twin Assistant] Transcript updated:', { transcript: liveText, isFinal, speechFinal, source });
-    console.log('[Twin Assistant] Transcript Received');
-    console.log(`TRANSCRIPT RECEIVED: ${liveText}`);
+    window.clearTimeout(providerTranscriptTimeoutRef.current);
+    console.log(`[VOICE] Provider: ${source === 'deepgram' ? 'Deepgram' : source === 'web-speech' ? 'Web Speech API' : source}`);
+    console.log(`[VOICE] Transcript: ${liveText}`);
     setPanelOpen(true);
     setDisplayTranscript(liveText);
     setAssistantState('listening');
@@ -281,43 +391,166 @@ export default function TwinAssistantProvider({ children }) {
     }
   }, [enabled, submitTranscript]);
 
+  useEffect(() => {
+    handleTranscriptPayloadRef.current = handleTranscriptPayload;
+  }, [handleTranscriptPayload]);
+
+  function startWebSpeech() {
+    if (!enabledRef.current || webSpeechRef.current || isSpeakingRef.current || manuallyPausedRef.current) return;
+    if (webSpeechBlockedRef.current) return;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      console.error('[VOICE] Web Speech API unavailable');
+      console.error('[VOICE ERROR] SpeechRecognition unavailable');
+      toast.error('Voice recognition unavailable');
+      setVoiceStatus('error');
+      setAssistantState('disabled');
+      setAssistantMessage('Voice recognition unavailable');
+      return;
+    }
+
+    try {
+      console.log('[VOICE] Provider selection: Web Speech API');
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true;
+      recognition.interimResults = true;
+      recognition.lang = 'en-IN';
+      activeProviderRef.current = 'web-speech';
+      webSpeechRef.current = recognition;
+
+      recognition.onstart = () => {
+        if (!enabledRef.current) return;
+        console.log('[VOICE] Listening...');
+        console.log('[VOICE] Provider: Web Speech API');
+        setVoiceStatus('listening');
+        setAssistantState('listening');
+        setAssistantMessage('Listening...');
+        toast('Listening Started');
+      };
+
+      recognition.onresult = (event) => {
+        if (isSpeakingRef.current || processingRef.current) return;
+        let transcript = '';
+        let isFinal = false;
+
+        for (let index = event.resultIndex; index < event.results.length; index += 1) {
+          transcript += event.results[index][0]?.transcript || '';
+          isFinal = isFinal || Boolean(event.results[index].isFinal);
+        }
+
+        if (transcript.trim()) {
+          handleTranscriptPayloadRef.current?.({
+            transcript: transcript.trim(),
+            isFinal,
+            speechFinal: isFinal,
+            source: 'web-speech',
+          });
+        }
+      };
+
+      recognition.onerror = (event) => {
+        const message = event?.error || 'SpeechRecognition error';
+        console.error('[VOICE ERROR] Web Speech API failed:', message);
+        if (message === 'not-allowed' || message === 'service-not-allowed') {
+          console.error('[VOICE ERROR] Permission denied');
+          webSpeechBlockedRef.current = true;
+          toast.error('Voice recognition unavailable');
+        }
+        setVoiceStatus('error');
+        toast.error('Speech Recognition Failed');
+      };
+
+      recognition.onend = () => {
+        webSpeechRef.current = null;
+        if (!enabledRef.current || webSpeechBlockedRef.current || manuallyPausedRef.current || isSpeakingRef.current || processingRef.current) return;
+        console.log('[VOICE] Web Speech ended; restarting listener');
+        webSpeechRestartTimerRef.current = window.setTimeout(() => startWebSpeech(), 500);
+      };
+
+      recognition.start();
+    } catch (error) {
+      console.error('[VOICE ERROR] Web Speech API unavailable:', error.message);
+      toast.error('Voice recognition unavailable');
+      setVoiceStatus('error');
+      setAssistantState('disabled');
+      setAssistantMessage('Voice recognition unavailable');
+    }
+  }
+
+  function startDeepgram() {
+    if (!enabledRef.current || streamRef.current || isSpeakingRef.current || manuallyPausedRef.current) return;
+
+    console.log('[VOICE] Provider selection: Deepgram');
+    console.log('[VOICE] Starting Deepgram listener');
+    activeProviderRef.current = 'deepgram';
+    setVoiceStatus('connecting');
+
+    providerStartTimeoutRef.current = window.setTimeout(() => {
+      if (activeProviderRef.current === 'deepgram' && !manuallyPausedRef.current) {
+        console.warn('[VOICE ERROR] Deepgram timeout');
+        fallbackToWebSpeech('Deepgram timeout');
+      }
+    }, 8000);
+
+    streamRef.current = createDeepgramAssistantStream({
+      onStatus: (status) => {
+        if (!enabledRef.current || isSpeakingRef.current || processingRef.current) return;
+        console.log(`[VOICE] Deepgram status: ${status}`);
+        setVoiceStatus(status);
+      },
+      onListening: (active) => {
+        if (!enabledRef.current) return;
+        window.clearTimeout(providerStartTimeoutRef.current);
+        console.log('[VOICE] Listening...');
+        console.log('[VOICE] Provider: Deepgram');
+        setAssistantState(active ? 'listening' : 'ready');
+        setAssistantMessage(active ? 'Listening...' : 'Connecting voice...');
+        if (active) {
+          toast('Listening Started');
+          providerTranscriptTimeoutRef.current = window.setTimeout(() => {
+            if (activeProviderRef.current === 'deepgram' && !manuallyPausedRef.current && !processingRef.current) {
+              console.warn('[VOICE ERROR] Deepgram transcript timeout');
+              fallbackToWebSpeech('Deepgram transcript timeout');
+            }
+          }, 15000);
+        }
+      },
+      onTranscript: ({ transcript, isFinal, speechFinal }) => {
+        handleTranscriptPayloadRef.current?.({ transcript, isFinal, speechFinal, source: 'deepgram' });
+      },
+      onError: (message) => {
+        console.error('[VOICE ERROR] Deepgram unavailable:', message || 'Deepgram assistant error');
+        if (String(message || '').toLowerCase().includes('permission')) {
+          console.error('[VOICE ERROR] Permission denied');
+        }
+        fallbackToWebSpeech(message || 'Deepgram assistant error');
+      },
+    });
+
+    streamRef.current.start();
+  }
+
   const stopStream = useCallback(() => {
-    window.clearTimeout(transcriptSubmitTimerRef.current);
-    streamRef.current?.stop();
-    streamRef.current = null;
+    stopVoiceInput();
   }, []);
 
   const startStream = useCallback(() => {
-    if (!enabled || streamRef.current) return;
+    if (!enabledRef.current || streamRef.current || webSpeechRef.current) return;
 
+    console.log('[VOICE] Starting listeners');
     setPanelOpen(true);
     setAssistantState('ready');
     setAssistantMessage('Ready for commands...');
     setVoiceStatus('connecting');
 
-    streamRef.current = createDeepgramAssistantStream({
-      onStatus: (status) => {
-        if (!enabled || isSpeakingRef.current || processingRef.current) return;
-        setVoiceStatus(status);
-      },
-      onListening: (active) => {
-        if (!enabled) return;
-        setAssistantState('ready');
-        setAssistantMessage(active ? 'Ready for commands...' : 'Connecting voice...');
-      },
-      onTranscript: ({ transcript, isFinal, speechFinal }) => {
-        handleTranscriptPayload({ transcript, isFinal, speechFinal, source: 'deepgram' });
-      },
-      onError: (message) => {
-        setPanelOpen(true);
-        setAssistantState('disabled');
-        setAssistantMessage(message || 'Unable to connect to voice service.');
-        setVoiceStatus('error');
-      },
-    });
+    if (deepgramUnavailableRef.current) {
+      startWebSpeech();
+      return;
+    }
 
-    streamRef.current.start();
-  }, [enabled, handleTranscriptPayload]);
+    startDeepgram();
+  }, [fallbackToWebSpeech, handleTranscriptPayload]);
 
   useEffect(() => {
     startStreamRef.current = startStream;
@@ -338,9 +571,16 @@ export default function TwinAssistantProvider({ children }) {
       setVoiceStatus(nextEnabled ? 'connecting' : 'offline');
       setAssistantState(nextEnabled ? 'ready' : 'disabled');
       setAssistantMessage(nextEnabled ? 'Ready for commands...' : 'Twin Assistant is disabled. Enable it in Settings.');
-      if (!nextEnabled || !nextPreferences.backgroundListening) stopStream();
+      if (nextEnabled) {
+        console.log('[VOICE] Assistant enabled');
+        toast.success('Voice Assistant Enabled');
+      } else {
+        console.log('[VOICE] Assistant disabled');
+        stopStream();
+      }
+      if (!nextPreferences.backgroundListening) stopStream();
     } catch (error) {
-      console.warn('Twin Assistant settings fallback:', error.response?.data?.message || error.message);
+      console.error('[VOICE ERROR] Settings load failed:', error.response?.data?.message || error.message);
       setEnabled(false);
       setAssistantState('disabled');
       setAssistantMessage('Twin Assistant is disabled. Enable it in Settings.');
@@ -364,9 +604,9 @@ export default function TwinAssistantProvider({ children }) {
     if (!enabled || !preferences.backgroundListening) return undefined;
 
     const monitor = window.setInterval(() => {
-      const inputInactive = !streamRef.current;
+      const inputInactive = !streamRef.current && !webSpeechRef.current;
       if (inputInactive && !processingRef.current && !isSpeakingRef.current) {
-        console.warn('[Twin Assistant] Voice input inactive. Connecting listener.');
+        console.warn('[VOICE] Voice input inactive. Connecting listener.');
         setVoiceStatus('connecting');
         startStreamRef.current?.();
       }
@@ -390,6 +630,8 @@ export default function TwinAssistantProvider({ children }) {
     setPanelOpen(true);
     if (!enabled) return;
     stopStream();
+    webSpeechBlockedRef.current = false;
+    deepgramUnavailableRef.current = false;
     setAssistantState('ready');
     setAssistantMessage('Connecting voice...');
     setVoiceStatus('connecting');
@@ -416,6 +658,7 @@ export default function TwinAssistantProvider({ children }) {
   return (
     <TwinAssistantContext.Provider value={value}>
       {children}
+      <Toaster position="top-right" />
       <TwinAssistantButton />
     </TwinAssistantContext.Provider>
   );
@@ -430,6 +673,78 @@ function wait(ms) {
 function getNavigationLogLabel(target) {
   const page = String(target || '').replace('/', '').replace(/-/g, ' ').trim() || 'PAGE';
   return page.toUpperCase();
+}
+
+function getIntentLogLabel(action = {}) {
+  if (action.intent) return String(action.intent).toUpperCase();
+  if (action.action === 'navigate') return `NAVIGATE_${getNavigationLogLabel(action.target).replace(/\s+/g, '_')}`;
+  return String(action.action || 'UNKNOWN').toUpperCase();
+}
+
+function parseLocalAssistantCommand(rawCommand = '') {
+  const command = normalizeCommandText(rawCommand);
+  if (!command) return null;
+
+  const navigationTargets = [
+    { intent: 'NAVIGATE_DASHBOARD', label: 'Dashboard', target: '/dashboard', patterns: ['dashboard', 'home'] },
+    { intent: 'NAVIGATE_HEALTH', label: 'Health', target: '/health', patterns: ['health'] },
+    { intent: 'NAVIGATE_FINANCE', label: 'Finance', target: '/finance', patterns: ['finance', 'financial', 'money'] },
+    { intent: 'NAVIGATE_CAREER', label: 'Career', target: '/career', patterns: ['career', 'job', 'work'] },
+    { intent: 'NAVIGATE_GOALS', label: 'Goals', target: '/goals', patterns: ['goals', 'goal'] },
+    { intent: 'NAVIGATE_INTELLIGENCE', label: 'Intelligence', target: '/intelligence', patterns: ['intelligence', 'ai intelligence', 'insights'] },
+    { intent: 'NAVIGATE_SIMULATION', label: 'Simulation', target: '/simulation', patterns: ['simulation', 'simulator'] },
+    { intent: 'NAVIGATE_NOTIFICATIONS', label: 'Notifications', target: '/notifications', patterns: ['notifications', 'notification', 'alerts'] },
+    { intent: 'NAVIGATE_SETTINGS', label: 'Settings', target: '/settings', patterns: ['settings', 'setting', 'preferences'] },
+  ];
+
+  if (/\b(log out|logout|sign out)\b/.test(command)) {
+    return {
+      action: 'logout',
+      intent: 'LOGOUT',
+      response: 'Logging out...',
+    };
+  }
+
+  if (/\b(generate|create|open|start)\b.*\bdaily update\b|\bdaily update\b.*\b(generate|create|open|start)\b/.test(command)) {
+    return {
+      action: 'navigate',
+      intent: 'GENERATE_DAILY_UPDATE',
+      target: '/daily-update',
+      response: 'Opening Daily Update...',
+    };
+  }
+
+  if (/\b(start|run|open)\b.*\bsimulation\b|\bsimulation\b.*\b(start|run|open)\b/.test(command)) {
+    return {
+      action: 'navigate',
+      intent: 'START_SIMULATION',
+      target: '/simulation',
+      response: 'Opening Simulation...',
+    };
+  }
+
+  if (/\b(refresh|reload|sync)\b.*\bdashboard\b|\bdashboard\b.*\b(refresh|reload|sync)\b/.test(command)) {
+    return {
+      action: 'refresh_dashboard',
+      intent: 'REFRESH_DASHBOARD',
+      response: 'Refreshing Dashboard...',
+    };
+  }
+
+  const navigationVerb = /\b(open|go to|show|navigate to|take me to|launch|switch to|visit)\b/.test(command);
+  for (const item of navigationTargets) {
+    const matched = item.patterns.some((pattern) => command === pattern || command.includes(pattern));
+    if (matched && (navigationVerb || command.split(' ').length <= 3)) {
+      return {
+        action: 'navigate',
+        intent: item.intent,
+        target: item.target,
+        response: `Opening ${item.label}...`,
+      };
+    }
+  }
+
+  return null;
 }
 
 async function deleteMatchingGoal(query) {

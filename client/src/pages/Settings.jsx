@@ -7,14 +7,16 @@ import {
   Globe, LockKeyhole, LogOut, Mail, Network, Pencil,
   Phone, Save, ShieldCheck, UserRound, X, Wifi, WifiOff, RefreshCw,
   AlertCircle, CheckCircle2, Loader2, ChevronDown, ChevronUp,
-  Zap,
+  Zap, Briefcase, Palette,
 } from 'lucide-react';
 import { getSettings, updateSettings } from '../services/voiceAssistantService';
 import { logoutUser } from '../features/auth/authThunks';
 import {
   disconnectCareerIntegration,
   fetchCareerIntegrations,
+  normalizeCareerDomain,
   saveCareerIntegrations,
+  selectCareerDomainIntegrations,
 } from '../features/careerIntegrations/careerIntegrationSlice';
 import {
   disconnectHealthIntegration,
@@ -120,6 +122,30 @@ const INTEGRATIONS = [
   },
 ];
 
+const CAREER_LINK_ROWS = {
+  software: [
+    { key: 'github', label: 'GitHub', icon: Code2, placeholder: 'https://github.com/anjali', metrics: ['Repositories', 'Followers', 'Stars'] },
+    { key: 'leetcode', label: 'LeetCode', icon: Zap, placeholder: 'https://leetcode.com/u/anjali', metrics: ['Problems Solved', 'Contest Rating', 'Rank'] },
+    { key: 'linkedin', label: 'LinkedIn', icon: Network, placeholder: 'https://linkedin.com/in/anjali', metrics: ['Profile URL', 'Professional Network'] },
+  ],
+  business: [
+    { key: 'linkedin', label: 'LinkedIn', icon: Network, placeholder: 'https://linkedin.com/in/anjali', metrics: ['Network strength'] },
+    { key: 'portfolio', label: 'Professional Portfolio / Personal Website', icon: Globe, placeholder: 'https://your-portfolio.com', metrics: ['Content count', 'Activity'] },
+    { key: 'businessProfile', label: 'MBA / Business Profile Link', icon: Briefcase, placeholder: 'https://medium.com/@your-name', metrics: ['Professional presence'] },
+  ],
+  creative: [
+    { key: 'portfolio', label: 'Portfolio Website', icon: Globe, placeholder: 'https://your-portfolio.com', metrics: ['Projects'] },
+    { key: 'linkedin', label: 'LinkedIn', icon: Network, placeholder: 'https://linkedin.com/in/anjali', metrics: ['Professional profile'] },
+    { key: 'behance', label: 'Behance / Dribbble', icon: Palette, placeholder: 'https://behance.net/your-name or https://dribbble.com/your-name', metrics: ['Creative work', 'Design shots'] },
+  ],
+};
+
+const CAREER_DOMAIN_NAMES = {
+  software: 'Software & Coding',
+  business: 'Business & MBA',
+  creative: 'Creative & Design',
+};
+
 // ─── Profile fields (unchanged from original) ─────────────────────────────────
 const editableFields = [
   { key: 'email',    label: 'Email',         type: 'email',    icon: Mail,         placeholder: 'you@example.com'    },
@@ -167,6 +193,11 @@ function Settings() {
   const dispatch  = useDispatch();
   const { integrations, saveIntegration, disconnectIntegration, loading: intLoading, refreshIntegrations } = useIntegrations();
   const careerIntegrations = useSelector((state) => state.careerIntegrations);
+  const [selectedCareerDomain, setSelectedCareerDomain] = useState(() => localStorage.getItem('career_domain') || 'coding');
+  const selectedCareerIntegrations = useMemo(
+    () => selectCareerDomainIntegrations({ careerIntegrations }, selectedCareerDomain),
+    [careerIntegrations, selectedCareerDomain],
+  );
   const healthIntegration = useSelector((state) => state.healthIntegration);
 
   const [profile, setProfile] = useState(getInitialProfile);
@@ -222,6 +253,19 @@ function Settings() {
     dispatch(fetchCareerIntegrations());
     dispatch(fetchHealthIntegration());
   }, [dispatch]);
+
+  useEffect(() => {
+    const syncCareerDomain = () => {
+      setSelectedCareerDomain(localStorage.getItem('career_domain') || 'coding');
+    };
+
+    window.addEventListener('storage', syncCareerDomain);
+    window.addEventListener('career-domain-updated', syncCareerDomain);
+    return () => {
+      window.removeEventListener('storage', syncCareerDomain);
+      window.removeEventListener('career-domain-updated', syncCareerDomain);
+    };
+  }, []);
 
   const initials = useMemo(() =>
     profile.fullName.split(' ').filter(Boolean).slice(0, 2).map(p => p[0]).join('').toUpperCase(),
@@ -300,12 +344,12 @@ function Settings() {
   const handleLogout = async () => { await dispatch(logoutUser()); navigate('/', { replace: true }); };
 
   const handleSaveCareerIntegrations = async (links) => {
-    await dispatch(saveCareerIntegrations(links)).unwrap();
+    await dispatch(saveCareerIntegrations({ domain: selectedCareerDomain, links })).unwrap();
     showToast('Career integrations saved');
   };
 
   const handleDisconnectCareerIntegration = async (provider) => {
-    await dispatch(disconnectCareerIntegration(provider)).unwrap();
+    await dispatch(disconnectCareerIntegration({ domain: selectedCareerDomain, provider })).unwrap();
     showToast(`${providerLabel(provider)} disconnected`);
   };
 
@@ -382,6 +426,8 @@ function Settings() {
           <SettingsSection icon={Network} eyebrow="Career" title="Career Integrations">
             <CareerIntegrationsSettings
               integrations={careerIntegrations}
+              domain={selectedCareerDomain}
+              domainIntegrations={selectedCareerIntegrations}
               onSave={handleSaveCareerIntegrations}
               onDisconnect={handleDisconnectCareerIntegration}
               onRefresh={() => dispatch(fetchCareerIntegrations())}
@@ -500,34 +546,25 @@ function Settings() {
   );
 }
 
-function CareerIntegrationsSettings({ integrations, onSave, onDisconnect, onRefresh }) {
-  const [draft, setDraft] = useState({
-    github: integrations.github?.profileUrl || '',
-    leetcode: integrations.leetcode?.profileUrl || '',
-    linkedin: integrations.linkedin?.profileUrl || '',
-  });
+function CareerIntegrationsSettings({ integrations, domain, domainIntegrations, onSave, onDisconnect, onRefresh }) {
+  const domainKey = normalizeCareerDomain(domain);
+  const rows = CAREER_LINK_ROWS[domainKey] || CAREER_LINK_ROWS.software;
+  const [draft, setDraft] = useState(() => buildCareerDraft(rows, domainIntegrations));
   const [savingKey, setSavingKey] = useState('');
   const [editingKey, setEditingKey] = useState('');
   const [statsByKey, setStatsByKey] = useState({});
   const [statsLoading, setStatsLoading] = useState({});
 
   useEffect(() => {
-    setDraft({
-      github: integrations.github?.profileUrl || '',
-      leetcode: integrations.leetcode?.profileUrl || '',
-      linkedin: integrations.linkedin?.profileUrl || '',
-    });
-  }, [
-    integrations.github?.profileUrl,
-    integrations.leetcode?.profileUrl,
-    integrations.linkedin?.profileUrl,
-  ]);
+    setDraft(buildCareerDraft(rows, domainIntegrations));
+    setEditingKey('');
+  }, [domainKey, domainIntegrations]);
 
   useEffect(() => {
     let cancelled = false;
 
     ['github', 'leetcode'].forEach((key) => {
-      const profileUrl = integrations[key]?.profileUrl || '';
+      const profileUrl = domainIntegrations[key]?.profileUrl || '';
       if (!profileUrl) {
         setStatsByKey((current) => ({ ...current, [key]: null }));
         return;
@@ -547,13 +584,7 @@ function CareerIntegrationsSettings({ integrations, onSave, onDisconnect, onRefr
     });
 
     return () => { cancelled = true; };
-  }, [integrations.github?.profileUrl, integrations.leetcode?.profileUrl]);
-
-  const rows = [
-    { key: 'github', label: 'GitHub', icon: Code2, placeholder: 'https://github.com/anjali', value: integrations.github?.profileUrl || '' },
-    { key: 'leetcode', label: 'LeetCode', icon: Zap, placeholder: 'https://leetcode.com/u/anjali', value: integrations.leetcode?.profileUrl || '' },
-    { key: 'linkedin', label: 'LinkedIn', icon: Network, placeholder: 'https://linkedin.com/in/anjali', value: integrations.linkedin?.profileUrl || '' },
-  ];
+  }, [domainIntegrations.github?.profileUrl, domainIntegrations.leetcode?.profileUrl]);
 
   const saveOne = async (key) => {
     setSavingKey(key);
@@ -577,7 +608,9 @@ function CareerIntegrationsSettings({ integrations, onSave, onDisconnect, onRefr
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-4">
-        <p className="text-sm text-white/50">Career links are shared by Onboarding, Career, and Settings through Redux.</p>
+        <p className="text-sm text-white/50">
+          Showing integrations for {CAREER_DOMAIN_NAMES[domainKey] || 'Software & Coding'}.
+        </p>
         <button type="button" onClick={onRefresh} disabled={integrations.loading}
           className="inline-flex items-center gap-1.5 rounded-xl border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-semibold text-white/50 transition hover:bg-white/8 hover:text-white disabled:opacity-40">
           <RefreshCw className={`h-3.5 w-3.5 ${integrations.loading ? 'animate-spin' : ''}`} />
@@ -588,7 +621,8 @@ function CareerIntegrationsSettings({ integrations, onSave, onDisconnect, onRefr
       <div className="grid gap-4 lg:grid-cols-3">
         {rows.map((row) => {
           const Icon = row.icon;
-          const connected = Boolean(row.value);
+          const value = domainIntegrations[row.key]?.profileUrl || '';
+          const connected = Boolean(value);
           const saving = savingKey === row.key || integrations.saving;
           const editing = editingKey === row.key || !connected;
           const stats = statsByKey[row.key];
@@ -620,10 +654,9 @@ function CareerIntegrationsSettings({ integrations, onSave, onDisconnect, onRefr
                 <StatsChips
                   loading={statsLoading.github}
                   items={[
-                    ['Username', stats?.username || integrations.github.username],
+                    ['Username', stats?.username || domainIntegrations.github?.username],
                     ['Repositories', stats?.repositories],
                     ['Followers', stats?.followers],
-                    ['Following', stats?.following],
                     ['Stars', stats?.stars],
                   ]}
                 />
@@ -633,18 +666,24 @@ function CareerIntegrationsSettings({ integrations, onSave, onDisconnect, onRefr
                 <StatsChips
                   loading={statsLoading.leetcode}
                   items={[
-                    ['Solved Questions', stats?.solved],
+                    ['Problems Solved', stats?.solved],
+                    ['Contest Rating', stats?.contestRating],
                     ['Rank', stats?.rank],
-                    ['Rating', stats?.contestRating],
-                    ['Contests Given', stats?.contests],
                   ]}
                 />
               )}
 
-              {connected && row.value && (
-                <a href={row.value} target="_blank" rel="noreferrer"
+              {connected && !['github', 'leetcode'].includes(row.key) && (
+                <StatsChips
+                  loading={false}
+                  items={(row.metrics || []).map((metric) => [metric, 'Connected'])}
+                />
+              )}
+
+              {connected && value && (
+                <a href={value} target="_blank" rel="noreferrer"
                   className="mb-3 block truncate rounded-xl border border-white/8 bg-white/[0.03] px-3 py-2 text-sm font-semibold text-[#7df3cc]/70 hover:text-[#7df3cc]">
-                  Profile: {getCareerProfileLabel(row.key, row.value)}
+                  Profile: {getCareerProfileLabel(row.key, value)}
                 </a>
               )}
 
@@ -684,8 +723,22 @@ function CareerIntegrationsSettings({ integrations, onSave, onDisconnect, onRefr
   );
 }
 
+function buildCareerDraft(rows, integrations = {}) {
+  return rows.reduce((draft, row) => {
+    draft[row.key] = integrations[row.key]?.profileUrl || '';
+    return draft;
+  }, {});
+}
+
 function providerLabel(provider) {
-  return ({ github: 'GitHub', leetcode: 'LeetCode', linkedin: 'LinkedIn' })[provider] || provider;
+  return ({
+    github: 'GitHub',
+    leetcode: 'LeetCode',
+    linkedin: 'LinkedIn',
+    portfolio: 'Portfolio',
+    businessProfile: 'Business Profile',
+    behance: 'Behance / Dribbble',
+  })[provider] || provider;
 }
 
 function HealthIntegrationSettings({ integration, onSave, onDisconnect, onRefresh }) {
