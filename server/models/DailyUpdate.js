@@ -46,6 +46,7 @@ const dailyUpdateSchema = new mongoose.Schema(
     },
     goal: {
       goalId: { type: mongoose.Schema.Types.ObjectId, ref: 'SmartGoal', default: null },
+      goalIds: [{ type: mongoose.Schema.Types.ObjectId, ref: 'SmartGoal' }],
       goalCompleted: { type: Boolean, default: false },
     },
     completed: { type: Boolean, default: true },

@@ -51,6 +51,7 @@ export default function TwinAssistantProvider({ children }) {
   const handleTranscriptPayloadRef = useRef(null);
   const enabledRef = useRef(false);
   const preferencesRef = useRef(preferences);
+  const commandCycleActiveRef = useRef(false);
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -63,6 +64,15 @@ export default function TwinAssistantProvider({ children }) {
   const addMessage = useCallback((role, text) => {
     if (!text) return;
     setMessages((currentMessages) => [...currentMessages, { role, text }]);
+  }, []);
+
+  const transitionVoiceState = useCallback((nextState) => {
+    setAssistantState((currentState) => {
+      if (currentState !== nextState) {
+        console.log(`[VOICE STATE] ${formatVoiceState(nextState)}`);
+      }
+      return nextState;
+    });
   }, []);
 
   function clearProviderTimers() {
@@ -101,8 +111,33 @@ export default function TwinAssistantProvider({ children }) {
 
     if (!options.keepStatus) {
       setVoiceStatus('offline');
-      setAssistantState(enabledRef.current ? 'ready' : 'disabled');
+      transitionVoiceState(enabledRef.current ? 'ready_for_next_command' : 'disabled');
     }
+  }
+
+  function pauseVoiceInput() {
+    window.clearTimeout(transcriptSubmitTimerRef.current);
+    clearProviderTimers();
+
+    try {
+      streamRef.current?.pauseMicrophone?.();
+    } catch (error) {
+      console.warn('[VOICE ERROR] Deepgram microphone pause failed:', error.message);
+    }
+
+    try {
+      if (webSpeechRef.current) {
+        webSpeechRef.current.onend = null;
+        webSpeechRef.current.onerror = null;
+        webSpeechRef.current.onresult = null;
+        webSpeechRef.current.stop?.();
+        webSpeechRef.current.abort?.();
+      }
+    } catch (error) {
+      console.warn('[VOICE ERROR] Web Speech pause failed:', error.message);
+    }
+    webSpeechRef.current = null;
+    setVoiceStatus('connecting');
   }
 
   const fallbackToWebSpeech = useCallback((reason = 'Deepgram unavailable') => {
@@ -111,6 +146,7 @@ export default function TwinAssistantProvider({ children }) {
 
     deepgramUnavailableRef.current = true;
     console.warn('[VOICE] Deepgram unavailable');
+    console.warn(`[VOICE] Fallback reason: ${reason}`);
     console.warn('[VOICE] Switching to Web Speech API');
     toast('Fallback Activated');
     setVoiceStatus('connecting');
@@ -131,28 +167,31 @@ export default function TwinAssistantProvider({ children }) {
 
     window.setTimeout(() => {
       if (!enabledRef.current || !preferencesRef.current.backgroundListening || isSpeakingRef.current || processingRef.current) return;
-      console.log('[VOICE] Resuming microphone listening');
-      setAssistantState('ready');
-      setAssistantMessage('Ready for commands...');
-      if (!streamRef.current && !webSpeechRef.current) {
+      console.log('[VOICE] Listening resumed');
+      transitionVoiceState('listening');
+      setAssistantMessage('Listening...');
+      if (streamRef.current?.resumeMicrophone) {
+        streamRef.current.resumeMicrophone();
+      } else if (!streamRef.current && !webSpeechRef.current) {
         setVoiceStatus('connecting');
         startStreamRef.current?.();
       }
     }, 500);
-  }, []);
+  }, [transitionVoiceState]);
 
-  const speakAssistantResponse = useCallback((text) => {
-    if (!preferences.voiceResponses || !window.speechSynthesis || !text) {
+  const speakAssistantResponse = useCallback((text, options = {}) => {
+    const shouldSpeak = options.force || preferences.voiceResponses;
+    if (!shouldSpeak || !window.speechSynthesis || !text) {
       return Promise.resolve(false);
     }
 
     lastAssistantResponseRef.current = normalizeCommandText(text);
     isSpeakingRef.current = true;
     manuallyPausedRef.current = true;
-    setAssistantState('speaking');
+    transitionVoiceState('speaking');
     setAssistantMessage(text);
     console.log('[VOICE] Speech synthesis start');
-    stopVoiceInput({ keepStatus: true });
+    pauseVoiceInput();
 
     return new Promise((resolve) => {
       window.speechSynthesis.cancel();
@@ -164,8 +203,7 @@ export default function TwinAssistantProvider({ children }) {
         isSpeakingRef.current = false;
         speakingIgnoreUntilRef.current = Date.now() + 1500;
         manuallyPausedRef.current = false;
-        console.log('[VOICE] Speech synthesis end');
-        window.setTimeout(() => restartVoiceInput(), 500);
+        console.log('[VOICE] TTS finished');
         resolve(true);
       };
 
@@ -173,30 +211,29 @@ export default function TwinAssistantProvider({ children }) {
       utterance.onerror = finish;
       window.speechSynthesis.speak(utterance);
     });
-  }, [preferences.voiceResponses, restartVoiceInput]);
+  }, [preferences.voiceResponses, transitionVoiceState]);
 
   const executeAction = useCallback(async (action) => {
     if (!action) return;
 
-    const responseMessage = action.response || action.message || 'Working on it...';
+    const responseMessage = getActionProgressMessage(action);
     console.log(`[VOICE] Intent: ${getIntentLogLabel(action)}`);
     lastAssistantResponseRef.current = normalizeCommandText(responseMessage);
-    setAssistantState('responding');
+    transitionVoiceState('executing');
+    console.log('[VOICE] Executing command');
     setAssistantMessage(responseMessage);
     addMessage('assistant', responseMessage);
-    await speakAssistantResponse(responseMessage);
-
-    await wait(650);
 
     if (action.action === 'navigate' && action.target) {
       try {
         console.log('[VOICE] Navigation execution:', action.target);
         navigate(action.target, action.options || undefined);
         toast('Navigation Complete');
-        console.log('[VOICE] Action executed successfully');
+        console.log('[VOICE] Navigation complete');
       } catch (error) {
         console.error('[VOICE ERROR] Navigation failed:', error.message);
       }
+      await speakAssistantResponse(responseMessage, { force: true });
       return;
     }
 
@@ -206,91 +243,84 @@ export default function TwinAssistantProvider({ children }) {
         navigate('/dashboard', { state: { assistantRefreshAt: Date.now() } });
         window.dispatchEvent(new Event('dashboard-refresh-requested'));
         toast('Navigation Complete');
-        console.log('[VOICE] Action executed successfully');
+        console.log('[VOICE] Navigation complete');
       } catch (error) {
         console.error('[VOICE ERROR] Navigation failed:', error.message);
       }
+      await speakAssistantResponse(responseMessage, { force: true });
       return;
     }
 
     if (action.action === 'create_goal') {
-      setAssistantState('processing');
       await createGoalFromAssistant(action);
-      setAssistantState('responding');
-      setAssistantMessage(`Created goal: ${action.title}`);
-      addMessage('assistant', `Created goal: ${action.title}`);
-      lastAssistantResponseRef.current = normalizeCommandText(`Created goal: ${action.title}`);
-      await speakAssistantResponse(`Created goal: ${action.title}`);
       navigate('/goals');
+      console.log('[VOICE] Navigation complete');
+      await speakAssistantResponse(`Created goal: ${action.title}`, { force: true });
       return;
     }
 
     if (action.action === 'run_simulation') {
       const simulationResponse = 'Opening Simulation and running your what-if scenario...';
-      setAssistantState('responding');
       setAssistantMessage(simulationResponse);
       addMessage('assistant', simulationResponse);
       lastAssistantResponseRef.current = normalizeCommandText(simulationResponse);
-      await speakAssistantResponse(simulationResponse);
       navigate('/simulation', { state: { assistantSimulation: action.payload || {} } });
+      console.log('[VOICE] Navigation complete');
+      await speakAssistantResponse(simulationResponse, { force: true });
       return;
     }
 
     if (action.action === 'delete_goal') {
-      setAssistantState('processing');
       const deleteResponse = await deleteMatchingGoal(action.query);
-      setAssistantState('responding');
       setAssistantMessage(deleteResponse);
       addMessage('assistant', deleteResponse);
       lastAssistantResponseRef.current = normalizeCommandText(deleteResponse);
-      await speakAssistantResponse(deleteResponse);
       if (deleteResponse.startsWith('Deleted goal')) navigate('/goals');
+      console.log('[VOICE] Navigation complete');
+      await speakAssistantResponse(deleteResponse, { force: true });
       return;
     }
 
     if (action.action === 'answer_health_score') {
-      setAssistantState('processing');
       const result = await getDashboardForAssistant();
       const healthResponse = formatDashboardHealthResponse(result);
-      setAssistantState('responding');
       setAssistantMessage(healthResponse);
       addMessage('assistant', healthResponse);
       lastAssistantResponseRef.current = normalizeCommandText(healthResponse);
-      await speakAssistantResponse(healthResponse);
+      console.log('[VOICE] Navigation complete');
+      await speakAssistantResponse(healthResponse, { force: true });
       return;
     }
 
     if (action.action === 'answer_dashboard_metric') {
-      setAssistantState('processing');
       const result = await getDashboardForAssistant();
       const metricResponse = formatDashboardMetricResponse(result, action.metric);
-      setAssistantState('responding');
       setAssistantMessage(metricResponse);
       addMessage('assistant', metricResponse);
       lastAssistantResponseRef.current = normalizeCommandText(metricResponse);
-      await speakAssistantResponse(metricResponse);
+      console.log('[VOICE] Navigation complete');
+      await speakAssistantResponse(metricResponse, { force: true });
       return;
     }
 
     if (action.action === 'answer_savings') {
-      setAssistantState('processing');
       const result = await getFinanceForAssistant();
       const savingsResponse = formatSavingsResponse(result);
-      setAssistantState('responding');
       setAssistantMessage(savingsResponse);
       addMessage('assistant', savingsResponse);
       lastAssistantResponseRef.current = normalizeCommandText(savingsResponse);
-      await speakAssistantResponse(savingsResponse);
+      console.log('[VOICE] Navigation complete');
+      await speakAssistantResponse(savingsResponse, { force: true });
       return;
     }
 
     if (action.action === 'logout') {
-      setAssistantState('processing');
       await dispatch(logoutUser());
       navigate('/', { replace: true });
-      console.log('[VOICE] Action executed successfully');
+      console.log('[VOICE] Navigation complete');
+      await speakAssistantResponse('Logging out. Please wait while I complete your request.', { force: true });
     }
-  }, [addMessage, dispatch, navigate, speakAssistantResponse]);
+  }, [addMessage, dispatch, navigate, speakAssistantResponse, transitionVoiceState]);
 
   const submitTranscript = useCallback(async (spokenText) => {
     const command = String(spokenText || '').trim();
@@ -299,7 +329,7 @@ export default function TwinAssistantProvider({ children }) {
 
     if (isIncompleteVoiceCommand(commandKey)) {
       console.log('[Twin Assistant] Incomplete transcript ignored:', command);
-      setAssistantState('listening');
+      transitionVoiceState('listening');
       setAssistantMessage('Listening...');
       return;
     }
@@ -311,13 +341,17 @@ export default function TwinAssistantProvider({ children }) {
       return;
     }
 
+    pauseVoiceInput();
     console.log(`[VOICE] Transcript: ${command}`);
+    console.log('[VOICE] Command received');
+    console.log('[VOICE] Listening paused');
     toast('Command Detected');
     processingRef.current = true;
+    commandCycleActiveRef.current = true;
     console.log('[VOICE] Processing');
     lastProcessedTranscript.current = commandKey;
     lastProcessedAt.current = now;
-    setAssistantState('processing');
+    transitionVoiceState('processing');
     setAssistantMessage('Processing command...');
     setDisplayTranscript(command);
     addMessage('user', command);
@@ -335,23 +369,27 @@ export default function TwinAssistantProvider({ children }) {
         console.error('[VOICE ERROR] No intent detected');
       }
       await executeAction(action);
+      transitionVoiceState('ready_for_next_command');
+      setAssistantMessage('Request completed. You may give your next command.');
+      await speakAssistantResponse('Request completed. You may give your next command.', { force: true });
     } catch (error) {
       const errorMessage = error.response?.data?.response || error.response?.data?.message || 'I could not process that command.';
       console.error('[VOICE ERROR] Intent execution error:', errorMessage);
-      setAssistantState('responding');
+      transitionVoiceState('speaking');
       setAssistantMessage(errorMessage);
       addMessage('assistant', errorMessage);
-      await speakAssistantResponse(errorMessage);
+      await speakAssistantResponse(errorMessage, { force: true });
     } finally {
       processingRef.current = false;
+      commandCycleActiveRef.current = false;
       if (enabled) {
-        setAssistantState('ready');
+        transitionVoiceState('ready_for_next_command');
         setAssistantMessage('Ready for commands...');
         setDisplayTranscript('');
         restartVoiceInput();
       }
     }
-  }, [addMessage, enabled, executeAction, restartVoiceInput, speakAssistantResponse]);
+  }, [addMessage, enabled, executeAction, restartVoiceInput, speakAssistantResponse, transitionVoiceState]);
 
   const handleTranscriptPayload = useCallback(({ transcript, isFinal, speechFinal, source = 'voice' }) => {
     const liveText = transcript || '';
@@ -367,7 +405,7 @@ export default function TwinAssistantProvider({ children }) {
       return;
     }
 
-    if (!enabled || processingRef.current) {
+    if (!enabled || processingRef.current || commandCycleActiveRef.current) {
       return;
     }
 
@@ -378,14 +416,16 @@ export default function TwinAssistantProvider({ children }) {
     console.log(`[VOICE] Transcript: ${liveText}`);
     setPanelOpen(true);
     setDisplayTranscript(liveText);
-    setAssistantState('listening');
+    transitionVoiceState('listening');
     setAssistantMessage('Listening...');
 
     window.clearTimeout(transcriptSubmitTimerRef.current);
     if (isFinal || speechFinal) {
+      pauseVoiceInput();
       submitTranscript(liveText);
     } else {
       transcriptSubmitTimerRef.current = window.setTimeout(() => {
+        pauseVoiceInput();
         submitTranscript(liveText);
       }, 900);
     }
@@ -405,7 +445,7 @@ export default function TwinAssistantProvider({ children }) {
       console.error('[VOICE ERROR] SpeechRecognition unavailable');
       toast.error('Voice recognition unavailable');
       setVoiceStatus('error');
-      setAssistantState('disabled');
+      transitionVoiceState('disabled');
       setAssistantMessage('Voice recognition unavailable');
       return;
     }
@@ -424,7 +464,7 @@ export default function TwinAssistantProvider({ children }) {
         console.log('[VOICE] Listening...');
         console.log('[VOICE] Provider: Web Speech API');
         setVoiceStatus('listening');
-        setAssistantState('listening');
+        transitionVoiceState('listening');
         setAssistantMessage('Listening...');
         toast('Listening Started');
       };
@@ -473,7 +513,7 @@ export default function TwinAssistantProvider({ children }) {
       console.error('[VOICE ERROR] Web Speech API unavailable:', error.message);
       toast.error('Voice recognition unavailable');
       setVoiceStatus('error');
-      setAssistantState('disabled');
+      transitionVoiceState('disabled');
       setAssistantMessage('Voice recognition unavailable');
     }
   }
@@ -502,18 +542,13 @@ export default function TwinAssistantProvider({ children }) {
       onListening: (active) => {
         if (!enabledRef.current) return;
         window.clearTimeout(providerStartTimeoutRef.current);
+        if (!active) return;
         console.log('[VOICE] Listening...');
         console.log('[VOICE] Provider: Deepgram');
-        setAssistantState(active ? 'listening' : 'ready');
-        setAssistantMessage(active ? 'Listening...' : 'Connecting voice...');
+        transitionVoiceState('listening');
+        setAssistantMessage('Listening...');
         if (active) {
           toast('Listening Started');
-          providerTranscriptTimeoutRef.current = window.setTimeout(() => {
-            if (activeProviderRef.current === 'deepgram' && !manuallyPausedRef.current && !processingRef.current) {
-              console.warn('[VOICE ERROR] Deepgram transcript timeout');
-              fallbackToWebSpeech('Deepgram transcript timeout');
-            }
-          }, 15000);
         }
       },
       onTranscript: ({ transcript, isFinal, speechFinal }) => {
@@ -540,7 +575,7 @@ export default function TwinAssistantProvider({ children }) {
 
     console.log('[VOICE] Starting listeners');
     setPanelOpen(true);
-    setAssistantState('ready');
+    transitionVoiceState('ready_for_next_command');
     setAssistantMessage('Ready for commands...');
     setVoiceStatus('connecting');
 
@@ -550,7 +585,7 @@ export default function TwinAssistantProvider({ children }) {
     }
 
     startDeepgram();
-  }, [fallbackToWebSpeech, handleTranscriptPayload]);
+  }, [fallbackToWebSpeech, handleTranscriptPayload, transitionVoiceState]);
 
   useEffect(() => {
     startStreamRef.current = startStream;
@@ -559,21 +594,28 @@ export default function TwinAssistantProvider({ children }) {
   const loadSettings = useCallback(async () => {
     try {
       const settings = await getSettings();
+      const wasEnabled = enabledRef.current;
       const nextEnabled = Boolean(settings.twinAssistantEnabled);
       const nextPreferences = {
         backgroundListening: settings.twinAssistantPreferences?.backgroundListening ?? true,
         wakeWordDetection: settings.twinAssistantPreferences?.wakeWordDetection ?? false,
         voiceResponses: settings.twinAssistantPreferences?.voiceResponses ?? false,
       };
+      enabledRef.current = nextEnabled;
+      preferencesRef.current = nextPreferences;
       setEnabled(nextEnabled);
       setPreferences(nextPreferences);
       setPanelOpen(nextEnabled);
       setVoiceStatus(nextEnabled ? 'connecting' : 'offline');
-      setAssistantState(nextEnabled ? 'ready' : 'disabled');
-      setAssistantMessage(nextEnabled ? 'Ready for commands...' : 'Twin Assistant is disabled. Enable it in Settings.');
+      transitionVoiceState(nextEnabled ? 'ready_for_next_command' : 'disabled');
+      setAssistantMessage(nextEnabled ? 'Voice Assistant activated. Waiting for your command.' : 'Twin Assistant is disabled. Enable it in Settings.');
       if (nextEnabled) {
         console.log('[VOICE] Assistant enabled');
         toast.success('Voice Assistant Enabled');
+        if (!wasEnabled && nextPreferences.backgroundListening) {
+          await speakAssistantResponse('Voice Assistant activated. Waiting for your command.', { force: true });
+          restartVoiceInput();
+        }
       } else {
         console.log('[VOICE] Assistant disabled');
         stopStream();
@@ -582,12 +624,12 @@ export default function TwinAssistantProvider({ children }) {
     } catch (error) {
       console.error('[VOICE ERROR] Settings load failed:', error.response?.data?.message || error.message);
       setEnabled(false);
-      setAssistantState('disabled');
+      transitionVoiceState('disabled');
       setAssistantMessage('Twin Assistant is disabled. Enable it in Settings.');
       setVoiceStatus('offline');
       stopStream();
     }
-  }, [stopStream]);
+  }, [restartVoiceInput, speakAssistantResponse, stopStream, transitionVoiceState]);
 
   useEffect(() => {
     Promise.resolve().then(loadSettings);
@@ -632,11 +674,11 @@ export default function TwinAssistantProvider({ children }) {
     stopStream();
     webSpeechBlockedRef.current = false;
     deepgramUnavailableRef.current = false;
-    setAssistantState('ready');
+    transitionVoiceState('ready_for_next_command');
     setAssistantMessage('Connecting voice...');
     setVoiceStatus('connecting');
     window.setTimeout(() => startStreamRef.current?.(), 200);
-  }, [enabled, stopStream]);
+  }, [enabled, stopStream, transitionVoiceState]);
 
   const submitTextCommand = useCallback((command) => submitTranscript(command), [submitTranscript]);
 
@@ -664,10 +706,21 @@ export default function TwinAssistantProvider({ children }) {
   );
 }
 
-function wait(ms) {
-  return new Promise((resolve) => {
-    window.setTimeout(resolve, ms);
-  });
+function formatVoiceState(state) {
+  return String(state || '').toUpperCase();
+}
+
+function getActionProgressMessage(action = {}) {
+  if (action.action === 'navigate' && action.target) {
+    const page = action.label || getNavigationLogLabel(action.target).toLowerCase().replace(/\b\w/g, (letter) => letter.toUpperCase());
+    return `Opening ${page}. Please wait while I complete your request.`;
+  }
+
+  if (action.action === 'refresh_dashboard') {
+    return 'Opening Dashboard. Please wait while I complete your request.';
+  }
+
+  return action.response || action.message || 'Working on it. Please wait while I complete your request.';
 }
 
 function getNavigationLogLabel(target) {
@@ -692,6 +745,7 @@ function parseLocalAssistantCommand(rawCommand = '') {
     { intent: 'NAVIGATE_CAREER', label: 'Career', target: '/career', patterns: ['career', 'job', 'work'] },
     { intent: 'NAVIGATE_GOALS', label: 'Goals', target: '/goals', patterns: ['goals', 'goal'] },
     { intent: 'NAVIGATE_INTELLIGENCE', label: 'Intelligence', target: '/intelligence', patterns: ['intelligence', 'ai intelligence', 'insights'] },
+    { intent: 'NAVIGATE_TWIN_COPILOT', label: 'Twin Copilot', target: '/copilot', patterns: ['copilot', 'co pilot', 'twin copilot', 'twin co pilot', 'twin assistant'] },
     { intent: 'NAVIGATE_SIMULATION', label: 'Simulation', target: '/simulation', patterns: ['simulation', 'simulator'] },
     { intent: 'NAVIGATE_NOTIFICATIONS', label: 'Notifications', target: '/notifications', patterns: ['notifications', 'notification', 'alerts'] },
     { intent: 'NAVIGATE_SETTINGS', label: 'Settings', target: '/settings', patterns: ['settings', 'setting', 'preferences'] },

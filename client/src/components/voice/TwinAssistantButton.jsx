@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { Mic, MicOff, Send, X } from 'lucide-react';
+import { CheckCircle2, Mic, MicOff, Rocket, Send, Volume2, X, Zap } from 'lucide-react';
 import { useTwinAssistant } from './twinAssistantContext';
 
 const stateConfig = {
@@ -11,49 +11,63 @@ const stateConfig = {
     icon: MicOff,
   },
   ready: {
-    label: 'Ready',
+    label: '✅ Ready For Next Command',
     statusText: 'Ready for commands...',
     buttonClass: 'border-[#10c7a1]/35 bg-[#10c7a1] text-white',
     dotClass: 'bg-[#10c7a1]',
-    icon: Mic,
+    icon: CheckCircle2,
+  },
+  ready_for_next_command: {
+    label: '✅ Ready For Next Command',
+    statusText: 'Ready for commands...',
+    buttonClass: 'border-[#10c7a1]/35 bg-[#10c7a1] text-white',
+    dotClass: 'bg-[#10c7a1]',
+    icon: CheckCircle2,
   },
   listening: {
-    label: 'Listening',
+    label: '🎤 Listening',
     statusText: 'Listening...',
     buttonClass: 'border-[#10c7a1]/45 bg-[#10c7a1] text-white shadow-[0_0_34px_-10px_rgba(16,199,161,0.9)]',
     dotClass: 'bg-[#10c7a1]',
     icon: Mic,
   },
   processing: {
-    label: 'Processing',
+    label: '⚡ Processing',
     statusText: 'Processing command...',
     buttonClass: 'border-[#60a5fa]/45 bg-[#2563eb] text-white shadow-[0_0_38px_-10px_rgba(96,165,250,0.95)]',
     dotClass: 'bg-[#60a5fa]',
-    icon: Mic,
+    icon: Zap,
+  },
+  executing: {
+    label: '🚀 Executing',
+    statusText: 'Executing command...',
+    buttonClass: 'border-[#fb923c]/45 bg-[#ea580c] text-white shadow-[0_0_38px_-10px_rgba(251,146,60,0.95)]',
+    dotClass: 'bg-[#fb923c]',
+    icon: Rocket,
   },
   responding: {
-    label: 'Responding',
-    statusText: 'Responding...',
-    buttonClass: 'border-[#22d3ee]/45 bg-[#0891b2] text-white shadow-[0_0_38px_-10px_rgba(34,211,238,0.95)]',
-    dotClass: 'bg-[#22d3ee]',
-    icon: Mic,
-  },
-  speaking: {
-    label: 'Speaking',
+    label: '🔊 Speaking',
     statusText: 'Speaking...',
     buttonClass: 'border-[#22d3ee]/45 bg-[#0891b2] text-white shadow-[0_0_38px_-10px_rgba(34,211,238,0.95)]',
     dotClass: 'bg-[#22d3ee]',
-    icon: Mic,
+    icon: Volume2,
+  },
+  speaking: {
+    label: '🔊 Speaking',
+    statusText: 'Speaking...',
+    buttonClass: 'border-[#22d3ee]/45 bg-[#0891b2] text-white shadow-[0_0_38px_-10px_rgba(34,211,238,0.95)]',
+    dotClass: 'bg-[#22d3ee]',
+    icon: Volume2,
   },
 };
 
 const emptyMessages = [];
 
 const voiceStatusText = {
-  offline: '⚠ Disconnected',
+  offline: 'Disconnected',
   connecting: 'Connecting voice...',
   listening: '🎤 Listening',
-  error: '⚠ Disconnected',
+  error: 'Disconnected',
 };
 
 export default function TwinAssistantButton() {
@@ -74,14 +88,7 @@ export default function TwinAssistantButton() {
   const submitTextCommand = assistant?.submitTextCommand;
 
   const config = stateConfig[assistantState] || stateConfig.disabled;
-  const statusLabel = assistantState === 'processing'
-    ? '⚡ Processing'
-    : assistantState === 'speaking'
-      ? '🔊 Speaking'
-      : assistantState === 'ready' && voiceStatus === 'listening'
-        ? '🎤 Listening'
-        : config.label;
-  const displayLabel = statusLabel;
+  const displayLabel = config.label;
   const Icon = config.icon;
 
   useEffect(() => {

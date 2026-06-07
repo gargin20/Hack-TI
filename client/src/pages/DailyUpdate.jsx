@@ -33,6 +33,7 @@ const initialForm = {
   },
   goal: {
     goalId: '',
+    goalIds: [],
     goalCompleted: false,
   },
 };
@@ -41,7 +42,7 @@ function DailyUpdate() {
   const dispatch = useDispatch();
   const { activeGoals, completed, dailyUpdateLastSubmittedAt, error, loading, success } = useSelector((state) => state.dailyUpdate);
   const [form, setForm] = useState(initialForm);
-  const [currentTime, setCurrentTime] = useState(Date.now());
+  const [currentTime, setCurrentTime] = useState(() => Date.now());
 
   useEffect(() => {
     dispatch(fetchTodayDailyUpdate());
@@ -75,9 +76,9 @@ function DailyUpdate() {
     }
   }, [completed, dispatch, remaining, success]);
 
-  const selectedGoal = useMemo(
-    () => activeGoals.find((goal) => goal._id === form.goal.goalId),
-    [activeGoals, form.goal.goalId],
+  const selectedGoals = useMemo(
+    () => activeGoals.filter((goal) => form.goal.goalIds.includes(goal._id)),
+    [activeGoals, form.goal.goalIds],
   );
 
   const handleSubmit = async (event) => {
@@ -168,21 +169,61 @@ function DailyUpdate() {
         <Section icon={Target} title="Goal Check-In">
           {activeGoals.length > 0 ? (
             <div className="space-y-4">
-              <select
-                value={form.goal.goalId}
-                onChange={(event) => update('goal.goalId', event.target.value, setForm)}
-                className="h-12 w-full rounded-xl border border-white/10 bg-[#080d15] px-4 text-sm font-semibold text-white outline-none focus:border-[#10c7a1]/55"
-              >
-                <option value="">Select active goal</option>
-                {activeGoals.map((goal) => <option key={goal._id} value={goal._id}>{goal.title}</option>)}
-              </select>
-              {selectedGoal && (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-4">
-                  <p className="text-lg font-black">{selectedGoal.title}</p>
-                  <p className="mt-1 text-sm text-white/56">Progress: {selectedGoal.progress}% · Today's target: {selectedGoal.todayTarget}</p>
+              <div className="flex items-center justify-between gap-3 rounded-2xl border border-white/10 bg-white/[0.045] p-4">
+                <div>
+                  <p className="text-sm font-black text-white">Completed goals today</p>
+                  <p className="mt-1 text-xs font-semibold text-white/48">
+                    {selectedGoals.length ? `${selectedGoals.length} selected` : 'Select every goal you completed today'}
+                  </p>
                 </div>
-              )}
-              <ToggleField label="Did you complete today's goal?" value={form.goal.goalCompleted} onChange={(value) => update('goal.goalCompleted', value, setForm)} />
+                {selectedGoals.length > 0 && (
+                  <button
+                    type="button"
+                    onClick={() => update('goal.goalIds', [], setForm)}
+                    className="rounded-xl border border-white/10 bg-black/20 px-3 py-2 text-xs font-black uppercase tracking-[0.14em] text-white/52 transition hover:border-[#ff4d7d]/35 hover:text-[#ffb3ca]"
+                  >
+                    Clear
+                  </button>
+                )}
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-2">
+                {activeGoals.map((goal) => {
+                  const selected = form.goal.goalIds.includes(goal._id);
+                  return (
+                    <button
+                      type="button"
+                      key={goal._id}
+                      onClick={() => toggleGoal(goal._id, setForm)}
+                      className={`flex min-h-28 items-start gap-3 rounded-2xl border p-4 text-left transition ${
+                        selected
+                          ? 'border-[#10c7a1]/55 bg-[#10c7a1]/12 shadow-[0_18px_45px_-32px_rgba(16,199,161,0.9)]'
+                          : 'border-white/10 bg-white/[0.045] hover:border-white/20 hover:bg-white/[0.065]'
+                      }`}
+                      aria-pressed={selected}
+                    >
+                      <span className={`mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-lg border ${
+                        selected ? 'border-[#10c7a1] bg-[#10c7a1] text-[#06110f]' : 'border-white/15 bg-black/20 text-transparent'
+                      }`}
+                      >
+                        <CheckCircle2 className="h-4 w-4" />
+                      </span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block break-words text-sm font-black text-white">{goal.title}</span>
+                        <span className="mt-2 block text-xs font-semibold text-white/50">
+                          Progress: {goal.progress}% · Today's target: {goal.todayTarget}
+                        </span>
+                        <span className="mt-3 block h-2 overflow-hidden rounded-full bg-white/10">
+                          <span
+                            className="block h-full rounded-full bg-[#10c7a1]"
+                            style={{ width: `${Math.min(Math.max(goal.progress || 0, 0), 100)}%` }}
+                          />
+                        </span>
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
             </div>
           ) : (
             <p className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-white/60">No active goals found. Create a goal to start tracking progress.</p>
@@ -299,7 +340,25 @@ function toggleConcern(option, setForm) {
   });
 }
 
+function toggleGoal(goalId, setForm) {
+  setForm((current) => {
+    const goalIds = current.goal.goalIds || [];
+    const exists = goalIds.includes(goalId);
+    const nextGoalIds = exists ? goalIds.filter((id) => id !== goalId) : [...goalIds, goalId];
+    return {
+      ...current,
+      goal: {
+        ...current.goal,
+        goalId: nextGoalIds[0] || '',
+        goalIds: nextGoalIds,
+        goalCompleted: nextGoalIds.length > 0,
+      },
+    };
+  });
+}
+
 function normalizeForm(form) {
+  const goalIds = Array.from(new Set([...(form.goal.goalIds || []), form.goal.goalId].filter(Boolean)));
   return {
     ...form,
     health: {
@@ -320,6 +379,12 @@ function normalizeForm(form) {
     career: {
       ...form.career,
       studyHours: Number(form.career.studyHours || 0),
+    },
+    goal: {
+      ...form.goal,
+      goalId: goalIds[0] || '',
+      goalIds,
+      goalCompleted: goalIds.length > 0,
     },
   };
 }

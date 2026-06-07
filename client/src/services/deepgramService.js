@@ -9,6 +9,7 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
   let manuallyStopped = false;
   let audioChunkCount = 0;
   let started = false;
+  let microphoneActive = false;
 
   async function start() {
     if (started || socket?.connected || socket?.active) return;
@@ -25,7 +26,9 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
     socket = io(API_BASE_URL, {
       auth: { token },
       transports: ['websocket'],
-      reconnection: false,
+      reconnection: true,
+      reconnectionAttempts: 4,
+      reconnectionDelay: 800,
     });
 
     const handleListening = (payload) => {
@@ -83,6 +86,7 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
 
   async function startMicrophone() {
     if (mediaRecorder && mediaRecorder.state !== 'inactive') return;
+    if (!socket?.connected) return;
 
     try {
       mediaStream = await navigator.mediaDevices.getUserMedia({ audio: true });
@@ -90,7 +94,7 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
       mediaRecorder = new MediaRecorder(mediaStream, mimeType ? { mimeType } : undefined);
 
       mediaRecorder.ondataavailable = async (event) => {
-        if (!event.data?.size || !socket?.connected) return;
+        if (!microphoneActive || !event.data?.size || !socket?.connected) return;
         const audioChunk = await event.data.arrayBuffer();
         socket.emit('voice:audio', audioChunk);
         audioChunkCount += 1;
@@ -100,8 +104,10 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
       };
 
       mediaRecorder.start(250);
+      microphoneActive = true;
       console.log('[VOICE] Microphone capture started');
       onStatus?.('listening');
+      onListening?.(true);
     } catch (error) {
       console.error('[VOICE ERROR] Microphone permission denied/unavailable:', error.message);
       onStatus?.('error');
@@ -109,22 +115,46 @@ export function createDeepgramAssistantStream({ onListening, onTranscript, onErr
     }
   }
 
+  function pauseMicrophone() {
+    if (!microphoneActive && !mediaRecorder && !mediaStream) return;
+
+    microphoneActive = false;
+    if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+      mediaRecorder.stop();
+    }
+    mediaStream?.getTracks().forEach((track) => track.stop());
+    mediaRecorder = null;
+    mediaStream = null;
+    console.log('[VOICE] Microphone capture paused');
+    onListening?.(false);
+  }
+
+  async function resumeMicrophone() {
+    if (manuallyStopped || microphoneActive) return;
+    if (!socket?.connected) {
+      onStatus?.('connecting');
+      socket?.connect?.();
+      return;
+    }
+    await startMicrophone();
+  }
+
   function stop() {
     manuallyStopped = true;
     started = false;
-    if (mediaRecorder && mediaRecorder.state !== 'inactive') mediaRecorder.stop();
-    mediaStream?.getTracks().forEach((track) => track.stop());
+    pauseMicrophone();
     socket?.emit('voice:stop');
     socket?.disconnect();
 
     mediaRecorder = null;
     mediaStream = null;
     socket = null;
+    microphoneActive = false;
     onStatus?.('offline');
     onListening?.(false);
   }
 
-  return { start, stop };
+  return { start, stop, pauseMicrophone, resumeMicrophone };
 }
 
 function pickMimeType() {

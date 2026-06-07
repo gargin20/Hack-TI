@@ -169,12 +169,13 @@ async function applyDailyUpdateEffects(userId, date, payload) {
     dailyLog._prevSnapshot || null
   );
 
-  let goal = null;
   const goalsUpdated = [...(syncResult || [])];
+  const selectedGoalIds = getSelectedGoalIds(payload.goal);
+  let manualGoalUpdates = 0;
 
-  if (payload.goal.goalId) {
-    goal = await SmartGoal.findOne({ _id: payload.goal.goalId, userId });
-    if (goal && payload.goal.goalCompleted) {
+  if (selectedGoalIds.length && payload.goal.goalCompleted) {
+    const goals = await SmartGoal.find({ _id: { $in: selectedGoalIds }, userId });
+    for (const goal of goals) {
       const before = goal.currentMetric;
       goal.currentMetric = Math.min(Number(goal.currentMetric || 0) + 1, Number(goal.targetMetric || 1));
       goal.lastLoggedAt = new Date();
@@ -204,6 +205,7 @@ async function applyDailyUpdateEffects(userId, date, payload) {
         completed: goal.status === 'completed',
         xpEarned: gamificationResult ? gamificationResult.xpAwarded : 0
       });
+      manualGoalUpdates += 1;
     }
   }
 
@@ -214,8 +216,8 @@ async function applyDailyUpdateEffects(userId, date, payload) {
     profile.productivityScore = clamp(Number(profile.productivityScore || 60) + scoreDelta.career, 20, 98);
     profile.burnoutRisk = clamp(Number(profile.burnoutRisk || 35) + scoreDelta.burnout, 0, 100);
 
-    if (payload.goal.goalId) {
-      updateDashboardStreak(profile, date, payload.goal.goalCompleted);
+    if (selectedGoalIds.length) {
+      updateDashboardStreak(profile, date, payload.goal.goalCompleted, selectedGoalIds);
     }
 
     await profile.save();
@@ -235,7 +237,7 @@ async function applyDailyUpdateEffects(userId, date, payload) {
   const totalXP = gamificationProfile ? gamificationProfile.totalXP : 0;
 
   return {
-    goalUpdated: Boolean(goal && payload.goal.goalCompleted),
+    goalUpdated: manualGoalUpdates > 0,
     goalsUpdated,
     totalXP,
     goalProgress: goalsUpdated,
@@ -350,9 +352,20 @@ function normalizePayload(body = {}) {
     },
     goal: {
       goalId: body.goal?.goalId || null,
+      goalIds: normalizeGoalIds(body.goal),
       goalCompleted: Boolean(body.goal?.goalCompleted),
     },
   };
+}
+
+function normalizeGoalIds(goal = {}) {
+  const rawGoalIds = Array.isArray(goal.goalIds) ? goal.goalIds : [];
+  const allIds = [...rawGoalIds, goal.goalId].filter(Boolean).map((id) => String(id));
+  return Array.from(new Set(allIds));
+}
+
+function getSelectedGoalIds(goal = {}) {
+  return normalizeGoalIds(goal);
 }
 
 function calculateScoreDelta(payload) {
@@ -400,11 +413,11 @@ function buildTransactions(finance) {
   return transactions;
 }
 
-function updateDashboardStreak(profile, date, goalCompleted) {
+function updateDashboardStreak(profile, date, goalCompleted, goalIds = []) {
   const existing = Array.isArray(profile.completedDailyGoals) ? profile.completedDailyGoals : [];
   profile.completedDailyGoals = [
     ...existing.filter((entry) => entry.date !== date),
-    { date, goals: goalCompleted ? ['Daily Twin Check-In'] : [], goalCompleted, completed: goalCompleted, completedAt: new Date() },
+    { date, goals: goalCompleted ? goalIds : [], goalCompleted, completed: goalCompleted, completedAt: new Date() },
   ];
   profile.lastGoalCompletionDate = date;
   profile.streakStarted = true;
