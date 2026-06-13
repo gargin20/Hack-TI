@@ -111,6 +111,12 @@ app.use(errorHandler);
 const PORT = Number(process.env.PORT) || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
 
+// Temporary startup logs to help diagnose duplicate server starts / port usage
+console.log('Starting Express Server...');
+console.log('PORT =', process.env.PORT || PORT);
+console.log('PID =', process.pid);
+console.log('PORT (raw var) =', PORT);
+
 // Start the Autonomous Background Jobs before the server listens!
 startCaretakerJobs();
 
@@ -165,6 +171,19 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   console.log('SIGINT signal received: closing HTTP server');
   server.close(() => process.exit(0));
+});
+
+// Nodemon sends SIGUSR2 for restarts; handle it to gracefully close the server
+process.once('SIGUSR2', async () => {
+  console.log('SIGUSR2 received: graceful shutdown for restart');
+  if (server) {
+    server.close(() => {
+      // propagate the signal to allow nodemon to restart
+      process.kill(process.pid, 'SIGUSR2');
+    });
+  } else {
+    process.kill(process.pid, 'SIGUSR2');
+  }
 });
 
 export default app;

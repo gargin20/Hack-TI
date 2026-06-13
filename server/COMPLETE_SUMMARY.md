@@ -68,7 +68,7 @@ cp .env.example .env
 npm run dev
 ```
 
-**Server will be available at**: http://localhost:5000
+**Server will be available at**: http://localhost:5001
 
 ---
 
@@ -268,7 +268,7 @@ FIREBASE_CLIENT_EMAIL=email@firebase.com
 
 ### Signup (cURL)
 ```bash
-curl -X POST http://localhost:5000/api/auth/signup \
+curl -X POST http://localhost:5001/api/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "firstName":"John",

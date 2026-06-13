@@ -5,7 +5,7 @@ import { Loader2, Zap, BrainCircuit, Activity, RefreshCw, BarChart3, ShieldAlert
 import { BarChart, Bar, CartesianGrid, XAxis, YAxis, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import DocumentarySlides from '../components/DocumentarySlides';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const Intelligence = () => {
   const [isGenerating, setIsGenerating] = useState(false);

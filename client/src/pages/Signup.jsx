@@ -8,7 +8,7 @@ import DigitalTwinLogo from '../components/DigitalTwinLogo';
 import { loginSuccess } from '../features/auth/authSlice';
 import { loginWithGoogle } from '../features/auth/authThunks';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const activeSignals = [
   { emoji: '🧬', label: 'Health', title: 'Shape your energy profile', copy: 'See the health layer pulse through a calm neon frame that feels alive.', accent: 'from-[#ff4d7d] via-[#7b61ff] to-[#10c7a1]' },

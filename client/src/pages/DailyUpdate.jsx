@@ -13,6 +13,7 @@ const initialForm = {
     exercised: false,
     ateProperly: false,
     smokedToday: false,
+    cigarettesCount: '',
     healthConcern: false,
     concernTypes: [],
     concernDescription: '',
@@ -120,6 +121,11 @@ function DailyUpdate() {
             <ToggleField label="Did you eat properly today?" value={form.health.ateProperly} onChange={(value) => update('health.ateProperly', value, setForm)} />
             {isSmoker && <ToggleField label="Did you smoke today?" value={form.health.smokedToday} onChange={(value) => update('health.smokedToday', value, setForm)} />}
           </div>
+          {isSmoker && form.health.smokedToday && (
+            <div className="mt-3">
+              <NumberField label="How many cigarettes did you smoke today?" value={form.health.cigarettesCount} onChange={(value) => update('health.cigarettesCount', value, setForm)} />
+            </div>
+          )}
           <ToggleField label="Any health concerns today?" value={form.health.healthConcern} onChange={(value) => update('health.healthConcern', value, setForm)} />
           {form.health.healthConcern && (
             <div className="space-y-4">
@@ -369,6 +375,7 @@ function normalizeForm(form, isSmoker = false) {
       waterIntake: Number(form.health.waterIntake || 0),
       ateProperly: Boolean(form.health.ateProperly),
       smokedToday: isSmoker ? Boolean(form.health.smokedToday) : false,
+      cigarettesCount: isSmoker ? Number(form.health.cigarettesCount || 0) : 0,
     },
     finance: {
       ...form.finance,

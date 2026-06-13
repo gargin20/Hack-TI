@@ -17,7 +17,7 @@ import { useIntegrations } from '../context/IntegrationContext';
 import { useDashboardSync } from '../context/DashboardSyncContext';
 import useNotificationCount from '../hooks/useNotificationCount';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const pageVariants = {
   hidden: { opacity: 0 },

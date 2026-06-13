@@ -27,7 +27,7 @@ import {
 import { useIntegrations } from '../context/IntegrationContext';
 import { fetchCareerIntegrationStats, getCareerProfileLabel } from '../utils/careerIntegrationStats';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 // ─── Integration definitions ──────────────────────────────────────────────────
 const INTEGRATIONS = [

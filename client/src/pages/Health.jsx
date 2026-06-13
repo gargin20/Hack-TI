@@ -213,8 +213,9 @@ export default function Health() {
   const [startSmokingOpen, setStartSmokingOpen] = useState(false);
 
   const { triggerReward, history = [], unlockedBadges = [], availableBadges = [] } = useGamification();
-  const API   = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  const API   = import.meta.env.VITE_API_URL || 'http://localhost:5001';
   const token = () => localStorage.getItem('authToken');
+  const dailyUpdateState = useSelector((state) => state.dailyUpdate);
 
   // Bootstrap
   useEffect(() => {
@@ -410,7 +411,7 @@ export default function Health() {
       const msg = err?.response?.status === 401
         ? 'Session expired — please log in again.'
         : err?.response?.status === 404
-        ? 'Health endpoint not found. Check your server is running on port 5000.'
+          ? 'Health endpoint not found. Check your server is running on port 5001.'
         : err?.response?.data?.message || 'Connection failed. Make sure your dev server is running.';
       setConnectError(msg);
     } finally { setConnectLoading(false); }
@@ -477,9 +478,10 @@ export default function Health() {
         ...smokingProfile,
         smoker: true,
         smokingFrequency: 'sometimes',
-        smokingStartedAt: now,
-        smokingStreak: 0,
-        cigarettesToday: 0,
+          smokingStartedAt: now,
+          smokingStreak: 0,
+          cigarettesToday: 0,
+          totalCigarettesSmoked: 0,
       });
       setStartSmokingOpen(false);
     } catch (err) {
@@ -510,6 +512,11 @@ export default function Health() {
   const smokingProfile = authUser?.smokingProfile || {};
   const isSmoker     = smokingProfile.smoker === true;
   const smokingStreak = Number(smokingProfile.smokingStreak ?? computeSmokingStreak(smokingProfile.lastCigarette));
+  // Prefer today's reported cigarettes from Daily Update if present, otherwise fall back to stored total
+  const todaysCigarettes = Number(dailyUpdateState?.todayUpdate?.health?.cigarettesCount ?? NaN);
+  const totalCigarettes = !Number.isNaN(todaysCigarettes)
+    ? todaysCigarettes
+    : (authUser?.smokingProfile?.totalCigarettesSmoked ?? 0);
   const burnoutRisk  = analytics?.burnoutRisk   ?? null;
   const wellnessScore = analytics?.wellnessBalance ?? null;
   const wearableReady = wearable && Object.keys(wearable).length > 0 && wearable.steps !== undefined;
@@ -541,6 +548,14 @@ export default function Health() {
 
   const healthHistory = history.filter(l => ['👟','💤','❤️','⚡','🧬','💧','🚭'].includes(l.emoji)).slice(0,6);
   const healthBadges  = availableBadges.filter(b => ['fitbit','sleep_master','first_step','hydration_hero','heart_health'].includes(b.id));
+
+  useEffect(() => {
+    console.log('AUTH USER', authUser);
+    console.log('SMOKING PROFILE', authUser?.smokingProfile);
+    console.log('TOTAL CIGARETTES', authUser?.smokingProfile?.totalCigarettesSmoked);
+    console.log('DAILY UPDATE STATE', dailyUpdateState);
+    console.log('Total Cigarettes From Redux (resolved):', totalCigarettes);
+  }, [totalCigarettes, authUser?.smokingProfile?.smokingStreak]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -1012,45 +1027,21 @@ export default function Health() {
                     <p className="text-sm text-white/45">Your personal tracker for breaking the habit — one day at a time.</p>
                   </div>
                 </div>
-                {isSmoker && smokingMode === 'view' && (
-                  <button onClick={() => setSmokingMode('log')}
-                    className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-2 text-sm font-bold text-[#f59e0b] hover:bg-[#f59e0b]/20 transition-all">
-                    Log Now
-                  </button>
-                )}
-                {!isSmoker && (
-                  <button onClick={() => setStartSmokingOpen(true)}
-                    className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-2 text-sm font-bold text-[#f59e0b] hover:bg-[#f59e0b]/20 transition-all">
-                    Start Smoking
-                  </button>
-                )}
+                {/* Smoking logging removed — tracking via Daily Update only */}
               </div>
               {!isSmoker ? (
-                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 text-white/60">
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 text-white/60 flex flex-col items-start gap-3">
                   <p className="text-sm font-bold text-white">Smoking Tracker</p>
-                  <p className="mt-2 text-sm">Currently unavailable because you indicated that you do not smoke.</p>
-                </div>
-              ) : smokingMode === 'log' ? (
-                <div className="flex flex-col items-center gap-5 py-4">
-                  <p className="text-base font-semibold text-white/80 text-center">What happened just now?</p>
-                  <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                    <button onClick={() => logSmokingEvent('smoked')} disabled={smokeLogLoading}
-                      className="flex flex-col items-center gap-2 p-5 rounded-2xl border border-[#ea580c]/30 bg-[#ea580c]/10 hover:bg-[#ea580c]/20 transition-all disabled:opacity-50">
-                      <span className="text-3xl">🚬</span>
-                      <span className="text-sm font-bold text-[#ea580c]">I smoked</span>
-                      <span className="text-[10px] text-white/35">No judgment — log it</span>
-                    </button>
-                    <button onClick={() => logSmokingEvent('craving_resisted')} disabled={smokeLogLoading}
-                      className="flex flex-col items-center gap-2 p-5 rounded-2xl border border-[#16a34a]/30 bg-[#16a34a]/10 hover:bg-[#16a34a]/20 transition-all disabled:opacity-50">
-                      <span className="text-3xl">💪</span>
-                      <span className="text-sm font-bold text-[#16a34a]">Resisted</span>
-                      <span className="text-[10px] text-white/35">+25 XP earned</span>
+                  <p className="mt-2 text-sm">You currently do not smoke.</p>
+                  <div className="mt-3 w-full">
+                    <button onClick={() => setStartSmokingOpen(true)}
+                      className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-2 text-sm font-bold text-[#f59e0b] hover:bg-[#f59e0b]/20 transition-all">
+                      Have you started smoking recently?
                     </button>
                   </div>
-                  <button onClick={() => setSmokingMode('view')} className="text-xs text-white/25 hover:text-white transition-all">Cancel</button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                   <div className="rounded-2xl border border-[#f59e0b]/20 bg-[#f59e0b]/8 p-5 flex flex-col items-center justify-center text-center">
                     {smokingProfile.lastCigarette ? (
                       <>
@@ -1059,10 +1050,16 @@ export default function Health() {
                         <p className="text-sm text-white/50 mt-1">{smokingStreak === 1 ? 'day' : 'days'}</p>
                         {smokingStreak >= 7  && <p className="mt-3 text-xs text-[#f59e0b] font-bold">🔥 One week! Circulation is improving.</p>}
                         {smokingStreak >= 30 && <p className="mt-1 text-xs text-[#16a34a] font-bold">🌿 30 days! Lung function is recovering.</p>}
+                        <p className="mt-3 text-xs text-white/60">Total cigarettes smoked: <span className="font-bold text-white">{totalCigarettes}</span></p>
                       </>
                     ) : (
                       <><span className="text-4xl mb-2">🕐</span><p className="text-sm text-white/40">Log your first event to start your streak.</p></>
                     )}
+                  </div>
+                  <div className="rounded-2xl border border-[#f59e0b]/20 bg-[#f59e0b]/8 p-5 flex flex-col items-center justify-center text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#f59e0b]/60 mb-2">Total cigarettes</p>
+                    <p className="text-2xl font-black text-white">{totalCigarettes}</p>
+                    <p className="text-sm text-white/50 mt-1">cumulative</p>
                   </div>
                   <div className="rounded-2xl border border-white/8 bg-white/4 p-5">
                     <div className="flex items-center gap-2 mb-3">
@@ -1113,7 +1110,7 @@ export default function Health() {
         {startSmokingOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4">
             <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b0f16] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.55)]">
-              <h3 className="text-xl font-bold text-white">Do you want to start tracking smoking habits?</h3>
+              <h3 className="text-xl font-bold text-white">Have you started smoking recently?</h3>
               <div className="mt-6 flex justify-end gap-3">
                 <button
                   type="button"
@@ -1128,7 +1125,7 @@ export default function Health() {
                   disabled={smokeLogLoading}
                   className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b] px-4 py-2 text-sm font-bold text-[#1a1208] hover:bg-[#fbbf24] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  Start Tracking
+                  Yes, I Started Smoking
                 </button>
               </div>
             </div>

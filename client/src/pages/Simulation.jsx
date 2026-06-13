@@ -173,7 +173,7 @@ const impactChains = [
 ];
 
 const processingSteps = ['Analyzing Digital Twin', 'Evaluating Health Impact', 'Evaluating Financial Impact', 'Evaluating Career Impact', 'Generating AI Insights'];
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const domainIcons = { Health: HeartPulse, Finance: CircleDollarSign, Career: Briefcase };
 const domainAccents = { Health: 'text-[#10c7a1]', Finance: 'text-[#c8a84b]', Career: 'text-[#7b61ff]' };
 

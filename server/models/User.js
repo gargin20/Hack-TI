@@ -291,6 +291,7 @@ function normalizeSmokingProfile(profile = {}) {
     smokingStartedAt: smoker ? profile?.smokingStartedAt || null : null,
     smokingStreak: Number(profile?.smokingStreak || 0),
     cigarettesToday: Number(profile?.cigarettesToday || 0),
+    totalCigarettesSmoked: Number(profile?.totalCigarettesSmoked || 0),
     cravingsResisted: Number(profile?.cravingsResisted || 0),
     lastCigarette: profile?.lastCigarette || null,
     lastEvent: profile?.lastEvent || '',

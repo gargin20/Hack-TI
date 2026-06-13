@@ -768,6 +768,7 @@ function defaultSmokingProfile() {
     smokingStartedAt: null,
     smokingStreak: 0,
     cigarettesToday: 0,
+    totalCigarettesSmoked: 0,
   };
 }
 
@@ -779,6 +780,7 @@ function mergeSmokingProfile(current = {}, incoming = {}) {
     smokingStartedAt: smoker ? incoming.smokingStartedAt ?? current?.smokingStartedAt ?? new Date() : null,
     smokingStreak: Number(incoming.smokingStreak ?? current?.smokingStreak ?? 0),
     cigarettesToday: Number(incoming.cigarettesToday ?? current?.cigarettesToday ?? 0),
+    totalCigarettesSmoked: Number(incoming.totalCigarettesSmoked ?? current?.totalCigarettesSmoked ?? 0),
     cravingsResisted: Number(incoming.cravingsResisted ?? current?.cravingsResisted ?? 0),
     lastCigarette: incoming.lastCigarette ?? current?.lastCigarette ?? null,
     lastEvent: sanitizeProfileText(incoming.lastEvent ?? current?.lastEvent ?? ''),

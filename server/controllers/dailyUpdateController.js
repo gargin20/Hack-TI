@@ -38,6 +38,32 @@ export const createDailyUpdate = async (req, res) => {
   const payload = normalizePayload(req.body, user);
   const update = await DailyUpdate.create({ userId, date, ...payload, completed: true });
   const effects = await applyDailyUpdateEffects(userId, date, payload);
+  // Update user's smoking profile in DB (database is source of truth)
+  try {
+    if (user && payload && payload.health) {
+      user.smokingProfile = user.smokingProfile || {};
+      const isSmoker = user.smokingProfile.smoker === true;
+      if (payload.health.smokedToday === true) {
+        const count = Number(payload.health.cigarettesCount || 0);
+        const prevTotal = Number(user.smokingProfile.totalCigarettesSmoked || 0);
+        console.log(`[DailyUpdate] Prev totalCigarettesSmoked=${prevTotal}, adding=${count} for user=${userId}`);
+        user.smokingProfile.smokingStreak = 0;
+        user.smokingProfile.cigarettesToday = count;
+        user.smokingProfile.totalCigarettesSmoked = prevTotal + count;
+        user.smokingProfile.lastEvent = 'smoked';
+        user.smokingProfile.lastEventTime = new Date();
+        console.log(`[DailyUpdate] New totalCigarettesSmoked=${user.smokingProfile.totalCigarettesSmoked} for user=${userId}`);
+      } else if (isSmoker && payload.health.smokedToday === false) {
+        user.smokingProfile.smokingStreak = Number(user.smokingProfile.smokingStreak || 0) + 1;
+        user.smokingProfile.cigarettesToday = 0;
+        user.smokingProfile.lastEvent = 'no_smoke';
+        user.smokingProfile.lastEventTime = new Date();
+      }
+      await user.save();
+    }
+  } catch (err) {
+    console.error('[DailyUpdateController] failed to update smoking profile:', err);
+  }
   const profile = await OnboardingProfile.findOne({ userId }).sort({ updatedAt: -1 }).lean();
 
   res.status(201).json({
@@ -46,6 +72,7 @@ export const createDailyUpdate = async (req, res) => {
     data: update,
     effects,
     streak: buildStreakResponse(profile),
+    user: user ? user.getProfile() : null,
   });
 
   createNotifications(userId, effects).catch((error) => {
@@ -349,6 +376,7 @@ function normalizePayload(body = {}, user = null) {
       ateProperly: Boolean(body.health?.ateProperly),
       sleepHours: num(body.health?.sleepHours),
       smokedToday: isSmoker ? Boolean(body.health?.smokedToday) : false,
+      cigarettesCount: isSmoker ? num(body.health?.cigarettesCount) : 0,
       healthConcern: Boolean(body.health?.healthConcern),
       concernTypes: Array.isArray(body.health?.concernTypes) ? body.health.concernTypes : [],
       concernDescription: String(body.health?.concernDescription || '').trim(),

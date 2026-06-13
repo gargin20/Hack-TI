@@ -10,7 +10,7 @@ import { loginSuccess } from '../features/auth/authSlice';
 import { saveCareerIntegrations } from '../features/careerIntegrations/careerIntegrationSlice';
 import { saveHealthIntegration } from '../features/healthIntegration/healthIntegrationSlice';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const behaviorSignals = [
   { id: 'health', title: 'Health rhythm', description: 'Sleep, recovery, energy, and daily consistency.' },

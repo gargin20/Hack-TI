@@ -8,7 +8,7 @@ import React, {
 } from 'react';
 import axios from 'axios';
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const LS_KEY = 'ltIntegrations'; 
 
 // ─── Default shape ────────────────────────────────────────────────────────────
