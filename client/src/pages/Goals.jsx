@@ -6,8 +6,11 @@ import {
   Flame, TrendingUp, AlertTriangle, X, CheckCircle, Loader2,
   Sparkles, Trophy, BarChart2, Link2, Shield, Star, Brain,
   Trash2, ChevronRight, RefreshCw, Zap, Clock, Map,
-  ArrowRight, Check, Circle, Lock, Wifi, WifiOff
+  ArrowRight, Check, Circle, Lock, Wifi, WifiOff,
+  Apple, Utensils, Info, HeartPulse, Dumbbell, Baby
 } from 'lucide-react';
+import toast from 'react-hot-toast';
+import mealPlanApi from '../services/mealPlanApi';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
@@ -616,6 +619,37 @@ export default function Goals() {
   const [syncStatus, setSyncStatus]      = useState(null);
   const [syncRefreshing, setSyncRefreshing] = useState(false);
 
+  // Meal Planner State
+  const [mealPlans, setMealPlans] = useState([]);
+  const [activePlan, setActivePlan] = useState(null);
+  const [pastPlans, setPastPlans] = useState([]);
+  const [loadingMeals, setLoadingMeals] = useState(false);
+  const [selectedMealPlan, setSelectedMealPlan] = useState(null);
+  const [coachAdvice, setCoachAdvice] = useState('');
+  const [coachLoading, setCoachLoading] = useState(false);
+  const [isPlanModalOpen, setIsPlanModalOpen] = useState(false);
+  const [modalStep, setModalStep] = useState(1);
+  const [generatingPlan, setGeneratingPlan] = useState(false);
+  const [regeneratingPlan, setRegeneratingPlan] = useState(false);
+  const [weather, setWeather] = useState(null);
+  const [deletingPlanId, setDeletingPlanId] = useState(null);
+
+  // Meal Planner Form State
+  const [formCategory, setFormCategory] = useState('Fitness Goal');
+  const [formAge, setFormAge] = useState('');
+  const [formGender, setFormGender] = useState('Male');
+  const [formHeightCm, setFormHeightCm] = useState('');
+  const [formWeight, setFormWeight] = useState('');
+  const [formActivityLevel, setFormActivityLevel] = useState('Moderate');
+  const [formDietaryPreference, setFormDietaryPreference] = useState('Vegetarian');
+  const [formAllergies, setFormAllergies] = useState('');
+  const [formDuration, setFormDuration] = useState('7');
+  const [formCustomDuration, setFormCustomDuration] = useState('');
+  const [formConditions, setFormConditions] = useState([]);
+  const [formOtherCondition, setFormOtherCondition] = useState('');
+  const [formFitnessGoal, setFormFitnessGoal] = useState('Weight Loss');
+  const [formTrimester, setFormTrimester] = useState('1');
+
   // Form state
   const [domain, setDomain]           = useState('health');
   const [title, setTitle]             = useState('');
@@ -626,6 +660,159 @@ export default function Goals() {
 
   const token = localStorage.getItem('authToken');
   const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+  const fetchMealPlans = useCallback(async () => {
+    setLoadingMeals(true);
+    try {
+      const res = await mealPlanApi.getMealPlans();
+      if (res.success) {
+        setMealPlans(res.data);
+        const active = res.data.find(p => p.status === 'active');
+        setActivePlan(active);
+        setPastPlans(res.data.filter(p => p.status !== 'active'));
+      }
+    } catch (e) {
+      console.error('Error fetching meal plans:', e);
+    } finally {
+      setLoadingMeals(false);
+    }
+  }, []);
+
+  const fetchCoachAdvice = useCallback(async (currentWeather) => {
+    setCoachLoading(true);
+    try {
+      const res = await mealPlanApi.getCoachAdvice(currentWeather);
+      if (res.success) {
+        setCoachAdvice(res.data.advice);
+      }
+    } catch (e) {
+      console.error('Error fetching AI coach advice:', e);
+    } finally {
+      setCoachLoading(false);
+    }
+  }, []);
+
+  const handleCreateMealPlan = async (e) => {
+    e.preventDefault();
+    setGeneratingPlan(true);
+
+    const conditionOrGoal = [];
+    if (formCategory === 'Health Issue') {
+      conditionOrGoal.push(...formConditions);
+      if (formConditions.includes('Other') && formOtherCondition.trim()) {
+        conditionOrGoal.push(formOtherCondition.trim());
+      }
+    } else if (formCategory === 'Fitness Goal') {
+      conditionOrGoal.push(formFitnessGoal);
+    } else if (formCategory === 'Pregnancy') {
+      conditionOrGoal.push(`Trimester ${formTrimester}`);
+    }
+
+    const durationDays = formDuration === 'custom' ? Number(formCustomDuration) : Number(formDuration);
+
+    const payload = {
+      category: formCategory,
+      conditionOrGoal,
+      trimester: formCategory === 'Pregnancy' ? Number(formTrimester) : undefined,
+      age: Number(formAge),
+      gender: formGender,
+      heightCm: Number(formHeightCm),
+      weight: Number(formWeight),
+      activityLevel: formActivityLevel,
+      dietaryPreference: formDietaryPreference,
+      allergies: formAllergies,
+      duration: durationDays
+    };
+
+    try {
+      const res = await mealPlanApi.createMealPlan(payload);
+      if (res.success) {
+        toast.success('AI Meal Plan generated successfully!');
+        setIsPlanModalOpen(false);
+        setModalStep(1);
+        // Reset form
+        setFormAge('');
+        setFormHeightCm('');
+        setFormWeight('');
+        setFormAllergies('');
+        setFormConditions([]);
+        setFormOtherCondition('');
+        fetchMealPlans();
+        fetchCoachAdvice(weather);
+      }
+    } catch (err) {
+      console.error('Failed to create meal plan:', err);
+      toast.error(err.response?.data?.message || 'Failed to generate meal plan. Try again.');
+    } finally {
+      setGeneratingPlan(false);
+    }
+  };
+
+  const handleRegenerateMealPlan = async (id) => {
+    setRegeneratingPlan(true);
+    try {
+      const res = await mealPlanApi.regenerateMealPlan(id);
+      if (res.success) {
+        toast.success('Meal plan recipes regenerated successfully!');
+        setSelectedMealPlan(res.data);
+        fetchMealPlans();
+      }
+    } catch (err) {
+      console.error('Failed to regenerate meal plan:', err);
+      toast.error('Failed to regenerate alternative recipes. Try again.');
+    } finally {
+      setRegeneratingPlan(false);
+    }
+  };
+
+  const handleDeleteMealPlan = async (id) => {
+    setDeletingPlanId(id);
+    try {
+      const res = await mealPlanApi.deleteMealPlan(id);
+      if (res.success) {
+        toast.success('Meal plan deleted successfully.');
+        setSelectedMealPlan(null);
+        fetchMealPlans();
+        fetchCoachAdvice(weather);
+      }
+    } catch (err) {
+      console.error('Failed to delete meal plan:', err);
+      toast.error('Failed to delete meal plan.');
+    } finally {
+      setDeletingPlanId(null);
+    }
+  };
+
+  useEffect(() => {
+    fetchMealPlans();
+    
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const res = await axios.post(`${API_BASE_URL}/api/health/weather-advice`, {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude
+            }, authHeaders);
+            if (res.data?.success) {
+              setWeather(res.data.data);
+              fetchCoachAdvice(res.data.data);
+            } else {
+              fetchCoachAdvice(null);
+            }
+          } catch (e) {
+            console.error('Failed to get weather advice on Goals page', e);
+            fetchCoachAdvice(null);
+          }
+        },
+        () => {
+          fetchCoachAdvice(null);
+        }
+      );
+    } else {
+      fetchCoachAdvice(null);
+    }
+  }, [fetchMealPlans, fetchCoachAdvice]);
 
   const fetchGoals = useCallback(async () => {
     try {
@@ -654,9 +841,10 @@ export default function Goals() {
     fetchSyncStatus();
     
     const handleSync = () => {
-      console.log("[GoalsPage] Received 'dashboard-data-updated' or sync event! Re-fetching goals and sync status.");
+      console.log("[GoalsPage] Received 'dashboard-data-updated' or sync event! Re-fetching goals, sync status, and meal plans.");
       fetchGoals();
       fetchSyncStatus();
+      fetchMealPlans();
     };
     window.addEventListener('dashboard-synced', handleSync);
     window.addEventListener('daily-update-completed', handleSync);
@@ -926,6 +1114,559 @@ export default function Goals() {
                       </button>
                     );
                   })}
+                </div>
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── PERSONALIZED MEAL PLANNER SECTION ── */}
+        <section className="mb-10 rounded-[1.75rem] border border-white/10 bg-[#080d15]/95 p-6 shadow-[0_24px_70px_-36px_rgba(0,0,0,0.85)] sm:p-8">
+          <div className="flex items-center justify-between border-b border-white/10 pb-5 mb-6">
+            <div className="flex items-center gap-3">
+              <div className="rounded-xl bg-gradient-to-br from-[#10c7a1] to-[#7b61ff] p-3 text-white">
+                <Utensils className="h-6 w-6" />
+              </div>
+              <div>
+                <h2 className="text-2xl font-black">AI Personalized Meal Planner</h2>
+                <p className="text-sm text-white/50">Custom diet charts aligned with bio-metrics & conditions</p>
+              </div>
+            </div>
+            {!activePlan && (
+              <button onClick={() => { setIsPlanModalOpen(true); setModalStep(1); }}
+                className="flex items-center gap-2 rounded-xl bg-gradient-to-r from-[#10c7a1] to-[#7b61ff] px-4 py-2.5 text-xs font-bold text-white shadow-lg transition hover:scale-[1.02]">
+                <PlusCircle className="h-4 w-4" /> Create Meal Plan
+              </button>
+            )}
+          </div>
+
+          {/* AI Health Coach Banner */}
+          {coachAdvice && (
+            <div className="mb-6 rounded-2xl border border-[#7b61ff]/30 bg-[#7b61ff]/10 px-5 py-4 flex items-start gap-3.5">
+              <Brain className="h-5 w-5 text-[#c084fc] shrink-0 mt-0.5 animate-pulse" />
+              <div>
+                <p className="text-xs font-bold uppercase tracking-widest text-[#c084fc] mb-1">AI Health Coach</p>
+                <p className="text-sm text-white/80 leading-relaxed">{coachAdvice}</p>
+              </div>
+            </div>
+          )}
+
+          {/* Active Plan Dashboard metrics */}
+          {activePlan && (
+            <div className="grid grid-cols-3 gap-4 mb-6">
+              <div className="rounded-2xl border border-white/10 bg-[#0f1320]/40 p-4 flex items-center justify-between shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Adherence</p>
+                  <p className="text-2xl font-black text-[#10c7a1] mt-1">{activePlan.stats?.adherence ?? 0}%</p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-[#10c7a1]/10 flex items-center justify-center text-white border border-[#10c7a1]/20">
+                  <Target className="h-5 w-5 text-[#10c7a1]" />
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-[#0f1320]/40 p-4 flex items-center justify-between shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Days Remaining</p>
+                  <p className="text-2xl font-black text-[#7b61ff] mt-1">{activePlan.stats?.daysRemaining ?? 0}d</p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-[#7b61ff]/10 flex items-center justify-center text-white border border-[#7b61ff]/20">
+                  <Clock className="h-5 w-5 text-[#7b61ff]" />
+                </div>
+              </div>
+              <div className="rounded-2xl border border-white/10 bg-[#0f1320]/40 p-4 flex items-center justify-between shadow-[0_8px_32px_rgba(0,0,0,0.12)]">
+                <div>
+                  <p className="text-[10px] font-bold uppercase tracking-widest text-white/40">Current Streak</p>
+                  <p className="text-2xl font-black text-[#ff4d7d] mt-1">{activePlan.stats?.streak ?? 0} Days</p>
+                </div>
+                <div className="h-10 w-10 rounded-xl bg-[#ff4d7d]/10 flex items-center justify-center text-white border border-[#ff4d7d]/20">
+                  <Flame className="h-5 w-5 text-[#ff4d7d]" />
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Active Meal Plan Main Card */}
+          {activePlan ? (
+            <div className={`${glass} p-6 border-[#10c7a1]/25 relative overflow-hidden`}>
+              <div className="absolute top-0 right-0 rounded-bl-xl border-l border-b border-[#10c7a1]/25 bg-[#10c7a1]/10 px-3 py-1 text-[10px] font-bold uppercase tracking-widest text-[#10c7a1]">
+                Active Plan
+              </div>
+              <div className="flex flex-col md:flex-row justify-between gap-6">
+                <div className="flex-1">
+                  <h3 className="text-xl font-bold text-white flex items-center gap-2">
+                    <Apple className="h-5 w-5 text-[#10c7a1]" /> 
+                    {activePlan.category === 'Health Issue' ? `${activePlan.conditionOrGoal.join(' & ')} Plan` : activePlan.category === 'Pregnancy' ? `Pregnancy Diet (${activePlan.conditionOrGoal.join(', ')})` : `${activePlan.conditionOrGoal.join(', ')} Plan`}
+                  </h3>
+                  <p className="text-xs text-white/50 mt-1 capitalize">Target Duration: {activePlan.duration} Days · Started {new Date(activePlan.startDate).toLocaleDateString()}</p>
+                  
+                  {/* Calorie & Protein Targets Summary */}
+                  {activePlan.mealPlan && (
+                    <div className="mt-3 flex gap-4 text-xs font-semibold">
+                      <span className="flex items-center gap-1 text-[#ffb38a]">
+                        <Flame className="h-3.5 w-3.5" /> 
+                        {activePlan.mealPlan.dailyCalories ?? 1600} kcal/day
+                      </span>
+                      <span className="flex items-center gap-1 text-[#7df3cc]">
+                        <Dumbbell className="h-3.5 w-3.5" /> 
+                        Protein: {activePlan.mealPlan.proteinTarget ?? '60g'}
+                      </span>
+                    </div>
+                  )}
+
+                  {/* Dual progress bars */}
+                  <div className="mt-5 space-y-4 max-w-md">
+                    <div>
+                      <div className="flex justify-between text-xs mb-1 text-white/60">
+                        <span>Dietary Adherence</span>
+                        <span className="font-bold text-[#10c7a1]">{activePlan.stats?.adherence ?? 0}%</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+                        <div className="h-full rounded-full bg-gradient-to-r from-[#10c7a1]/70 to-[#10c7a1]"
+                          style={{ width: `${activePlan.stats?.adherence ?? 0}%` }} />
+                      </div>
+                    </div>
+                    <div>
+                      <div className="flex justify-between text-xs mb-1 text-white/60">
+                        <span>Timeline Completion</span>
+                        <span className="font-bold text-[#7b61ff]">{activePlan.stats?.timelineCompletion ?? 0}%</span>
+                      </div>
+                      <div className="h-2 w-full overflow-hidden rounded-full bg-white/5">
+                        <div className="h-full rounded-full bg-gradient-to-r from-[#7b61ff]/70 to-[#7b61ff]"
+                          style={{ width: `${activePlan.stats?.timelineCompletion ?? 0}%` }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex flex-col justify-end">
+                  <button onClick={() => setSelectedMealPlan(activePlan)}
+                    className="w-full md:w-auto rounded-xl border border-white/10 bg-white/5 px-5 py-3 text-xs font-bold text-white hover:bg-white/10 transition text-center">
+                    View Diet Details
+                  </button>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="py-10 text-center border border-dashed border-white/15 rounded-2xl">
+              <Apple className="h-10 w-10 text-white/20 mx-auto mb-3" />
+              <p className="text-sm text-white/45">No active meal plan. Let Gemini build a custom meal plan for you.</p>
+              <button onClick={() => { setIsPlanModalOpen(true); setModalStep(1); }}
+                className="mt-3 inline-flex items-center gap-2 rounded-xl border border-[#10c7a1]/40 bg-[#10c7a1]/10 px-4 py-2 text-xs font-bold text-[#10c7a1] hover:bg-[#10c7a1]/20 transition">
+                Create New Plan
+              </button>
+            </div>
+          )}
+
+          {/* Past plans history */}
+          {pastPlans.length > 0 && (
+            <div className="mt-8">
+              <h3 className="text-sm font-bold uppercase tracking-widest text-white/40 mb-3">Past Meal Plans</h3>
+              <div className="grid gap-3 sm:grid-cols-2">
+                {pastPlans.map((plan) => (
+                  <div key={plan._id} onClick={() => setSelectedMealPlan(plan)}
+                    className="rounded-xl border border-white/5 bg-[#0f1320]/40 p-4 flex justify-between items-center cursor-pointer hover:border-white/15 hover:bg-white/[0.02] transition">
+                    <div>
+                      <p className="text-sm font-bold text-white/80">
+                        {plan.category === 'Health Issue' ? `${plan.conditionOrGoal.join(' & ')} Plan` : plan.category === 'Pregnancy' ? `Pregnancy Diet (${plan.conditionOrGoal.join(', ')})` : `${plan.conditionOrGoal.join(', ')} Plan`}
+                      </p>
+                      <p className="text-[10px] text-white/30 mt-1 capitalize">{plan.duration} Days · Status: {plan.status} · Adherence: {plan.progress}%</p>
+                    </div>
+                    <ChevronRight className="h-4 w-4 text-white/30" />
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+        </section>
+
+        {/* ── CREATE MEAL PLAN MODAL ── */}
+        <AnimatePresence>
+          {isPlanModalOpen && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm">
+              <motion.div initial={{ scale: 0.95, y: 15 }} animate={{ scale: 1, y: 0 }} exit={{ scale: 0.95, y: 15 }}
+                className={`w-full max-w-xl max-h-[90vh] overflow-y-auto ${glass} p-6 relative`}>
+                
+                <div className="flex items-center justify-between mb-5 border-b border-white/10 pb-3">
+                  <h3 className="text-lg font-bold flex items-center gap-2 text-[#10c7a1]">
+                    <Sparkles className="h-5 w-5" /> AI Personalized Meal Planner
+                  </h3>
+                  <button onClick={() => { if (!generatingPlan) setIsPlanModalOpen(false); }} className="text-white/40 hover:text-white">
+                    <X className="h-5 w-5" />
+                  </button>
+                </div>
+
+                {generatingPlan ? (
+                  <div className="flex flex-col items-center justify-center py-12 text-[#10c7a1] text-center">
+                    <Loader2 className="h-10 w-10 animate-spin mb-4" />
+                    <p className="text-sm font-bold animate-pulse">Consulting Gemini AI...</p>
+                    <p className="text-xs text-white/40 mt-2 max-w-[280px]">Analyzing bio-metrics, calculating BMI, checking safety regulations, and structuring your recipe plan.</p>
+                  </div>
+                ) : (
+                  <form onSubmit={handleCreateMealPlan} className="space-y-5">
+                    {/* Step 1: Select Category */}
+                    {modalStep === 1 && (
+                      <div className="space-y-4">
+                        <p className="text-sm text-white/70">Step 1: Choose the category for your meal plan</p>
+                        <div className="grid gap-3 sm:grid-cols-3">
+                          {[
+                            { id: 'Health Issue', label: 'Health Issue', icon: HeartPulse, color: '#ff4d7d' },
+                            { id: 'Fitness Goal', label: 'Fitness Goal', icon: Dumbbell, color: '#10c7a1' },
+                            { id: 'Pregnancy', label: 'Pregnancy', icon: Baby, color: '#7b61ff' }
+                          ].map((item) => {
+                            const Icon = item.icon;
+                            return (
+                              <button key={item.id} type="button" onClick={() => { setFormCategory(item.id); setModalStep(2); }}
+                                className={`rounded-2xl border p-5 flex flex-col items-center justify-center gap-4 transition-all duration-300 hover:-translate-y-1 hover:scale-[1.02] text-center ${
+                                  formCategory === item.id 
+                                    ? 'border-white/20 bg-white/10 text-white shadow-[0_20px_50px_rgba(0,0,0,0.5)]' 
+                                    : 'border-white/5 bg-[#0f1320]/40 text-white/70 hover:border-white/15 hover:bg-white/[0.04]'
+                                }`}
+                                style={{
+                                  boxShadow: formCategory === item.id ? `0 0 25px ${item.color}30` : undefined,
+                                  borderColor: formCategory === item.id ? item.color : undefined
+                                }}
+                              >
+                                <div className="rounded-2xl p-4 flex items-center justify-center transition-all duration-300" 
+                                  style={{ 
+                                    backgroundColor: `${item.color}15`,
+                                    border: `1px solid ${item.color}30`
+                                  }}>
+                                  <Icon className="h-7 w-7" style={{ color: item.color }} />
+                                </div>
+                                <span className="text-xs font-bold tracking-wide">{item.label}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Step 2: Information form */}
+                    {modalStep === 2 && (
+                      <div className="space-y-4">
+                        <p className="text-sm text-white/70">Step 2: Enter your physical details & preferences</p>
+                        
+                        <div className="grid grid-cols-2 gap-3">
+                          <div>
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Age</label>
+                            <input type="number" placeholder="e.g. 28" value={formAge} onChange={e => setFormAge(e.target.value)} required
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-white/25 focus:border-[#10c7a1]/55 outline-none" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Gender</label>
+                            <select value={formGender} onChange={e => setFormGender(e.target.value)}
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white focus:border-[#10c7a1]/55 outline-none">
+                              <option value="Male">Male</option>
+                              <option value="Female">Female</option>
+                              <option value="Other">Other</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Height (cm)</label>
+                            <input type="number" placeholder="e.g. 175" value={formHeightCm} onChange={e => setFormHeightCm(e.target.value)} required
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-white/25 focus:border-[#10c7a1]/55 outline-none" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Weight (kg)</label>
+                            <input type="number" placeholder="e.g. 70" value={formWeight} onChange={e => setFormWeight(e.target.value)} required
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-white/25 focus:border-[#10c7a1]/55 outline-none" />
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Activity Level</label>
+                            <select value={formActivityLevel} onChange={e => setFormActivityLevel(e.target.value)}
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white focus:border-[#10c7a1]/55 outline-none">
+                              <option value="Sedentary">Sedentary</option>
+                              <option value="Moderate">Moderate Activity</option>
+                              <option value="Active">Highly Active</option>
+                            </select>
+                          </div>
+                          <div>
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Diet Preference</label>
+                            <select value={formDietaryPreference} onChange={e => setFormDietaryPreference(e.target.value)}
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white focus:border-[#10c7a1]/55 outline-none">
+                              <option value="Vegetarian">Vegetarian</option>
+                              <option value="Vegan">Vegan</option>
+                              <option value="Eggitarian">Eggitarian</option>
+                              <option value="Non-Vegetarian">Non-Vegetarian</option>
+                            </select>
+                          </div>
+                        </div>
+
+                        <div>
+                          <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Allergies (Optional)</label>
+                          <input type="text" placeholder="e.g. peanuts, dairy, gluten" value={formAllergies} onChange={e => setFormAllergies(e.target.value)}
+                            className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-white/25 focus:border-[#10c7a1]/55 outline-none" />
+                        </div>
+
+                        {/* Category Specific Fields */}
+                        {formCategory === 'Health Issue' && (
+                          <div className="space-y-2 border-t border-white/10 pt-3">
+                            <label className="block text-xs uppercase tracking-widest text-white/50">Co-Existing Conditions (Select Multiple)</label>
+                            <div className="grid grid-cols-2 gap-2 max-h-36 overflow-y-auto">
+                              {['Diabetes', 'High Blood Pressure', 'Cholesterol', 'PCOS', 'Thyroid', 'Fatty Liver', 'Digestive Issues', 'Kidney Disease', 'Other'].map(cond => {
+                                const selected = formConditions.includes(cond);
+                                return (
+                                  <button type="button" key={cond}
+                                    onClick={() => setFormConditions(prev => prev.includes(cond) ? prev.filter(c => c !== cond) : [...prev, cond])}
+                                    className={`text-left rounded-xl border px-3 py-2 text-xs font-semibold transition ${
+                                      selected ? 'border-[#10c7a1] bg-[#10c7a1]/10 text-white' : 'border-white/10 bg-white/5 text-white/50'
+                                    }`}>
+                                    {cond}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                            {formConditions.includes('Other') && (
+                              <input type="text" placeholder="Enter other health conditions..." value={formOtherCondition} onChange={e => setFormOtherCondition(e.target.value)} required
+                                className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white focus:border-[#10c7a1]/55 outline-none mt-2" />
+                            )}
+                          </div>
+                        )}
+
+                        {formCategory === 'Fitness Goal' && (
+                          <div className="border-t border-white/10 pt-3">
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Primary Fitness Goal</label>
+                            <select value={formFitnessGoal} onChange={e => setFormFitnessGoal(e.target.value)}
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white focus:border-[#10c7a1]/55 outline-none">
+                              <option value="Weight Loss">Weight Loss</option>
+                              <option value="Weight Gain">Weight Gain</option>
+                              <option value="Muscle Gain">Muscle Gain</option>
+                              <option value="Fat Loss">Fat Loss</option>
+                              <option value="General Fitness">General Fitness</option>
+                            </select>
+                          </div>
+                        )}
+
+                        {formCategory === 'Pregnancy' && (
+                          <div className="border-t border-white/10 pt-3">
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Current Trimester</label>
+                            <select value={formTrimester} onChange={e => setFormTrimester(e.target.value)}
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white focus:border-[#10c7a1]/55 outline-none">
+                              <option value="1">Trimester 1 (Weeks 1 - 12)</option>
+                              <option value="2">Trimester 2 (Weeks 13 - 27)</option>
+                              <option value="3">Trimester 3 (Weeks 28+)</option>
+                            </select>
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 pt-2">
+                          <button type="button" onClick={() => setModalStep(1)}
+                            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/60 hover:text-white transition">
+                            Back
+                          </button>
+                          <button type="button" onClick={() => setModalStep(3)}
+                            className="flex-1 rounded-xl bg-[#10c7a1] px-4 py-3 text-sm font-bold text-black hover:bg-[#7df3cc] transition">
+                            Next
+                          </button>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Step 3: Duration Selection */}
+                    {modalStep === 3 && (
+                      <div className="space-y-4">
+                        <p className="text-sm text-white/70">Step 3: Select plan duration</p>
+                        
+                        <div className="grid gap-3 sm:grid-cols-2">
+                          {['7', '14', '30', 'custom'].map((dur) => (
+                            <button key={dur} type="button" onClick={() => setFormDuration(dur)}
+                              className={`rounded-2xl border flex flex-col items-center justify-center p-4 transition text-center hover:scale-[1.02] ${
+                                formDuration === dur ? 'border-[#10c7a1] bg-[#10c7a1]/10 text-white' : 'border-white/10 bg-white/5 text-white/60'
+                              }`}>
+                              <span className="text-lg font-bold">
+                                {dur === 'custom' ? 'Custom' : `${dur} Days`}
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+
+                        {formDuration === 'custom' && (
+                          <div>
+                            <label className="mb-1 block text-xs uppercase tracking-widest text-white/50">Custom Days Count</label>
+                            <input type="number" placeholder="Enter number of days" value={formCustomDuration} onChange={e => setFormCustomDuration(e.target.value)} required
+                              className="w-full rounded-xl border border-white/10 bg-white/5 p-3 text-sm text-white placeholder-white/25 focus:border-[#10c7a1]/55 outline-none" />
+                          </div>
+                        )}
+
+                        <div className="flex gap-2 pt-2">
+                          <button type="button" onClick={() => setModalStep(2)}
+                            className="flex-1 rounded-xl border border-white/10 bg-white/5 px-4 py-3 text-sm font-semibold text-white/60 hover:text-white transition">
+                            Back
+                          </button>
+                          <button type="submit"
+                            className="flex-1 rounded-xl bg-gradient-to-r from-[#10c7a1] to-[#7b61ff] px-4 py-3 text-sm font-bold text-white shadow-lg transition hover:scale-[1.01]">
+                            Generate AI Diet Plan
+                          </button>
+                        </div>
+                      </div>
+                    )}
+                  </form>
+                )}
+              </motion.div>
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* ── MEAL PLAN DETAIL DRAWER ── */}
+        <AnimatePresence>
+          {selectedMealPlan && (
+            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}
+              className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4 bg-black/80 backdrop-blur-sm"
+              onClick={e => e.target === e.currentTarget && setSelectedMealPlan(null)}>
+              <motion.div initial={{ y: 80, opacity: 0 }} animate={{ y: 0, opacity: 1 }} exit={{ y: 80, opacity: 0 }}
+                className={`w-full sm:max-w-2xl max-h-[92vh] overflow-y-auto ${glass} rounded-t-3xl sm:rounded-3xl`}>
+                
+                {/* Header */}
+                <div className="sticky top-0 z-10 flex items-start justify-between p-6 pb-4 bg-[#0f1320]/95 backdrop-blur-xl border-b border-white/8 rounded-t-3xl sm:rounded-t-3xl">
+                  <div className="flex items-center gap-3">
+                    <div className="rounded-xl bg-gradient-to-br from-[#10c7a1] to-[#7b61ff] p-2.5">
+                      <Apple className="h-5 w-5 text-white" />
+                    </div>
+                    <div>
+                      <span className="text-[10px] font-bold uppercase tracking-widest text-[#10c7a1]">Meal Plan Details</span>
+                      <h2 className="text-lg font-black leading-tight">
+                        {selectedMealPlan.category === 'Health Issue' ? `${selectedMealPlan.conditionOrGoal.join(' & ')} Plan` : selectedMealPlan.category === 'Pregnancy' ? `Pregnancy Diet (${selectedMealPlan.conditionOrGoal.join(', ')})` : `${selectedMealPlan.conditionOrGoal.join(', ')} Plan`}
+                      </h2>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button onClick={() => handleDeleteMealPlan(selectedMealPlan._id)} disabled={deletingPlanId === selectedMealPlan._id}
+                      className="flex items-center gap-1.5 rounded-xl border border-[#ff4d7d]/20 bg-[#ff4d7d]/8 px-3 py-2 text-xs font-semibold text-[#ff4d7d] hover:bg-[#ff4d7d]/15 transition disabled:opacity-50">
+                      {deletingPlanId === selectedMealPlan._id ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Trash2 className="h-3.5 w-3.5" />} Delete
+                    </button>
+                    <button onClick={() => setSelectedMealPlan(null)}
+                      className="flex h-9 w-9 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/50 hover:text-white transition">
+                      <X className="h-4 w-4" />
+                    </button>
+                  </div>
+                </div>
+
+                <div className="p-6 space-y-6">
+                  
+                  {/* AI Summary Card */}
+                  {selectedMealPlan.mealPlan?.aiSummary && (
+                    <div className="rounded-2xl border border-[#7b61ff]/30 bg-[#7b61ff]/5 p-5 space-y-3">
+                      <p className="text-xs font-bold uppercase tracking-widest text-[#c084fc] flex items-center gap-2">
+                        <Sparkles className="h-4 w-4" /> AI Summary & Bio-Metrics
+                      </p>
+                      <div className="grid grid-cols-2 gap-2 text-xs leading-relaxed text-white/70">
+                        <div><span className="text-white/40">Bio-Metrics:</span> {selectedMealPlan.age}y / {selectedMealPlan.gender} / {selectedMealPlan.heightCm}cm / {selectedMealPlan.weight}kg</div>
+                        <div><span className="text-white/40">BMI Status:</span> {selectedMealPlan.bmi} ({selectedMealPlan.bmiCategory})</div>
+                        <div><span className="text-white/40">Activity level:</span> {selectedMealPlan.activityLevel}</div>
+                        <div><span className="text-white/40">Preferences:</span> {selectedMealPlan.dietaryPreference}</div>
+                      </div>
+                      <div className="border-t border-white/5 pt-2 text-xs">
+                        <p className="font-semibold text-white/90">Designed for: <span className="font-normal text-white/70">{selectedMealPlan.mealPlan.aiSummary.designedFor}</span></p>
+                        <p className="font-semibold text-white/90 mt-1">Key Focus: <span className="font-normal text-white/70">{selectedMealPlan.mealPlan.aiSummary.keyFocus?.join(', ')}</span></p>
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Dual progress bars detail */}
+                  <div className="grid grid-cols-2 gap-4 border-b border-white/10 pb-5">
+                    <div className="rounded-xl bg-white/3 p-4">
+                      <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Plan Adherence</span>
+                      <p className="text-2xl font-black text-[#10c7a1] mt-1">{selectedMealPlan.stats?.adherence ?? 0}%</p>
+                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden mt-2">
+                        <div className="h-full bg-[#10c7a1]" style={{ width: `${selectedMealPlan.stats?.adherence ?? 0}%` }} />
+                      </div>
+                    </div>
+                    <div className="rounded-xl bg-white/3 p-4">
+                      <span className="text-[10px] text-white/40 uppercase font-bold tracking-wider">Plan Completion</span>
+                      <p className="text-2xl font-black text-[#7b61ff] mt-1">{selectedMealPlan.stats?.timelineCompletion ?? 0}%</p>
+                      <div className="h-1.5 w-full bg-white/5 rounded-full overflow-hidden mt-2">
+                        <div className="h-full bg-[#7b61ff]" style={{ width: `${selectedMealPlan.stats?.timelineCompletion ?? 0}%` }} />
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Recipes block */}
+                  {selectedMealPlan.mealPlan && (
+                    <div className="space-y-4">
+                      <h3 className="text-sm font-bold uppercase tracking-widest text-white/50 border-b border-white/10 pb-2">Daily Meals Menu</h3>
+                      
+                      <div className="space-y-3">
+                        {[
+                          { title: 'Breakfast', items: selectedMealPlan.mealPlan.breakfast, icon: Utensils, color: '#ff4d7d' },
+                          { title: 'Morning Snack', items: selectedMealPlan.mealPlan.morningSnack, icon: Apple, color: '#ffb38a' },
+                          { title: 'Lunch', items: selectedMealPlan.mealPlan.lunch, icon: Utensils, color: '#10c7a1' },
+                          { title: 'Evening Snack', items: selectedMealPlan.mealPlan.eveningSnack, icon: Apple, color: '#c8a84b' },
+                          { title: 'Dinner', items: selectedMealPlan.mealPlan.dinner, icon: Utensils, color: '#7b61ff' }
+                        ].map(meal => {
+                          const MealIcon = meal.icon;
+                          return (
+                            <div key={meal.title} className="rounded-xl bg-white/5 p-4 border border-white/5">
+                              <h4 className="text-xs font-bold flex items-center gap-2 mb-2" style={{ color: meal.color }}>
+                                <MealIcon className="h-4 w-4" />
+                                {meal.title}
+                              </h4>
+                              <ul className="list-disc pl-4 space-y-1">
+                                {meal.items?.map((item, idx) => (
+                                  <li key={idx} className="text-xs text-white/70 leading-normal">{item}</li>
+                                ))}
+                              </ul>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      <div className="grid grid-cols-2 gap-3 mt-4 text-xs font-semibold">
+                        <div className="rounded-xl bg-white/5 p-3 text-center border border-white/5">
+                          <p className="text-white/40 mb-1">Water Intake Target</p>
+                          <p className="text-sm text-[#7df3cc]">{selectedMealPlan.mealPlan.waterIntake ?? '3L'}</p>
+                        </div>
+                        <div className="rounded-xl bg-white/5 p-3 text-center border border-white/5">
+                          <p className="text-white/40 mb-1">Calories & Protein</p>
+                          <p className="text-sm text-[#ffb38a]">{selectedMealPlan.mealPlan.dailyCalories ?? 1600} kcal / {selectedMealPlan.mealPlan.proteinTarget ?? '65g'}</p>
+                        </div>
+                      </div>
+
+                      {/* Foods to avoid */}
+                      {selectedMealPlan.mealPlan.foodsToAvoid?.length > 0 && (
+                        <div className="rounded-xl border border-[#ff4d7d]/15 bg-[#ff4d7d]/5 p-4">
+                          <h4 className="text-xs font-bold text-[#ff4d7d] mb-2 flex items-center gap-1.5">
+                            <AlertTriangle className="h-4 w-4" /> Foods To Avoid
+                          </h4>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {selectedMealPlan.mealPlan.foodsToAvoid.map((item, idx) => (
+                              <li key={idx} className="text-xs text-[#ffb3ca]">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+
+                      {/* Recommendations */}
+                      {selectedMealPlan.mealPlan.recommendations?.length > 0 && (
+                        <div className="rounded-xl bg-[#10c7a1]/5 border border-[#10c7a1]/10 p-4">
+                          <h4 className="text-xs font-bold text-[#10c7a1] mb-2 flex items-center gap-1.5">
+                            <Sparkles className="h-4 w-4" /> Health Recommendations
+                          </h4>
+                          <ul className="list-disc pl-4 space-y-1">
+                            {selectedMealPlan.mealPlan.recommendations.map((item, idx) => (
+                              <li key={idx} className="text-xs text-white/70">{item}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {/* Alternative Regeneration Button */}
+                  {selectedMealPlan.status === 'active' && (
+                    <button type="button" onClick={() => handleRegenerateMealPlan(selectedMealPlan._id)} disabled={regeneratingPlan}
+                      className="w-full rounded-xl border border-[#10c7a1]/40 bg-[#10c7a1]/10 px-4 py-3 text-xs font-bold text-[#10c7a1] hover:bg-[#10c7a1]/20 transition flex items-center justify-center gap-2 disabled:opacity-50">
+                      {regeneratingPlan ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+                      Regenerate Alternative Recipes
+                    </button>
+                  )}
+
+                  {/* Medical Disclaimer */}
+                  <div className="rounded-xl border border-white/5 bg-[#0f1320]/60 p-4 flex items-start gap-3">
+                    <Info className="h-5 w-5 text-white/30 shrink-0 mt-0.5" />
+                    <p className="text-[10px] text-white/40 leading-relaxed">
+                      This meal plan is AI-generated for informational purposes only and should not replace professional medical or nutritional advice. Consult a qualified healthcare professional before making significant dietary changes.
+                    </p>
+                  </div>
+
                 </div>
               </motion.div>
             </motion.div>

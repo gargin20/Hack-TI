@@ -39,6 +39,7 @@ axios.interceptors.response.use(
       url.includes('/api/daily-update') ||
       url.includes('/api/gamification') ||
       url.includes('/api/integrations') ||
+      url.includes('/api/meal-plans') ||
       url.includes('/api/ai')
     );
 

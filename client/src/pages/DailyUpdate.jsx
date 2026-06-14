@@ -1,8 +1,11 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
-import { Activity, BadgeIndianRupee, Briefcase, CheckCircle2, Loader2, Target } from 'lucide-react';
+import { Activity, BadgeIndianRupee, Briefcase, CheckCircle2, Loader2, Target, Brain, Sun } from 'lucide-react';
 import { clearDailyUpdateCooldown } from '../features/dailyUpdate/dailyUpdateSlice';
 import { fetchTodayDailyUpdate, submitDailyUpdate } from '../features/dailyUpdate/dailyUpdateThunks';
+import axios from 'axios';
+import toast from 'react-hot-toast';
+import mealPlanApi from '../services/mealPlanApi';
 
 const concernOptions = ['Headache', 'Fever', 'Fatigue', 'Stress', 'Anxiety', 'Sleep Issues', 'Other'];
 const COOLDOWN_MS = 24 * 60 * 60 * 1000;
@@ -46,6 +49,205 @@ function DailyUpdate() {
   const isSmoker = useSelector((state) => state.auth?.user?.smokingProfile?.smoker === true);
   const [form, setForm] = useState(initialForm);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
+
+  // Meal Planner State inside Daily Updates
+  const [activeMealPlan, setActiveMealPlan] = useState(null);
+  const [mealProgress, setMealProgress] = useState({
+    breakfastCompleted: false,
+    lunchCompleted: false,
+    dinnerCompleted: false,
+    waterCompleted: false
+  });
+  const [weather, setWeather] = useState(null);
+
+  const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+  const token = localStorage.getItem('authToken');
+  const authHeaders = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Helper: Get local today YYYY-MM-DD
+  function getTodayString() {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  }
+
+  // Fetch active meal plan and today's progress
+  const fetchActiveMealPlanAndTodayProgress = async () => {
+    try {
+      const res = await mealPlanApi.getMealPlans();
+      if (res.success && res.data?.length > 0) {
+        const active = res.data.find(p => p.status === 'active');
+        if (active) {
+          setActiveMealPlan(active);
+          
+          // Get today's progress details
+          const detailRes = await mealPlanApi.getMealPlanById(active._id);
+          if (detailRes.success && detailRes.progressLogs) {
+            const todayStr = getTodayString();
+            const todayLog = detailRes.progressLogs.find(log => log.date === todayStr);
+            if (todayLog) {
+              setMealProgress({
+                breakfastCompleted: todayLog.breakfastCompleted || false,
+                lunchCompleted: todayLog.lunchCompleted || false,
+                dinnerCompleted: todayLog.dinnerCompleted || false,
+                waterCompleted: todayLog.waterCompleted || false
+              });
+            }
+          }
+        }
+      }
+    } catch (e) {
+      console.error('Failed to fetch active meal plan & progress logs:', e);
+    }
+  };
+
+  useEffect(() => {
+    fetchActiveMealPlanAndTodayProgress();
+
+    // Fetch weather details
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        async (pos) => {
+          try {
+            const res = await axios.post(`${API_BASE_URL}/api/health/weather-advice`, {
+              latitude: pos.coords.latitude,
+              longitude: pos.coords.longitude
+            }, authHeaders);
+            if (res.data?.success) {
+              setWeather(res.data.data);
+            }
+          } catch (e) {
+            console.error('Failed to fetch weather in DailyUpdate', e);
+          }
+        }
+      );
+    }
+  }, []);
+
+  const handleToggleMealItem = async (key) => {
+    if (!activeMealPlan) return;
+    
+    const updatedProgress = {
+      ...mealProgress,
+      [key]: !mealProgress[key]
+    };
+    
+    // Optimistic UI update
+    setMealProgress(updatedProgress);
+    
+    try {
+      const todayStr = getTodayString();
+      const res = await mealPlanApi.updateMealPlanProgress(activeMealPlan._id, {
+        date: todayStr,
+        ...updatedProgress
+      });
+      
+      // Update local active meal plan state with returned stats
+      if (res.success && res.stats) {
+        setActiveMealPlan(prev => ({
+          ...prev,
+          progress: res.stats.adherence,
+          stats: res.stats
+        }));
+      }
+      
+      toast.success('Meal plan progress logged!');
+      // Dispatch sync event so other pages/drawers refresh automatically
+      window.dispatchEvent(new Event('dashboard-data-updated'));
+    } catch (err) {
+      console.error('Failed to log meal plan progress:', err);
+      toast.error('Failed to save progress.');
+      // Revert state
+      setMealProgress(mealProgress);
+    }
+  };
+
+  const renderMealTrackingCard = () => {
+    if (!activeMealPlan) return null;
+
+    let completedCount = 0;
+    if (mealProgress.breakfastCompleted) completedCount++;
+    if (mealProgress.lunchCompleted) completedCount++;
+    if (mealProgress.dinnerCompleted) completedCount++;
+    if (mealProgress.waterCompleted) completedCount++;
+    const adherencePercent = Math.round((completedCount / 4) * 100);
+
+    return (
+      <div className="rounded-[1.5rem] border border-white/10 bg-[#0b111a]/92 p-5 shadow-[0_20px_60px_-36px_rgba(0,0,0,0.9)] sm:p-6 space-y-5">
+        <div className="flex items-center justify-between border-b border-white/10 pb-4">
+          <div className="flex items-center gap-3">
+            <span className="flex h-11 w-11 items-center justify-center rounded-2xl border border-white/10 bg-white/8 text-[#10c7a1]">
+              <Activity className="h-5 w-5" />
+            </span>
+            <div>
+              <h2 className="text-xl font-black">Today's Meal Plan</h2>
+              <p className="text-xs text-white/40">Track your daily meal adherence</p>
+            </div>
+          </div>
+          <div className="text-right">
+            <span className="rounded-full border border-[#10c7a1]/30 bg-[#10c7a1]/10 px-2.5 py-1 text-xs font-bold text-[#10c7a1]">
+              Today: {adherencePercent}% adherence
+            </span>
+          </div>
+        </div>
+
+        {/* Optional Weather Nutrition Tip */}
+        {weather && weather.temp !== null && weather.temp !== undefined && (
+          <div className="rounded-xl border border-[#7b61ff]/30 bg-[#7b61ff]/10 px-4 py-3 flex items-start gap-2.5">
+            <Sun className="h-5 w-5 text-amber-400 shrink-0 mt-0.5" />
+            <p className="text-xs text-white/80 leading-relaxed">
+              <strong>Weather Alert ({weather.temp}°C, {weather.condition}):</strong>{' '}
+              {weather.isHot 
+                ? 'AI recommends: Increase water intake to 3.5L+, avoid heavy oily lunches, and prefer cooling foods like fruits and curd.'
+                : weather.isRainy || weather.isStormy
+                ? 'AI recommends: Focus on warm, freshly cooked meals, herbal teas, and avoid street food.'
+                : 'Mild weather is optimal for standard nutrition targets.'
+              }
+            </p>
+          </div>
+        )}
+
+        {/* Meal checks */}
+        <div className="grid gap-3 sm:grid-cols-2">
+          {[
+            { key: 'breakfastCompleted', label: 'Followed Breakfast', mealKey: 'breakfast' },
+            { key: 'lunchCompleted', label: 'Followed Lunch', mealKey: 'lunch' },
+            { key: 'dinnerCompleted', label: 'Followed Dinner', mealKey: 'dinner' },
+            { key: 'waterCompleted', label: 'Completed Water Goal', desc: activeMealPlan.mealPlan?.waterIntake ?? '3L' }
+          ].map(item => {
+            const checked = mealProgress[item.key];
+            const menuStr = item.mealKey ? activeMealPlan.mealPlan?.[item.mealKey]?.join(', ') : item.desc;
+            return (
+              <button
+                type="button"
+                key={item.key}
+                onClick={() => handleToggleMealItem(item.key)}
+                className={`flex items-start gap-3 rounded-2xl border p-4 text-left transition ${
+                  checked
+                    ? 'border-[#10c7a1]/55 bg-[#10c7a1]/10 shadow-[0_12px_30px_-20px_rgba(16,199,161,0.5)]'
+                    : 'border-white/10 bg-white/[0.04] hover:border-white/15 hover:bg-white/[0.06]'
+                }`}
+              >
+                <span className={`mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-md border ${
+                  checked ? 'border-[#10c7a1] bg-[#10c7a1] text-[#06110f]' : 'border-white/15 bg-black/20 text-transparent'
+                }`}>
+                  ✓
+                </span>
+                <div className="min-w-0 flex-1">
+                  <span className="block text-xs font-black text-white">{item.label}</span>
+                  <span className="block text-[10px] text-white/40 mt-1 line-clamp-2 leading-relaxed">
+                    {menuStr || 'Target menu items'}
+                  </span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
 
   useEffect(() => {
     dispatch(fetchTodayDailyUpdate());
@@ -92,12 +294,17 @@ function DailyUpdate() {
 
   if (completed || success) {
     return (
-      <div className="min-h-[calc(100vh-112px)] bg-[#05070d] px-4 py-8 text-white sm:px-6 lg:px-8">
+      <div className="min-h-[calc(100vh-112px)] bg-[#05070d] px-4 py-8 text-white sm:px-6 lg:px-8 space-y-6">
         <div className="mx-auto flex max-w-3xl flex-col items-center rounded-[1.75rem] border border-[#10c7a1]/25 bg-[#0b111a]/95 p-10 text-center shadow-[0_24px_70px_-36px_rgba(0,0,0,0.9)]">
           <CheckCircle2 className="h-16 w-16 text-[#10c7a1]" />
           <h1 className="mt-5 text-3xl font-black">Today's Twin Check-In Completed</h1>
           <p className="mt-3 text-white/58">{cooldownText}</p>
         </div>
+        {activeMealPlan && (
+          <div className="mx-auto max-w-3xl w-full">
+            {renderMealTrackingCard()}
+          </div>
+        )}
       </div>
     );
   }
@@ -238,6 +445,8 @@ function DailyUpdate() {
             <p className="rounded-2xl border border-white/10 bg-white/[0.045] p-4 text-white/60">No active goals found. Create a goal to start tracking progress.</p>
           )}
         </Section>
+
+        {activeMealPlan && renderMealTrackingCard()}
 
         <button
           type="submit"
