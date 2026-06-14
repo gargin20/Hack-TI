@@ -6,10 +6,11 @@ import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import BackgroundBeams from '../components/BackgroundBeams';
 import DigitalTwinLogo from '../components/DigitalTwinLogo';
+import { loginSuccess } from '../features/auth/authSlice';
 import { saveCareerIntegrations } from '../features/careerIntegrations/careerIntegrationSlice';
 import { saveHealthIntegration } from '../features/healthIntegration/healthIntegrationSlice';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const behaviorSignals = [
   { id: 'health', title: 'Health rhythm', description: 'Sleep, recovery, energy, and daily consistency.' },
@@ -152,9 +153,10 @@ function Onboarding() {
   const showIncompleteToast = (message) => {
     toast.error(message, {
       style: {
-        borderRadius: '8px',
-        background: '#111827',
-        color: '#fff',
+        borderRadius: '1rem',
+        background: 'rgba(9, 12, 20, 0.92)',
+        border: '1px solid rgba(255,255,255,0.09)',
+        color: '#f3f4f6',
       },
     });
   };
@@ -451,6 +453,11 @@ function Onboarding() {
 
       localStorage.setItem('lifetwinOnboardingProfile', JSON.stringify(onboardingData));
       localStorage.setItem('digitalTwinDashboardData', JSON.stringify(response.data.data));
+      if (response.data.user) {
+        const token = localStorage.getItem('authToken');
+        localStorage.setItem('user', JSON.stringify(response.data.user));
+        dispatch(loginSuccess({ token, user: response.data.user }));
+      }
       toast.success('Dashboard personalized');
       navigate('/dashboard', { replace: true });
     } catch (error) {
@@ -461,13 +468,13 @@ function Onboarding() {
   };
 
   const renderGenderSelection = () => (
-    <div className="mx-auto flex max-w-2xl flex-col items-center py-12 text-center">
-      <DigitalTwinLogo className="mb-8 h-14 w-14 rounded-lg border border-[#d8e5ea] shadow-lg shadow-[#b8d1da]/60" />
-      <p className="mb-3 text-sm font-semibold text-[#416f82]">DigitalTwin profile setup</p>
-      <h1 className="max-w-xl text-4xl font-semibold leading-tight text-zinc-950 sm:text-5xl">
+    <div className="mx-auto flex max-w-2xl flex-col items-center py-10 text-center sm:py-12">
+      <DigitalTwinLogo className="mb-8 h-14 w-14 rounded-2xl border border-white/10 bg-gradient-to-br from-[#7b61ff] via-[#1d5fff] to-[#10c7a1] p-[1px] shadow-[0_0_24px_rgba(16,199,161,0.22)]" imageClassName="brightness-0 invert" />
+      <p className="mb-3 text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7df3cc]/75">DigitalTwin profile setup</p>
+      <h1 className="max-w-xl text-4xl font-semibold leading-tight tracking-tight text-white sm:text-5xl">
         Select your gender
       </h1>
-      <p className="mt-5 max-w-lg text-base leading-7 text-zinc-600">
+      <p className="mt-5 max-w-lg text-base leading-7 text-white/62">
         This helps DigitalTwin personalize health questions, recovery baselines, and threshold calculations.
       </p>
 
@@ -477,15 +484,15 @@ function Onboarding() {
             value: 'female',
             label: 'Female',
             detail: 'Includes period-aware health context.',
-            selectedClass: 'border-[#d98ba1] bg-[#fff2f5] ring-4 ring-[#f8d9e2]',
-            idleClass: 'border-[#efd4dc] bg-white hover:border-[#e7aabc] hover:bg-[#fff7f9]',
+            selectedClass: 'border-[#ff4d7d]/50 bg-[#ff4d7d]/10 ring-1 ring-[#ff4d7d]/30 shadow-[0_0_28px_rgba(255,77,125,0.12)]',
+            idleClass: 'border-white/10 bg-white/[0.03] hover:border-[#ff4d7d]/35 hover:bg-white/[0.06]',
           },
           {
             value: 'male',
             label: 'Male',
             detail: 'Uses male recovery and fitness baselines.',
-            selectedClass: 'border-[#4f85b5] bg-[#eaf4ff] ring-4 ring-[#cfe6fb]',
-            idleClass: 'border-[#d8e5ea] bg-white hover:border-[#6fa5d0] hover:bg-[#eef7ff]',
+            selectedClass: 'border-[#10c7a1]/50 bg-[#10c7a1]/10 ring-1 ring-[#10c7a1]/30 shadow-[0_0_28px_rgba(16,199,161,0.14)]',
+            idleClass: 'border-white/10 bg-white/[0.03] hover:border-[#10c7a1]/35 hover:bg-white/[0.06]',
           },
         ].map((option) => {
           const selected = onboardingData.lifestyle.gender === option.value;
@@ -494,12 +501,12 @@ function Onboarding() {
               key={option.value}
               type="button"
               onClick={() => updateLifestyle('gender', option.value)}
-              className={`min-h-32 rounded-lg border p-5 text-left shadow-sm transition-colors duration-200 ${
+              className={`min-h-32 rounded-[1.4rem] border p-5 text-left backdrop-blur-xl transition duration-200 ${
                 selected ? option.selectedClass : option.idleClass
               }`}
             >
-              <span className="block text-lg font-semibold text-zinc-950">{option.label}</span>
-              <span className="mt-3 block text-sm leading-6 text-zinc-600">{option.detail}</span>
+              <span className="block text-lg font-semibold text-white">{option.label}</span>
+              <span className="mt-3 block text-sm leading-6 text-white/58">{option.detail}</span>
             </button>
           );
         })}
@@ -508,7 +515,7 @@ function Onboarding() {
       <button
         type="button"
         onClick={handleNext}
-        className="mt-9 rounded-lg bg-[#416f82] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#b8d1da]/60 transition hover:-translate-y-0.5 hover:bg-[#2f5362] focus:outline-none focus:ring-4 focus:ring-[#e5f0f4]"
+        className="mt-9 rounded-[1rem] bg-gradient-to-r from-[#1a2b4c] via-[#2a3f6a] to-[#1d463d] px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:-translate-y-0.5 hover:ring-white/40 focus:outline-none focus:ring-2 focus:ring-[#10c7a1]/45"
       >
         Next
       </button>
@@ -518,9 +525,9 @@ function Onboarding() {
   const renderBehavioralAnalysis = () => (
     <section>
       <div className="mb-7">
-        <p className="text-sm font-semibold text-[#416f82]">Behavioral analysis</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-950">Choose the signals to model</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7df3cc]/75">Behavioral analysis</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Choose the signals to model</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/58">
           Select the life domains your Digital Twin should use to understand your baseline behavior.
         </p>
       </div>
@@ -533,21 +540,21 @@ function Onboarding() {
               key={signal.id}
               type="button"
               onClick={() => toggleFocusArea(signal.id)}
-              className={`min-h-36 rounded-lg border bg-white p-5 text-left shadow-sm transition hover:-translate-y-0.5 hover:shadow-md ${
+              className={`min-h-36 rounded-[1.5rem] border p-5 text-left backdrop-blur-xl transition hover:-translate-y-0.5 ${
                 selected
-                  ? 'border-[#5f8fa0] bg-[#eef6f8] ring-4 ring-[#e5f0f4]'
-                  : 'border-[#d8e5ea] hover:border-[#a9c8d2] hover:bg-[#f6fafb]'
+                  ? 'border-[#10c7a1]/45 bg-[#10c7a1]/10 shadow-[0_0_28px_rgba(16,199,161,0.12)]'
+                  : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]'
               }`}
             >
               <div className="mb-5 flex items-center justify-between">
-                <span className="text-base font-semibold text-zinc-950">{signal.title}</span>
+                <span className="text-base font-semibold text-white">{signal.title}</span>
                 <span
                   className={`h-5 w-5 rounded-full border ${
-                    selected ? 'border-[#416f82] bg-[#416f82]' : 'border-[#b7cbd3] bg-white'
+                    selected ? 'border-[#10c7a1] bg-[#10c7a1] shadow-[0_0_14px_rgba(16,199,161,0.5)]' : 'border-white/20 bg-white/5'
                   }`}
                 />
               </div>
-              <p className="text-sm leading-6 text-zinc-600">{signal.description}</p>
+              <p className="text-sm leading-6 text-white/58">{signal.description}</p>
             </button>
           );
         })}
@@ -559,22 +566,22 @@ function Onboarding() {
     <section>
       <div className="mb-7 flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <p className="text-sm font-semibold text-[#416f82]">Continuous Tracking</p>
-          <h2 className="mt-2 text-3xl font-semibold text-zinc-950">Connect Live APIs</h2>
-          <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+          <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7df3cc]/75">Continuous Tracking</p>
+          <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Connect Live APIs</h2>
+          <p className="mt-3 max-w-2xl text-sm leading-6 text-white/58">
             DigitalTwin uses these live integrations to autonomously update your dashboard without manual logging.
           </p>
         </div>
         <button
           type="button"
           onClick={handleSkipAllIntegrations}
-          className="w-fit rounded-lg border border-[#c8dbe2] bg-white px-4 py-2 text-sm font-semibold text-[#405965] transition hover:border-[#9ebfca] hover:bg-[#f3f8fa]"
+          className="w-fit rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-2 text-sm font-semibold text-white/78 transition hover:border-white/20 hover:bg-white/[0.08] hover:text-white"
         >
           Skip all
         </button>
       </div>
 
-      <div className="rounded-lg border border-[#d8e5ea] bg-white/80 p-3 shadow-sm sm:p-4">
+      <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.02] p-3 backdrop-blur-xl sm:p-4">
         <div className="space-y-2">
         {integrationProfiles.map((integration) => {
           const data = onboardingData.integrations[integration.id];
@@ -587,22 +594,22 @@ function Onboarding() {
           return (
             <div
               key={integration.id}
-              className={`grid grid-cols-1 items-center gap-3 rounded-lg border px-3 py-2 transition-colors md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(220px,520px)_minmax(150px,auto)] ${
+              className={`grid grid-cols-1 items-center gap-3 rounded-[1.15rem] border px-3 py-3 transition-colors md:grid-cols-[220px_minmax(0,1fr)] lg:grid-cols-[240px_minmax(220px,520px)_minmax(150px,auto)] ${
                 connected || saved
-                  ? 'border-[#b8d8c5] bg-[#f4fbf6]'
-                  : 'border-transparent bg-white hover:border-[#d8e5ea] hover:bg-[#f7fbfc]'
+                  ? 'border-[#10c7a1]/30 bg-[#10c7a1]/8'
+                  : 'border-transparent bg-white/[0.025] hover:border-white/10 hover:bg-white/[0.05]'
               }`}
             >
               <div className="flex min-w-0 items-center gap-3">
-                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#e6f1f4] text-[#416f82]">
+                <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-[#7df3cc]">
                   <integration.logo />
                 </div>
                 <div className="min-w-0">
                   <div className="flex items-center gap-2">
-                    <h3 className="truncate text-base font-semibold text-zinc-950">{integration.title}</h3>
+                    <h3 className="truncate text-base font-semibold text-white">{integration.title}</h3>
                     <ChevronRightIcon />
                   </div>
-                  <p className="mt-1 line-clamp-1 text-xs text-zinc-500">{integration.description}</p>
+                  <p className="mt-1 line-clamp-1 text-xs text-white/45">{integration.description}</p>
                 </div>
               </div>
 
@@ -615,7 +622,7 @@ function Onboarding() {
                     disabled={verifying}
                     onChange={(event) => updateIntegrationField(integration.id, integration.field, event.target.value)}
                     placeholder={integration.placeholder}
-                    className="h-10 w-full rounded-lg border border-[#c8dbe2] bg-[#f8fafb] px-4 text-sm font-medium text-zinc-900 outline-none transition placeholder:text-zinc-400 disabled:cursor-not-allowed disabled:opacity-60 focus:border-[#5f8fa0] focus:bg-white focus:ring-4 focus:ring-[#e5f0f4]"
+                    className="h-10 w-full rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white outline-none transition placeholder:text-white/28 disabled:cursor-not-allowed disabled:opacity-60 focus:border-[#7b61ff]/50 focus:bg-white/[0.08]"
                   />
                 </label>
               )}
@@ -623,14 +630,14 @@ function Onboarding() {
               <div className="flex items-center justify-start gap-3 md:col-start-2 md:justify-start lg:col-start-auto lg:justify-end">
                 {connected || saved ? (
                   <>
-                    <span className="inline-flex h-9 w-9 items-center justify-center text-[#22c55e]" aria-label={connected ? 'Connected' : 'Saved'}>
+                    <span className="inline-flex h-9 w-9 items-center justify-center text-[#10c7a1]" aria-label={connected ? 'Connected' : 'Saved'}>
                       <VerifiedIcon />
                     </span>
                     <button
                       type="button"
                       onClick={() => setIntegrationStatus(integration.id, 'skipped')}
                       disabled={verifying}
-                      className="inline-flex h-10 w-10 items-center justify-center rounded-lg border border-[#c8dbe2] bg-white text-[#4b7bec] transition hover:border-[#9ebfca] hover:bg-[#f3f8fa] disabled:cursor-not-allowed disabled:opacity-60"
+                      className="inline-flex h-10 w-10 items-center justify-center rounded-xl border border-white/10 bg-white/5 text-white/62 transition hover:bg-white/10 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
                       aria-label={`Remove ${integration.title}`}
                     >
                       <TrashIcon />
@@ -641,12 +648,12 @@ function Onboarding() {
                     type="button"
                     onClick={() => handleConnectIntegration(integration)}
                     disabled={verifying || !hasValue}
-                    className={`inline-flex h-9 min-w-[9.5rem] items-center justify-center gap-2 rounded-lg border px-4 text-sm font-semibold transition ${
+                    className={`inline-flex h-9 min-w-[9.5rem] items-center justify-center gap-2 rounded-[1rem] border px-4 text-sm font-semibold transition ${
                       verifying
-                        ? 'cursor-not-allowed border-[#9ebfca] bg-[#9ebfca] text-white'
+                        ? 'cursor-not-allowed border-[#7b61ff]/30 bg-[#7b61ff]/20 text-white'
                         : hasValue
-                          ? 'border-[#c8dbe2] bg-white text-zinc-950 hover:border-[#9ebfca] hover:bg-[#f3f8fa]'
-                          : 'cursor-not-allowed border-[#d8e5ea] bg-[#f7fbfc] text-zinc-400'
+                          ? 'border-white/10 bg-white/[0.04] text-white/84 hover:border-[#10c7a1]/30 hover:bg-[#10c7a1]/10 hover:text-white'
+                          : 'cursor-not-allowed border-white/5 bg-white/[0.02] text-white/30'
                     }`}
                   >
                     {verifying && <span className="h-3.5 w-3.5 rounded-full border-2 border-white/40 border-t-white animate-spin" />}
@@ -666,9 +673,9 @@ function Onboarding() {
   const renderDataVault = () => (
     <section>
       <div className="mb-7">
-        <p className="text-sm font-semibold text-[#416f82]">Baseline initialization</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-950">Upload Baseline Documents</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7df3cc]/75">Baseline initialization</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Upload Baseline Documents</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/58">
           Upload existing files. Our Vision AI will automatically parse your medical history, financial statements, and career resume to jumpstart your Digital Twin.
         </p>
       </div>
@@ -708,9 +715,9 @@ function Onboarding() {
   const renderLifestyle = () => (
     <section>
       <div className="mb-7">
-        <p className="text-sm font-semibold text-[#416f82]">Lifestyle understanding</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-950">Add everyday context</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7df3cc]/75">Lifestyle understanding</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Add everyday context</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/58">
           These manual inputs act as a fallback baseline when live APIs or document uploads are unavailable.
         </p>
       </div>
@@ -770,9 +777,9 @@ function Onboarding() {
   const renderFinancialPatterns = () => (
     <section>
       <div className="mb-7">
-        <p className="text-sm font-semibold text-[#416f82]">Financial patterns</p>
-        <h2 className="mt-2 text-3xl font-semibold text-zinc-950">Map money behavior</h2>
-        <p className="mt-3 max-w-2xl text-sm leading-6 text-zinc-600">
+        <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7df3cc]/75">Financial patterns</p>
+        <h2 className="mt-2 text-3xl font-semibold tracking-tight text-white">Map money behavior</h2>
+        <p className="mt-3 max-w-2xl text-sm leading-6 text-white/58">
           DigitalTwin uses these signals to understand spending pressure, savings rhythm, and financial stress.
         </p>
       </div>
@@ -799,28 +806,28 @@ function Onboarding() {
   const renderAnalysis = () => (
     <section className="mx-auto flex max-w-2xl flex-col items-center py-12 text-center">
       <div className="relative mb-8 h-28 w-28">
-        <div className="absolute inset-0 rounded-full border border-zinc-200" />
-        <div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent border-t-[#5f8fa0]" />
-        <div className="absolute inset-5 flex items-center justify-center rounded-full bg-[#416f82] text-sm font-semibold text-white">
+        <div className="absolute inset-0 rounded-full border border-white/10 bg-white/[0.02]" />
+        <div className="absolute inset-2 animate-spin rounded-full border-2 border-transparent border-t-[#10c7a1]" />
+        <div className="absolute inset-5 flex items-center justify-center rounded-full border border-white/10 bg-[#10c7a1]/10 text-sm font-semibold text-[#7df3cc] shadow-[0_0_24px_rgba(16,199,161,0.12)]">
           {analysisProgress}%
         </div>
       </div>
 
-      <p className="text-sm font-semibold text-[#416f82]">
+      <p className="text-[11px] font-semibold uppercase tracking-[0.28em] text-[#7df3cc]/75">
         {isAnalysisDone ? 'Analysis complete' : analysisMessages[messageIndex]}
       </p>
-      <h2 className="mt-3 text-4xl font-semibold text-zinc-950">
+      <h2 className="mt-3 text-4xl font-semibold tracking-tight text-white">
         {isAnalysisDone ? 'Your DigitalTwin Profile is Ready' : 'Building your Digital Twin profile'}
       </h2>
-      <p className="mt-4 max-w-lg text-sm leading-6 text-zinc-600">
+      <p className="mt-4 max-w-lg text-sm leading-6 text-white/58">
         {isAnalysisDone
           ? 'Dashboard personalization is ready to begin from your profile baseline.'
           : 'DigitalTwin is combining behavioral, integration, OCR document data, and financial patterns into a dashboard-ready profile.'}
       </p>
 
-      <div className="mt-8 h-2 w-full max-w-md overflow-hidden rounded-full bg-zinc-100">
+      <div className="mt-8 h-2 w-full max-w-md overflow-hidden rounded-full border border-white/10 bg-white/10">
         <div
-          className="h-full rounded-full bg-[#5f8fa0] transition-all duration-300"
+          className="h-full rounded-full bg-gradient-to-r from-[#7b61ff] via-[#10c7a1] to-[#7df3cc] shadow-[0_0_18px_rgba(16,199,161,0.65)] transition-all duration-300"
           style={{ width: `${analysisProgress}%` }}
         />
       </div>
@@ -829,7 +836,7 @@ function Onboarding() {
         <button
           type="button"
           onClick={handlePersonalizeDashboard}
-          className="mt-9 rounded-lg bg-[#416f82] px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-[#b8d1da]/60 transition hover:-translate-y-0.5 hover:bg-[#2f5362] focus:outline-none focus:ring-4 focus:ring-[#e5f0f4]"
+          className="mt-9 rounded-[1rem] bg-gradient-to-r from-[#1a2b4c] via-[#2a3f6a] to-[#1d463d] px-6 py-3 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:-translate-y-0.5 hover:ring-white/40 focus:outline-none focus:ring-2 focus:ring-[#10c7a1]/45"
         >
           Personalize Dashboard
         </button>
@@ -848,28 +855,35 @@ function Onboarding() {
   };
 
   return (
-    <main className="relative min-h-screen overflow-hidden bg-[#223946] px-4 py-5 text-zinc-950 sm:px-6 lg:px-8">
-      <Toaster position="top-right" />
-      <BackgroundBeams className="opacity-90" />
+    <main className="relative min-h-screen overflow-hidden bg-[#05070c] px-4 py-5 text-white sm:px-6 lg:px-8" style={{ fontFamily: "'DM Sans', 'Inter', sans-serif" }}>
+      <Toaster position="top-right" toastOptions={{ style: { background: 'rgba(9, 12, 20, 0.92)', color: '#f3f4f6', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.09)' } }} />
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,0.016)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,0.016)_1px,transparent_1px)] bg-[size:72px_72px] [mask-image:radial-gradient(ellipse_80%_80%_at_50%_50%,black,transparent)]" />
+        <div className="absolute -left-40 top-0 h-[480px] w-[480px] rounded-full bg-[#7b61ff]/6 blur-[130px]" />
+        <div className="absolute -right-40 bottom-0 h-[560px] w-[560px] rounded-full bg-[#10c7a1]/5 blur-[150px]" />
+        <div className="absolute left-1/3 top-1/2 h-[280px] w-[280px] rounded-full bg-[#c8a84b]/3 blur-[100px]" />
+      </div>
+      <BackgroundBeams className="opacity-35" />
 
-      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-7xl flex-col rounded-lg border border-white/20 bg-white/[0.82] shadow-xl shadow-black/25 backdrop-blur-md">
-        <header className="border-b border-white/25 px-5 py-5 sm:px-8">
+      <div className="relative z-10 mx-auto flex min-h-[calc(100vh-2.5rem)] max-w-7xl flex-col overflow-hidden rounded-[2rem] border border-white/10 bg-[#0a0e17]/72 shadow-[0_32px_120px_-40px_rgba(0,0,0,0.85)] ring-1 ring-white/5 backdrop-blur-2xl">
+        <header className="border-b border-white/10 bg-white/[0.02] px-5 py-5 sm:px-8">
           <div className="flex flex-col gap-5 lg:flex-row lg:items-center lg:justify-between">
             <div className="flex items-center gap-3">
-              <DigitalTwinLogo className="h-10 w-10 rounded-lg border border-[#d8e5ea] shadow-sm" />
+              <DigitalTwinLogo className="h-10 w-10 rounded-full border border-white/10 bg-white/5" imageClassName="brightness-0 invert" />
               <div>
-                <p className="text-sm font-semibold text-zinc-950">DigitalTwin</p>
+                <p className="text-sm font-semibold text-white">DigitalTwin</p>
+                <p className="text-[11px] font-semibold uppercase tracking-[0.24em] text-white/38">Profile initialization</p>
               </div>
             </div>
 
             <div className="w-full lg:max-w-md">
-              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-zinc-500">
+              <div className="mb-2 flex items-center justify-between text-xs font-semibold text-white/45">
                 <span>Step {step} of {totalSteps}</span>
                 <span>{Math.round(progress)}%</span>
               </div>
-              <div className="h-2 overflow-hidden rounded-full bg-zinc-100">
+              <div className="h-2 overflow-hidden rounded-full border border-white/10 bg-white/10">
                 <div
-                  className="h-full rounded-full bg-[#5f8fa0] transition-all duration-300"
+                  className="h-full rounded-full bg-gradient-to-r from-[#7b61ff] via-[#10c7a1] to-[#7df3cc] shadow-[0_0_18px_rgba(16,199,161,0.65)] transition-all duration-300"
                   style={{ width: `${progress}%` }}
                 />
               </div>
@@ -877,7 +891,7 @@ function Onboarding() {
           </div>
         </header>
 
-        <div className="flex-1 overflow-hidden px-5 py-8 sm:px-8 lg:px-10">
+        <div className="flex-1 overflow-y-auto px-5 py-8 sm:px-8 lg:px-10">
           <AnimatePresence mode="wait" initial={false} custom={navigationDirection}>
             <motion.div
               key={step}
@@ -894,11 +908,11 @@ function Onboarding() {
         </div>
 
         {step > 1 && step < 7 && (
-          <footer className="flex flex-col gap-3 border-t border-white/25 px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
+          <footer className="flex flex-col gap-3 border-t border-white/10 bg-white/[0.02] px-5 py-5 sm:flex-row sm:items-center sm:justify-between sm:px-8">
             <button
               type="button"
               onClick={handleBack}
-              className="rounded-lg border border-[#c8dbe2] bg-white px-5 py-3 text-sm font-semibold text-[#405965] transition hover:bg-[#f3f8fa]"
+              className="rounded-[1rem] border border-white/10 bg-white/[0.04] px-5 py-3 text-sm font-semibold text-white/75 transition hover:bg-white/[0.08] hover:text-white"
             >
               Back
             </button>
@@ -906,7 +920,7 @@ function Onboarding() {
             <button
               type="button"
               onClick={handleNext}
-              className="rounded-lg bg-[#416f82] px-5 py-3 text-sm font-semibold text-white shadow-lg shadow-[#b8d1da]/60 transition hover:-translate-y-0.5 hover:bg-[#2f5362] focus:outline-none focus:ring-4 focus:ring-[#e5f0f4]"
+              className="rounded-[1rem] bg-gradient-to-r from-[#1a2b4c] via-[#2a3f6a] to-[#1d463d] px-5 py-3 text-sm font-semibold text-white ring-1 ring-white/20 transition hover:-translate-y-0.5 hover:ring-white/40 focus:outline-none focus:ring-2 focus:ring-[#10c7a1]/45"
             >
               {step === 6 ? 'Run Profile Analysis' : 'Next'}
             </button>
@@ -925,19 +939,19 @@ function UploadCard({ id, title, description, icon, uploadedFile, uploadStatus, 
   const hasSucceeded = Boolean(uploadedFile) && uploadStatus?.state !== 'processing';
   const hasError = uploadStatus?.state === 'error';
   const cardStateClass = isProcessing
-    ? 'border-[#5f8fa0] bg-[#f7fbfc]'
+    ? 'border-[#7b61ff]/45 bg-[#7b61ff]/10'
     : hasSucceeded
-      ? 'border-[#b8d8c5] bg-[#f4fbf6]'
+      ? 'border-[#10c7a1]/45 bg-[#10c7a1]/10'
       : hasError
-        ? 'border-[#fca5a5] bg-[#fff7f7]'
-        : 'border-[#c8dbe2] bg-white hover:border-[#5f8fa0] hover:bg-[#f7fbfc]';
+        ? 'border-[#ff4d7d]/45 bg-[#ff4d7d]/10'
+        : 'border-white/10 bg-white/[0.03] hover:border-white/20 hover:bg-white/[0.06]';
   const iconStateClass = isProcessing
-    ? 'bg-[#e5f0f4] text-[#416f82]'
+    ? 'border-[#7b61ff]/20 bg-[#7b61ff]/10 text-[#9db7ff]'
     : hasSucceeded
-      ? 'bg-[#e6f4ea] text-[#22c55e]'
+      ? 'border-[#10c7a1]/20 bg-[#10c7a1]/10 text-[#10c7a1]'
       : hasError
-        ? 'bg-[#fee2e2] text-[#dc2626]'
-        : 'bg-[#e5f0f4] text-[#416f82]';
+        ? 'border-[#ff4d7d]/20 bg-[#ff4d7d]/10 text-[#ff4d7d]'
+        : 'border-white/10 bg-white/5 text-[#7df3cc]';
   const titleText = isProcessing
     ? 'Processing document'
     : hasSucceeded
@@ -954,7 +968,7 @@ function UploadCard({ id, title, description, icon, uploadedFile, uploadStatus, 
         : description;
 
   return (
-    <div className={`relative flex flex-col items-center justify-center rounded-xl border-2 border-dashed p-6 text-center transition-colors ${cardStateClass}`}>
+    <div className={`relative flex min-h-48 flex-col items-center justify-center rounded-[1.5rem] border border-dashed p-6 text-center backdrop-blur-xl transition-colors ${cardStateClass}`}>
       <input
         type="file"
         id={id}
@@ -963,21 +977,21 @@ function UploadCard({ id, title, description, icon, uploadedFile, uploadStatus, 
         onChange={(e) => onUpload(e.target.files[0])}
         accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,application/msword,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
       />
-      <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-full ${iconStateClass}`}>
-        {isProcessing ? <div className="h-5 w-5 rounded-full border-2 border-[#416f82]/25 border-t-[#416f82] animate-spin" /> : hasSucceeded ? <VerifiedIcon className="h-6 w-6" /> : icon}
+      <div className={`mb-3 flex h-12 w-12 items-center justify-center rounded-2xl border ${iconStateClass}`}>
+        {isProcessing ? <div className="h-5 w-5 animate-spin rounded-full border-2 border-white/20 border-t-[#7b61ff]" /> : hasSucceeded ? <VerifiedIcon className="h-6 w-6" /> : icon}
       </div>
-      <h3 className="text-sm font-bold text-zinc-950">{titleText}</h3>
-      <p className="mt-1 text-xs text-zinc-500">{detailText}</p>
+      <h3 className="text-sm font-bold text-white">{titleText}</h3>
+      <p className="mt-1 text-xs leading-5 text-white/48">{detailText}</p>
     </div>
   );
 }
 
 function RangeCard({ label, value, min, max, suffix, onChange }) {
   return (
-    <div className="rounded-lg border border-[#d8e5ea] bg-white p-4 shadow-sm">
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 backdrop-blur-xl">
       <div className="mb-3 flex items-center justify-between gap-4">
-        <label className="text-sm font-semibold text-zinc-950">{label}</label>
-        <span className="rounded-md bg-zinc-100 px-3 py-1 text-sm font-semibold text-zinc-800">
+        <label className="text-sm font-semibold text-white">{label}</label>
+        <span className="rounded-xl border border-white/10 bg-white/5 px-3 py-1 text-sm font-semibold text-[#7df3cc]">
           {value} {suffix}
         </span>
       </div>
@@ -987,9 +1001,9 @@ function RangeCard({ label, value, min, max, suffix, onChange }) {
         max={max}
         value={value}
         onChange={(event) => onChange(Number(event.target.value))}
-        className="w-full accent-[#5f8fa0]"
+        className="w-full accent-[#10c7a1]"
       />
-      <div className="mt-2 flex justify-between text-xs font-medium text-zinc-400">
+      <div className="mt-2 flex justify-between text-xs font-medium text-white/35">
         <span>{min}</span>
         <span>{max}</span>
       </div>
@@ -999,15 +1013,15 @@ function RangeCard({ label, value, min, max, suffix, onChange }) {
 
 function InputCard({ label, value, placeholder, onChange }) {
   return (
-    <div className="rounded-lg border border-[#d8e5ea] bg-white p-4 shadow-sm">
-      <label className="text-sm font-semibold text-zinc-950">{label}</label>
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 backdrop-blur-xl">
+      <label className="text-sm font-semibold text-white">{label}</label>
       <input
         type="number"
         min="0"
         value={value}
         placeholder={placeholder}
         onChange={(event) => onChange(event.target.value)}
-        className="mt-3 h-11 w-full rounded-lg border border-[#c8dbe2] bg-[#f7fbfc] px-4 text-sm font-medium text-zinc-900 outline-none transition placeholder:text-zinc-400 focus:border-[#5f8fa0] focus:bg-white focus:ring-4 focus:ring-[#e5f0f4]"
+        className="mt-3 h-11 w-full rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 text-sm font-medium text-white outline-none transition placeholder:text-white/28 focus:border-[#7b61ff]/50 focus:bg-white/[0.08]"
       />
     </div>
   );
@@ -1015,13 +1029,13 @@ function InputCard({ label, value, placeholder, onChange }) {
 
 function SelectCard({ label, value, options, onChange }) {
   return (
-    <div className="rounded-lg border border-[#d8e5ea] bg-white p-4 shadow-sm">
-      <label className="text-sm font-semibold text-zinc-950">{label}</label>
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 backdrop-blur-xl">
+      <label className="text-sm font-semibold text-white">{label}</label>
       <div className="relative mt-3">
         <select
           value={value}
           onChange={(event) => onChange(event.target.value)}
-          className="h-11 w-full appearance-none rounded-lg border border-[#c8dbe2] bg-[#f7fbfc] px-4 pr-12 text-sm font-medium text-zinc-900 outline-none transition focus:border-[#5f8fa0] focus:bg-white focus:ring-4 focus:ring-[#e5f0f4]"
+          className="h-11 w-full appearance-none rounded-[1rem] border border-white/10 bg-[#0a0e17] px-4 pr-12 text-sm font-medium text-white outline-none transition focus:border-[#7b61ff]/50 focus:bg-[#0f1320]"
         >
           {options.map((option) => (
             <option key={option.value} value={option.value}>
@@ -1029,7 +1043,7 @@ function SelectCard({ label, value, options, onChange }) {
             </option>
           ))}
         </select>
-        <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-[#6f8790]">
+        <span className="pointer-events-none absolute right-5 top-1/2 -translate-y-1/2 text-white/45">
           <ChevronDownIcon />
         </span>
       </div>
@@ -1039,18 +1053,18 @@ function SelectCard({ label, value, options, onChange }) {
 
 function ChoiceCard({ label, value, options, onChange }) {
   return (
-    <div className="rounded-lg border border-[#d8e5ea] bg-white p-4 shadow-sm">
-      <p className="text-sm font-semibold text-zinc-950">{label}</p>
+    <div className="rounded-[1.5rem] border border-white/10 bg-white/[0.03] p-4 backdrop-blur-xl">
+      <p className="text-sm font-semibold text-white">{label}</p>
       <div className="mt-3 grid grid-cols-3 gap-2">
         {options.map((option) => (
           <button
             key={option.value}
             type="button"
             onClick={() => onChange(option.value)}
-            className={`min-h-10 rounded-lg border px-3 py-2 text-sm font-semibold transition ${
+            className={`min-h-10 rounded-[1rem] border px-3 py-2 text-sm font-semibold transition ${
               value === option.value
-                ? 'border-[#5f8fa0] bg-[#e6f1f4] text-[#2f5362]'
-                : 'border-[#c8dbe2] bg-white text-[#4e6670] hover:bg-[#f3f8fa]'
+                ? 'border-[#10c7a1]/40 bg-[#10c7a1]/12 text-[#7df3cc]'
+                : 'border-white/10 bg-white/[0.04] text-white/60 hover:bg-white/[0.08] hover:text-white'
             }`}
           >
             {option.label}
@@ -1062,7 +1076,7 @@ function ChoiceCard({ label, value, options, onChange }) {
 }
 
 // --- ICONS ---
-function ChevronRightIcon() { return <svg className="h-4 w-4 text-zinc-700" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
+function ChevronRightIcon() { return <svg className="h-4 w-4 text-white/28" viewBox="0 0 24 24" fill="none"><path d="m9 18 6-6-6-6" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function ChevronDownIcon() { return <svg className="h-4 w-4" viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" /></svg>; }
 function VerifiedIcon() { return <svg className="h-8 w-8" viewBox="0 0 24 24" fill="currentColor"><path d="M10.55 2.9a2 2 0 0 1 2.9 0l1.03 1.1 1.48-.18a2 2 0 0 1 2.22 2.22L18 7.52l1.1 1.03a2 2 0 0 1 0 2.9L18 12.48l.18 1.48a2 2 0 0 1-2.22 2.22L14.48 16l-1.03 1.1a2 2 0 0 1-2.9 0L9.52 16l-1.48.18a2 2 0 0 1-2.22-2.22L6 12.48l-1.1-1.03a2 2 0 0 1 0-2.9L6 7.52l-.18-1.48a2 2 0 0 1 2.22-2.22L9.52 4l1.03-1.1Zm4.18 6.86a1 1 0 0 0-1.46-1.37l-2.31 2.46-.91-.91a1 1 0 0 0-1.42 1.42l1.64 1.64a1 1 0 0 0 1.44-.03l3.02-3.21Z" /></svg>; }
 function TrashIcon() { return <svg className="h-5 w-5" viewBox="0 0 24 24" fill="none"><path d="M4 7h16" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M10 11v6M14 11v6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" /><path d="M6.5 7l.7 12.2A2 2 0 0 0 9.2 21h5.6a2 2 0 0 0 2-1.8L17.5 7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /><path d="M9 7V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v2" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" /></svg>; }

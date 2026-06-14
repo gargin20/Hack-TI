@@ -314,7 +314,7 @@ Protected route can access req.user
 
 **Signup:**
 ```bash
-curl -X POST http://localhost:5000/api/auth/signup \
+curl -X POST http://localhost:5001/api/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "firstName": "John",
@@ -327,7 +327,7 @@ curl -X POST http://localhost:5000/api/auth/signup \
 
 **Login:**
 ```bash
-curl -X POST http://localhost:5000/api/auth/login \
+curl -X POST http://localhost:5001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email": "john@example.com",
@@ -337,7 +337,7 @@ curl -X POST http://localhost:5000/api/auth/login \
 
 **Get Profile (Protected):**
 ```bash
-curl -X GET http://localhost:5000/api/auth/profile \
+curl -X GET http://localhost:5001/api/auth/profile \
   -H "Authorization: Bearer <your-jwt-token>"
 ```
 
@@ -399,7 +399,7 @@ curl -X GET http://localhost:5000/api/auth/profile \
 
 ## 📚 Next Steps
 
-1. **Connect Frontend**: Point React app to http://localhost:5000
+1. **Connect Frontend**: Point React app to http://localhost:5001
 2. **Add More Features**:
    - Email verification
    - Password reset

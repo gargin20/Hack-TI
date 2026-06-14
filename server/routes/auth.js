@@ -8,6 +8,11 @@ import {
   changePassword,
   forgotPassword,
   resetPassword,
+  googleAuth,
+  sendPasswordOtp,
+  verifyPasswordOtp,
+  setPassword,
+  createPassword,
 } from '../controllers/authController.js';
 import { authenticateToken } from '../middleware/auth.js';
 import { asyncHandler } from '../middleware/errorHandler.js';
@@ -33,6 +38,7 @@ router.post('/signup', asyncHandler(signup));
  * @body    { email, password }
  */
 router.post('/login', asyncHandler(login));
+router.post('/google', asyncHandler(googleAuth));
 router.post('/logout', authenticateToken, asyncHandler(logout));
 router.get('/me', authenticateToken, asyncHandler(getProfile));
 
@@ -65,5 +71,17 @@ router.post('/change-password', authenticateToken, asyncHandler(changePassword))
 router.put('/change-password', authenticateToken, asyncHandler(changePassword));
 router.post('/forgot-password', asyncHandler(forgotPassword));
 router.post('/reset-password', asyncHandler(resetPassword));
+router.post('/send-password-otp', asyncHandler(sendPasswordOtp));
+router.post('/verify-password-otp', asyncHandler(verifyPasswordOtp));
+router.post('/set-password', asyncHandler(setPassword));
+router.post('/log-client-error', (req, res) => {
+  console.error('================ CLIENT-SIDE ERROR ================');
+  console.error('URL:', req.body.url);
+  console.error('Message:', req.body.message);
+  console.error('Stack:', req.body.stack);
+  console.error('Component Stack:', req.body.componentStack);
+  console.error('===================================================');
+  res.status(200).json({ success: true });
+});
 
 export default router;

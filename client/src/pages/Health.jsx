@@ -7,6 +7,7 @@ import {
   fetchHealthIntegration,
   saveHealthIntegration,
 } from '../features/healthIntegration/healthIntegrationSlice';
+import { loginSuccess } from '../features/auth/authSlice';
 import {
   Eye, EyeOff, AlertCircle, Baby, Flower2,
   Sparkles, ChevronRight, ChevronLeft, Wifi, WifiOff,
@@ -163,6 +164,36 @@ function NoDataCell({ label, icon: Icon, onConnect }) {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Health() {
+  const authState = useSelector((state) => state.auth);
+  
+  useEffect(() => {
+    console.log('--- AUTHENTICATION / SESSION DEBUG LOGS ---');
+    console.log('window.location.href:', window.location.href);
+    console.log('localStorage authToken:', localStorage.getItem('authToken'));
+    console.log('localStorage user:', localStorage.getItem('user'));
+    console.log('Redux Auth State:', authState);
+    console.log('------------------------------------------');
+  }, []);
+
+  console.log('Health page mounted');
+  console.log('location.search', window.location.search);
+
+  // Global error listener to capture React/JS errors
+  useEffect(() => {
+    const handleError = (event) => {
+      console.error('Captured global error:', event.error || event.message);
+    };
+    const handleRejection = (event) => {
+      console.error('Captured unhandled rejection:', event.reason);
+    };
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
+
   const dispatch = useDispatch();
   const healthIntegration = useSelector((state) => state.healthIntegration);
   const authUser = useSelector((state) => state.auth?.user);
@@ -208,13 +239,13 @@ export default function Health() {
 
   // Smoking tracker
   const [smokingMode, setSmokingMode]       = useState('view');
-  const [smokingEnabled, setSmokingEnabled] = useState(() => localStorage.getItem('ltSmokingEnabled') === 'true');
   const [smokeLogLoading, setSmokeLogLoading] = useState(false);
-  const [smokingData, setSmokingData]       = useState(null);
+  const [startSmokingOpen, setStartSmokingOpen] = useState(false);
 
   const { triggerReward, history = [], unlockedBadges = [], availableBadges = [] } = useGamification();
-  const API   = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+  const API   = import.meta.env.VITE_API_URL || 'http://localhost:5001';
   const token = () => localStorage.getItem('authToken');
+  const dailyUpdateState = useSelector((state) => state.dailyUpdate);
 
   // Bootstrap
   useEffect(() => {
@@ -222,14 +253,13 @@ export default function Health() {
     dispatch(fetchHealthIntegration());
     fetchDashProfile();
 
-    const savedSmoke = JSON.parse(localStorage.getItem('ltSmoking') || 'null');
-    if (savedSmoke) setSmokingData(savedSmoke);
-
     fetchWeather();
   }, []);
 
   useEffect(() => {
     if (healthIntegration.connected) {
+      console.log('[HEALTH] healthIntegration changed:', healthIntegration);
+      console.log('[HEALTH] healthIntegration.deviceData:', healthIntegration.deviceData);
       setSyncStatus('connected');
       if (Object.keys(healthIntegration.deviceData || {}).length > 0) {
         setWearable(healthIntegration.deviceData);
@@ -266,12 +296,16 @@ export default function Health() {
 
   async function fetchWearable() {
     setWearable({});
+    console.log('[HEALTH] fetchWearable called. healthIntegration:', healthIntegration);
+    console.log('[HEALTH] healthIntegration.deviceData BEFORE fetch:', healthIntegration.deviceData);
     try {
       const res = await axios.get(`${API}/api/integrations/health`, {
         headers: { Authorization: `Bearer ${token()}` },
       });
+      console.log('[HEALTH] /api/integrations/health response:', res.data);
       if (res.data?.success && res.data?.data?.metrics) {
         const m = res.data.data.metrics;
+        console.log('[HEALTH] metrics received:', m);
         m.sleepHours = parseFloat(m.sleepHours);
         setWearable(m);
         setSyncStatus('connected');
@@ -376,12 +410,36 @@ export default function Health() {
   }
 
   async function saveHealthFromPage() {
+      console.log("SAVE_HEALTH_FROM_PAGE EXECUTED");
+    console.log("healthLinkDraft =", healthLinkDraft);
     if (!healthLinkDraft.trim()) {
       setHealthPageError('Enter your health integration link.');
       return;
     }
 
     setHealthPageError('');
+
+    // Special-case: start Google Fit OAuth flow instead of saving as a simple provider
+    if (healthLinkDraft.trim() === 'anjali_googlefit') {
+      console.log('[HEALTH] Google Fit connect requested');
+      try {
+        const url = `${API}/api/health/google/connect?origin=${encodeURIComponent(window.location.origin)}`;
+        console.log('[HEALTH] Calling /api/health/google/connect with origin:', window.location.origin);
+        const res = await axios.get(url, { headers: { Authorization: `Bearer ${token()}`, Accept: 'application/json' } });
+        console.log('[HEALTH] Response:', res.data);
+        if (res.data?.url) {
+          console.log('[HEALTH] OAuth URL received');
+          window.location.href = res.data.url;
+          return;
+        }
+        setHealthPageError('Could not start Google OAuth flow');
+      } catch (err) {
+        console.error('[HEALTH] Google Fit connect error', err?.stack || err);
+        setHealthPageError(err?.response?.data?.message || 'Could not start Google OAuth flow');
+      }
+      return;
+    }
+
     try {
       const saved = await dispatch(saveHealthIntegration({ integrationLink: healthLinkDraft.trim() })).unwrap();
       localStorage.setItem(LS_DISMISSED, 'true');
@@ -396,13 +454,43 @@ export default function Health() {
   async function submitConnect() {
     if (!connectInput.trim()) { setConnectError('Enter your health integration link.'); return; }
     setConnectLoading(true); setConnectError('');
+    // Basic debug logs for connect flow
+    console.log('[HEALTH] Connect clicked');
+    console.log('[HEALTH] Provider:', connectInput);
+    console.log('[HEALTH] Current user id:', authUser?._id || authUser?.id || null);
+    console.log('[HEALTH] Has token:', !!token());
+
+    // If user provided the Google Fit provider key, start OAuth flow via backend
+    if (connectInput.trim() === 'anjali_googlefit') {
+      console.log('[HEALTH] Using Google Fit flow');
+      try {
+        const url = `${API}/api/health/google/connect?origin=${encodeURIComponent(window.location.origin)}`;
+        console.log('[HEALTH] Calling:', url);
+        const res = await axios.get(url, { headers: { Authorization: `Bearer ${token()}`, Accept: 'application/json' } });
+        console.log('[HEALTH] Response:', res.data);
+        if (res.data?.url) {
+          // Navigate browser to Google consent
+          window.location.href = res.data.url;
+          return;
+        }
+        setConnectError('Could not start Google OAuth flow');
+      } catch (err) {
+        console.error('[HEALTH] Connect error', err?.stack || err);
+        setConnectError(err?.response?.data?.message || 'Could not start Google OAuth flow');
+      } finally { setConnectLoading(false); }
+      return;
+    }
+
     try {
+      console.log('[HEALTH] Using Mock Provider flow');
+      console.log('[HEALTH] Calling saveHealthIntegration via Redux action');
       const saved = await dispatch(saveHealthIntegration({ integrationLink: connectInput.trim() })).unwrap();
       localStorage.setItem(LS_DISMISSED, 'true');
       setPromptDismissed(true);
       setSyncStatus('connected');
       setConnectModal(false);
       const m = saved.deviceData || {};
+      console.log('[HEALTH] Response from saveHealthIntegration:', saved);
       setWearable(m);
       const sg = dashProfile?.profile?.sleepHours || 7;
       if (m.steps >= 10000)                             triggerReward(50, 'Daily Step Goal Hit', '👟');
@@ -413,7 +501,7 @@ export default function Health() {
       const msg = err?.response?.status === 401
         ? 'Session expired — please log in again.'
         : err?.response?.status === 404
-        ? 'Health endpoint not found. Check your server is running on port 5000.'
+          ? 'Health endpoint not found. Check your server is running on port 5001.'
         : err?.response?.data?.message || 'Connection failed. Make sure your dev server is running.';
       setConnectError(msg);
     } finally { setConnectLoading(false); }
@@ -448,18 +536,21 @@ export default function Health() {
   async function logSmokingEvent(type) {
     setSmokeLogLoading(true);
     try {
-      const now     = new Date().toISOString();
-      const updated = {
-        ...(smokingData || { history: [], cravingsResisted: 0 }),
+      const now = new Date().toISOString();
+      const nextSmokingProfile = {
+        ...smokingProfile,
+        smoker: true,
+        smokingFrequency: smokingProfile.smokingFrequency || 'sometimes',
+        smokingStartedAt: smokingProfile.smokingStartedAt || now,
         lastEvent: type,
         lastEventTime: now,
-        ...(type === 'smoked'
-          ? { lastCigarette: now, history: [...(smokingData?.history || []), { type, time: now }].slice(-30) }
-          : { cravingsResisted: (smokingData?.cravingsResisted || 0) + 1, history: [...(smokingData?.history || []), { type, time: now }].slice(-30) }),
+        lastCigarette: type === 'smoked' ? now : smokingProfile.lastCigarette || null,
+        cigarettesToday: type === 'smoked' ? Number(smokingProfile.cigarettesToday || 0) + 1 : Number(smokingProfile.cigarettesToday || 0),
+        cravingsResisted: type === 'craving_resisted' ? Number(smokingProfile.cravingsResisted || 0) + 1 : Number(smokingProfile.cravingsResisted || 0),
+        smokingStreak: type === 'smoked' ? 0 : Number(smokingProfile.smokingStreak || 0),
       };
-      localStorage.setItem('ltSmoking', JSON.stringify(updated));
-      setSmokingData(updated);
-      if (type === 'craving_resisted') triggerReward(25, 'Craving Resisted! 💪', '🚭');
+      if (type === 'craving_resisted') triggerReward(25, 'Craving Resisted!', '');
+      await saveSmokingProfile(nextSmokingProfile);
       await axios.post(
         `${API}/api/health-metrics/vitals`,
         { stressLevel: type === 'smoked' ? 7 : 4, mood: type === 'smoked' ? 'stressed' : 'determined', waterLiters: 0 },
@@ -469,18 +560,58 @@ export default function Health() {
     finally { setSmokeLogLoading(false); setSmokingMode('view'); }
   }
 
-  // ── Derived values ──────────────────────────────────────────────────────────
+  async function startSmokingTracking() {
+    setSmokeLogLoading(true);
+    try {
+      const now = new Date().toISOString();
+      await saveSmokingProfile({
+        ...smokingProfile,
+        smoker: true,
+        smokingFrequency: 'sometimes',
+          smokingStartedAt: now,
+          smokingStreak: 0,
+          cigarettesToday: 0,
+          totalCigarettesSmoked: 0,
+      });
+      setStartSmokingOpen(false);
+    } catch (err) {
+      console.error('Start smoking tracking failed', err);
+    } finally {
+      setSmokeLogLoading(false);
+    }
+  }
+
+  async function saveSmokingProfile(nextSmokingProfile) {
+    const response = await axios.put(
+      `${API}/api/auth/profile`,
+      { smokingProfile: nextSmokingProfile },
+      { headers: { Authorization: `Bearer ${token()}` } },
+    );
+    const nextUser = response.data?.data;
+    if (nextUser) {
+      localStorage.setItem('user', JSON.stringify(nextUser));
+      dispatch(loginSuccess({ token: token(), user: nextUser }));
+    }
+  }
   const profile      = dashProfile?.profile  || {};
   const analytics    = dashProfile?.analytics || {};
   const aiInsights   = dashProfile?.aiInsights || [];
   const name         = profile?.githubData?.name || profile?.githubUsername || 'You';
   const sleepGoal    = profile?.sleepHours    || 7;
   const exerciseFreq = profile?.exerciseFrequency || 2;
-  const isSmoker     = profile?.smokingHabit === 'yes' || smokingEnabled;
-  const smokingStreak = computeSmokingStreak(smokingData?.lastCigarette);
+  const smokingProfile = authUser?.smokingProfile || {};
+  const isSmoker     = smokingProfile.smoker === true;
+  const smokingStreak = Number(smokingProfile.smokingStreak ?? computeSmokingStreak(smokingProfile.lastCigarette));
+  // Prefer today's reported cigarettes from Daily Update if present, otherwise fall back to stored total
+  const todaysCigarettes = Number(dailyUpdateState?.todayUpdate?.health?.cigarettesCount ?? NaN);
+  const totalCigarettes = !Number.isNaN(todaysCigarettes)
+    ? todaysCigarettes
+    : (authUser?.smokingProfile?.totalCigarettesSmoked ?? 0);
   const burnoutRisk  = analytics?.burnoutRisk   ?? null;
   const wellnessScore = analytics?.wellnessBalance ?? null;
   const wearableReady = wearable && Object.keys(wearable).length > 0 && wearable.steps !== undefined;
+  const resolvedGender = authUser?.gender || dashProfile?.profile?.gender || null;
+  const showFemaleHealth = resolvedGender === 'female';
 
   const metrics = [
     { key:'hr',       label:'Heart Rate', icon:HeartPulseIcon, value:wearable?.avgHeartRate??null,
@@ -507,6 +638,14 @@ export default function Health() {
 
   const healthHistory = history.filter(l => ['👟','💤','❤️','⚡','🧬','💧','🚭'].includes(l.emoji)).slice(0,6);
   const healthBadges  = availableBadges.filter(b => ['fitbit','sleep_master','first_step','hydration_hero','heart_health'].includes(b.id));
+
+  useEffect(() => {
+    console.log('AUTH USER', authUser);
+    console.log('SMOKING PROFILE', authUser?.smokingProfile);
+    console.log('TOTAL CIGARETTES', authUser?.smokingProfile?.totalCigarettesSmoked);
+    console.log('DAILY UPDATE STATE', dailyUpdateState);
+    console.log('Total Cigarettes From Redux (resolved):', totalCigarettes);
+  }, [totalCigarettes, authUser?.smokingProfile?.smokingStreak]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
@@ -694,11 +833,6 @@ export default function Health() {
           <section className="flex flex-wrap items-center gap-3 rounded-2xl border border-dashed border-white/10 bg-white/2 px-5 py-3">
             <span className="text-[10px] font-bold uppercase tracking-widest text-white/25">Demo controls</span>
             <div className="flex flex-wrap gap-2 ml-2">
-              <button
-                onClick={() => { const next = !smokingEnabled; setSmokingEnabled(next); localStorage.setItem('ltSmokingEnabled', String(next)); }}
-                className={`flex items-center gap-2 rounded-lg border px-3 py-1.5 text-xs font-bold transition-all ${smokingEnabled ? 'border-[#f59e0b]/50 bg-[#f59e0b]/15 text-[#f59e0b]' : 'border-white/10 bg-white/5 text-white/35 hover:bg-white/8'}`}>
-                🚬 Quit Companion {smokingEnabled ? 'ON' : 'OFF'}
-              </button>
               <button onClick={fetchWearable} disabled={syncStatus === 'syncing'}
                 className="flex items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-1.5 text-xs font-bold text-white/35 hover:bg-white/8 transition-all disabled:opacity-40">
                 ⌚ Re-sync Mock Data
@@ -804,7 +938,7 @@ export default function Health() {
                   { icon:'💤', label:`${sleepGoal}h sleep`,               pts:'40 XP', sub:'From your onboarding', active: wearableReady && wearable.sleepHours >= sleepGoal },
                   { icon:'❤️', label:'Healthy HR',                         pts:'30 XP', sub:'55–85 bpm at rest',   active: wearableReady && wearable.avgHeartRate >= 55 && wearable.avgHeartRate <= 85 },
                   { icon:'⚡', label:'HRV above 60ms',                     pts:'75 XP', sub:'Deep recovery zone',   active: wearableReady && wearable.hrv > 60 },
-                  ...(isSmoker ? [{ icon:'🚭', label:'Craving resisted', pts:'25 XP', sub:'Quit Companion win', active: (smokingData?.cravingsResisted ?? 0) > 0 }] : []),
+                  ...(isSmoker ? [{ icon:'🚭', label:'Craving resisted', pts:'25 XP', sub:'Quit Companion win', active: Number(smokingProfile.cravingsResisted || 0) > 0 }] : []),
                 ].map(item => (
                   <div key={item.icon} className={`rounded-xl border p-3 text-center transition-all ${item.active ? 'bg-[#10c7a1]/10 border-[#10c7a1]/30' : 'bg-white/4 border-white/5'}`}>
                     <span className="text-2xl">{item.icon}</span>
@@ -872,26 +1006,28 @@ export default function Health() {
 
         {/* ── BLOOM COMPANION + DAILY MATRIX ── */}
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
-          <article className="relative flex flex-col rounded-[1.6rem] border border-[#ffb3d1]/20 bg-gradient-to-br from-[#0b0f16]/95 via-[#12080e]/80 to-[#0b0f16]/95 p-6 xl:col-span-6 overflow-hidden min-h-[520px]">
-            <FloralDeco className="pointer-events-none absolute -top-8 -right-8 h-40 w-40 text-[#ff6b9d] opacity-20" />
-            <FloralDeco className="pointer-events-none absolute -bottom-12 -left-10 h-48 w-48 text-[#c084fc] opacity-10" />
-            <SmallFlower className="pointer-events-none absolute top-1/2 right-4 h-16 w-16 text-[#ffd166] opacity-15" />
-            <SmallFlower className="pointer-events-none absolute top-20 left-6 h-12 w-12 text-[#ff6b9d] opacity-10" />
-            <button onClick={() => setBlurred(b => !b)}
-              className="absolute top-5 right-5 z-50 h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all"
-              title={blurred ? 'Show' : 'Hide for privacy'}>
-              {blurred ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-            </button>
-            <div className={`relative z-10 flex flex-col h-full transition-all duration-500 ${blurred ? 'blur-md opacity-30 select-none pointer-events-none' : ''}`}>
-              {womenMode === 'period_setup'   && <PeriodSetup step={setupStep} setStep={setSetupStep} setup={periodSetup} setSetup={setPeriodSetup} onComplete={savePeriod} />}
-              {womenMode === 'period'         && phase && <PeriodTracker phase={phase} setup={periodSetup} symptoms={symptoms} toggleSym={s => setSymptoms(p => p.includes(s) ? p.filter(x=>x!==s) : [...p,s])} onMissed={() => setWomenMode('troubleshoot')} onPreg={() => setWomenMode('preg_setup')} onReset={resetWomen} wearable={wearableReady ? wearable : null} onRestartCycle={handleRestartPeriod} />}
-              {womenMode === 'troubleshoot'   && <TroubleshootPanel condition={periodSetup.condition} wearable={wearableReady ? wearable : null} onBack={() => setWomenMode('period')} onConfirm={() => setWomenMode('preg_setup')} />}
-              {womenMode === 'preg_setup'     && <PregSetup weeks={pregWeeks} setWeeks={setPregWeeks} due={pregDue} setDue={setPregDue} onSave={savePreg} onBack={() => setWomenMode('period')} />}
-              {womenMode === 'preg_dashboard' && <PregDashboard weeks={parseInt(pregWeeks)||6} due={pregDue} weather={weather} onReset={resetWomen} onBack={() => setWomenMode('period')} />}
-            </div>
-          </article>
+          {showFemaleHealth && (
+            <article className="relative flex flex-col rounded-[1.6rem] border border-[#ffb3d1]/20 bg-gradient-to-br from-[#0b0f16]/95 via-[#12080e]/80 to-[#0b0f16]/95 p-6 xl:col-span-6 overflow-hidden min-h-[520px]">
+              <FloralDeco className="pointer-events-none absolute -top-8 -right-8 h-40 w-40 text-[#ff6b9d] opacity-20" />
+              <FloralDeco className="pointer-events-none absolute -bottom-12 -left-10 h-48 w-48 text-[#c084fc] opacity-10" />
+              <SmallFlower className="pointer-events-none absolute top-1/2 right-4 h-16 w-16 text-[#ffd166] opacity-15" />
+              <SmallFlower className="pointer-events-none absolute top-20 left-6 h-12 w-12 text-[#ff6b9d] opacity-10" />
+              <button onClick={() => setBlurred(b => !b)}
+                className="absolute top-5 right-5 z-50 h-8 w-8 rounded-full bg-white/5 border border-white/10 flex items-center justify-center text-white/40 hover:text-white hover:bg-white/10 transition-all"
+                title={blurred ? 'Show' : 'Hide for privacy'}>
+                {blurred ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+              </button>
+              <div className={`relative z-10 flex flex-col h-full transition-all duration-500 ${blurred ? 'blur-md opacity-30 select-none pointer-events-none' : ''}`}>
+                {womenMode === 'period_setup'   && <PeriodSetup step={setupStep} setStep={setSetupStep} setup={periodSetup} setSetup={setPeriodSetup} onComplete={savePeriod} />}
+                {womenMode === 'period'         && phase && <PeriodTracker phase={phase} setup={periodSetup} symptoms={symptoms} toggleSym={s => setSymptoms(p => p.includes(s) ? p.filter(x=>x!==s) : [...p,s])} onMissed={() => setWomenMode('troubleshoot')} onPreg={() => setWomenMode('preg_setup')} onReset={resetWomen} wearable={wearableReady ? wearable : null} onRestartCycle={handleRestartPeriod} />}
+                {womenMode === 'troubleshoot'   && <TroubleshootPanel condition={periodSetup.condition} wearable={wearableReady ? wearable : null} onBack={() => setWomenMode('period')} onConfirm={() => setWomenMode('preg_setup')} />}
+                {womenMode === 'preg_setup'     && <PregSetup weeks={pregWeeks} setWeeks={setPregWeeks} due={pregDue} setDue={setPregDue} onSave={savePreg} onBack={() => setWomenMode('period')} />}
+                {womenMode === 'preg_dashboard' && <PregDashboard weeks={parseInt(pregWeeks)||6} due={pregDue} weather={weather} onReset={resetWomen} onBack={() => setWomenMode('period')} />}
+              </div>
+            </article>
+          )}
 
-          <article className={`${iCard} p-6 xl:col-span-6 flex flex-col`}>
+          <article className={`${iCard} p-6 ${showFemaleHealth ? 'xl:col-span-6' : 'xl:col-span-12'} flex flex-col`}>
             <div className="mb-5 border-b border-white/10 pb-4">
               <h2 className="text-2xl font-bold tracking-tight text-white">Daily Optimization Matrix</h2>
               <p className="mt-1 text-sm text-white/50">
@@ -969,8 +1105,7 @@ export default function Health() {
         </section>
 
         {/* ── SMOKING TRACKER ── */}
-        {isSmoker && (
-          <section>
+        <section>
             <article className={`${card} border-[#f59e0b]/20 bg-gradient-to-br from-[#1a1208]/95 to-[#0b0f16]/95 p-6`}>
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-6 border-b border-white/5 pb-4">
                 <div className="flex items-center gap-3">
@@ -982,46 +1117,39 @@ export default function Health() {
                     <p className="text-sm text-white/45">Your personal tracker for breaking the habit — one day at a time.</p>
                   </div>
                 </div>
-                {smokingMode === 'view' && (
-                  <button onClick={() => setSmokingMode('log')}
-                    className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-2 text-sm font-bold text-[#f59e0b] hover:bg-[#f59e0b]/20 transition-all">
-                    Log Now
-                  </button>
-                )}
+                {/* Smoking logging removed — tracking via Daily Update only */}
               </div>
-              {smokingMode === 'log' ? (
-                <div className="flex flex-col items-center gap-5 py-4">
-                  <p className="text-base font-semibold text-white/80 text-center">What happened just now?</p>
-                  <div className="grid grid-cols-2 gap-4 w-full max-w-sm">
-                    <button onClick={() => logSmokingEvent('smoked')} disabled={smokeLogLoading}
-                      className="flex flex-col items-center gap-2 p-5 rounded-2xl border border-[#ea580c]/30 bg-[#ea580c]/10 hover:bg-[#ea580c]/20 transition-all disabled:opacity-50">
-                      <span className="text-3xl">🚬</span>
-                      <span className="text-sm font-bold text-[#ea580c]">I smoked</span>
-                      <span className="text-[10px] text-white/35">No judgment — log it</span>
-                    </button>
-                    <button onClick={() => logSmokingEvent('craving_resisted')} disabled={smokeLogLoading}
-                      className="flex flex-col items-center gap-2 p-5 rounded-2xl border border-[#16a34a]/30 bg-[#16a34a]/10 hover:bg-[#16a34a]/20 transition-all disabled:opacity-50">
-                      <span className="text-3xl">💪</span>
-                      <span className="text-sm font-bold text-[#16a34a]">Resisted</span>
-                      <span className="text-[10px] text-white/35">+25 XP earned</span>
+              {!isSmoker ? (
+                <div className="rounded-2xl border border-white/10 bg-white/[0.045] p-5 text-white/60 flex flex-col items-start gap-3">
+                  <p className="text-sm font-bold text-white">Smoking Tracker</p>
+                  <p className="mt-2 text-sm">You currently do not smoke.</p>
+                  <div className="mt-3 w-full">
+                    <button onClick={() => setStartSmokingOpen(true)}
+                      className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b]/10 px-4 py-2 text-sm font-bold text-[#f59e0b] hover:bg-[#f59e0b]/20 transition-all">
+                      Have you started smoking recently?
                     </button>
                   </div>
-                  <button onClick={() => setSmokingMode('view')} className="text-xs text-white/25 hover:text-white transition-all">Cancel</button>
                 </div>
               ) : (
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
                   <div className="rounded-2xl border border-[#f59e0b]/20 bg-[#f59e0b]/8 p-5 flex flex-col items-center justify-center text-center">
-                    {smokingData?.lastCigarette ? (
+                    {smokingProfile.lastCigarette ? (
                       <>
                         <p className="text-[10px] font-bold uppercase tracking-wider text-[#f59e0b]/60 mb-2">Smoke-free streak</p>
                         <p className="text-5xl font-black text-white">{smokingStreak}</p>
                         <p className="text-sm text-white/50 mt-1">{smokingStreak === 1 ? 'day' : 'days'}</p>
                         {smokingStreak >= 7  && <p className="mt-3 text-xs text-[#f59e0b] font-bold">🔥 One week! Circulation is improving.</p>}
                         {smokingStreak >= 30 && <p className="mt-1 text-xs text-[#16a34a] font-bold">🌿 30 days! Lung function is recovering.</p>}
+                        <p className="mt-3 text-xs text-white/60">Total cigarettes smoked: <span className="font-bold text-white">{totalCigarettes}</span></p>
                       </>
                     ) : (
                       <><span className="text-4xl mb-2">🕐</span><p className="text-sm text-white/40">Log your first event to start your streak.</p></>
                     )}
+                  </div>
+                  <div className="rounded-2xl border border-[#f59e0b]/20 bg-[#f59e0b]/8 p-5 flex flex-col items-center justify-center text-center">
+                    <p className="text-[10px] font-bold uppercase tracking-wider text-[#f59e0b]/60 mb-2">Total cigarettes</p>
+                    <p className="text-2xl font-black text-white">{totalCigarettes}</p>
+                    <p className="text-sm text-white/50 mt-1">cumulative</p>
                   </div>
                   <div className="rounded-2xl border border-white/8 bg-white/4 p-5">
                     <div className="flex items-center gap-2 mb-3">
@@ -1057,9 +1185,9 @@ export default function Health() {
                          : `Your Digital Twin already knows you smoke — every smoke-free hour matters.`}
                       </p>
                     )}
-                    {(smokingData?.cravingsResisted ?? 0) > 0 && (
+                    {Number(smokingProfile.cravingsResisted || 0) > 0 && (
                       <p className="mt-3 text-xs text-[#a78bfa] font-semibold">
-                        🏆 {smokingData.cravingsResisted} {smokingData.cravingsResisted === 1 ? 'craving' : 'cravings'} resisted total
+                        🏆 {smokingProfile.cravingsResisted} {smokingProfile.cravingsResisted === 1 ? 'craving' : 'cravings'} resisted total
                       </p>
                     )}
                   </div>
@@ -1067,9 +1195,32 @@ export default function Health() {
               )}
             </article>
           </section>
-        )}
 
         {/* ── CROSS INSIGHTS + RECOVERY TRAJECTORY ── */}
+        {startSmokingOpen && (
+          <div className="fixed inset-0 z-[80] flex items-center justify-center bg-black/70 px-4">
+            <div className="w-full max-w-md rounded-2xl border border-white/10 bg-[#0b0f16] p-6 shadow-[0_24px_70px_rgba(0,0,0,0.55)]">
+              <h3 className="text-xl font-bold text-white">Have you started smoking recently?</h3>
+              <div className="mt-6 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setStartSmokingOpen(false)}
+                  className="rounded-xl border border-white/10 bg-white/5 px-4 py-2 text-sm font-bold text-white/60 hover:bg-white/10"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={startSmokingTracking}
+                  disabled={smokeLogLoading}
+                  className="rounded-xl border border-[#f59e0b]/30 bg-[#f59e0b] px-4 py-2 text-sm font-bold text-[#1a1208] hover:bg-[#fbbf24] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  Yes, I Started Smoking
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
         <section className="grid grid-cols-1 gap-6 xl:grid-cols-12">
           <article className={`${iCard} p-6 xl:col-span-5`}>
             <div className="mb-5 flex items-center justify-between border-b border-[#d8e5ea] pb-4">
@@ -1622,5 +1773,9 @@ function AutoIcon({className}){return <IB className={className}><path d="m12 3 1
 function FemaleIcon({className}){return <IB className={className}><path d="M12 13a5 5 0 1 0 0-10 5 5 0 0 0 0 10ZM12 13v8M8.5 17h7" stroke="currentColor" strokeWidth="2" strokeLinecap="round"/></IB>;}
 function SparkIcon({className}){return <IB className={className}><path d="m12 3 1.8 5.2L19 10l-5.2 1.8L12 17l-1.8-5.2L5 10l5.2-1.8L12 3Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/></IB>;}
 function TrophyIcon({className}){return <IB className={className}><path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6M18 9h1.5a2.5 2.5 0 0 0 0-5H18M4 22h16M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22M18 2H6v7a6 6 0 0 0 12 0V2Z" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></IB>;}
+
+
+
+
 
 

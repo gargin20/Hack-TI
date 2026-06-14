@@ -23,7 +23,7 @@ import { fetchCareerIntegrationStats, getCareerProfileLabel } from '../utils/car
 const card  = 'rounded-2xl border border-white/10 bg-[#11131a]/84 shadow-[0_18px_48px_rgba(0,0,0,0.38)] backdrop-blur-xl';
 const iCard = `${card} transition-all duration-300 ease-out hover:-translate-y-1 hover:border-[#7b61ff]/30 hover:shadow-[0_24px_60px_rgba(0,0,0,0.5)]`;
 
-const API = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const token = () => localStorage.getItem('authToken');
 const clamp = (v, lo, hi) => Math.max(lo, Math.min(hi, v));
 

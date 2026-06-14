@@ -13,7 +13,7 @@ cp .env.example .env
 # Start development server
 npm run dev
 
-# Server runs on http://localhost:5000
+# Server runs on http://localhost:5001
 ```
 
 ---
@@ -194,7 +194,7 @@ Error (400): Password validation errors
 
 **Signup:**
 ```bash
-curl -X POST http://localhost:5000/api/auth/signup \
+curl -X POST http://localhost:5001/api/auth/signup \
   -H "Content-Type: application/json" \
   -d '{
     "firstName":"John",
@@ -207,7 +207,7 @@ curl -X POST http://localhost:5000/api/auth/signup \
 
 **Login:**
 ```bash
-curl -X POST http://localhost:5000/api/auth/login \
+curl -X POST http://localhost:5001/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{
     "email":"john@example.com",
@@ -217,13 +217,13 @@ curl -X POST http://localhost:5000/api/auth/login \
 
 **Get Profile:**
 ```bash
-curl -X GET http://localhost:5000/api/auth/profile \
+curl -X GET http://localhost:5001/api/auth/profile \
   -H "Authorization: Bearer YOUR_TOKEN_HERE"
 ```
 
 **Update Profile:**
 ```bash
-curl -X PUT http://localhost:5000/api/auth/profile \
+curl -X PUT http://localhost:5001/api/auth/profile \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer YOUR_TOKEN_HERE" \
   -d '{
@@ -238,7 +238,7 @@ curl -X PUT http://localhost:5000/api/auth/profile \
 
 ```env
 # Server
-PORT=5000
+PORT=5001
 NODE_ENV=development
 
 # Database
@@ -378,7 +378,7 @@ server/
 
 ```javascript
 // Signup
-const response = await fetch('http://localhost:5000/api/auth/signup', {
+const response = await fetch('http://localhost:5001/api/auth/signup', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -393,7 +393,7 @@ const data = await response.json();
 localStorage.setItem('token', data.data.token);
 
 // Login
-const response = await fetch('http://localhost:5000/api/auth/login', {
+const response = await fetch('http://localhost:5001/api/auth/login', {
   method: 'POST',
   headers: { 'Content-Type': 'application/json' },
   body: JSON.stringify({
@@ -405,7 +405,7 @@ const data = await response.json();
 localStorage.setItem('token', data.data.token);
 
 // Protected Request
-const response = await fetch('http://localhost:5000/api/auth/profile', {
+const response = await fetch('http://localhost:5001/api/auth/profile', {
   headers: {
     'Authorization': `Bearer ${localStorage.getItem('token')}`
   }

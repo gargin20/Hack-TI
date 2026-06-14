@@ -1,7 +1,7 @@
 import { createAsyncThunk, createSlice } from '@reduxjs/toolkit';
 import axios from 'axios';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 const DEFAULT_PROVIDER = 'gargi_fitband';
 
 const initialState = {
@@ -127,7 +127,9 @@ function applyHealthIntegration(state, payload = {}) {
 
 async function fetchMockDeviceData() {
   const response = await axios.get(`${API_BASE_URL}/api/integrations/health`, { headers: authHeaders() });
+  console.log('[healthIntegrationSlice] /api/integrations/health response:', response.data);
   const metrics = response.data?.data?.metrics || {};
+  console.log('[healthIntegrationSlice] extracted metrics:', metrics);
   return { ...metrics, sleepHours: metrics.sleepHours != null ? parseFloat(metrics.sleepHours) : metrics.sleepHours };
 }
 

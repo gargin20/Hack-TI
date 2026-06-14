@@ -27,15 +27,28 @@ const userSchema = new mongoose.Schema(
       lowercase: true,
       match: [/^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/, 'Please provide a valid email'],
     },
+    name: {
+      type: String,
+      trim: true,
+      maxlength: [120, 'Name cannot exceed 120 characters'],
+      default: '',
+    },
     password: {
       type: String,
-      required: [true, 'Password is required'],
+      required: function () {
+        return this.authProvider !== 'google';
+      },
       minlength: [6, 'Password must be at least 6 characters'],
       select: false, // Don't return password by default
+      default: undefined,
     },
 
     // Profile Information
     profilePhoto: {
+      type: String,
+      default: null,
+    },
+    photoURL: {
       type: String,
       default: null,
     },
@@ -52,6 +65,11 @@ const userSchema = new mongoose.Schema(
       type: String,
       trim: true,
       default: '',
+    },
+    gender: {
+      type: String,
+      enum: ['male', 'female', 'other'],
+      default: null,
     },
     links: {
       linkedin: { type: String, trim: true, default: '' },
@@ -82,6 +100,28 @@ const userSchema = new mongoose.Schema(
       provider: { type: String, trim: true, default: 'gargi_fitband' },
       integrationLink: { type: String, trim: true, default: '' },
       lastSync: { type: Date, default: null },
+      // Google Fit token storage
+      googleFit: {
+        accessToken: { type: String, select: false, default: '' },
+        refreshToken: { type: String, select: false, default: '' },
+        tokenExpiresAt: { type: Date, default: null },
+        scope: { type: String, default: '' },
+      },
+    },
+    smokingProfile: {
+      smoker: { type: Boolean, default: false },
+      smokingFrequency: {
+        type: String,
+        enum: ['sometimes', 'daily', null],
+        default: null,
+      },
+      smokingStartedAt: { type: Date, default: null },
+      smokingStreak: { type: Number, default: 0 },
+      cigarettesToday: { type: Number, default: 0 },
+      cravingsResisted: { type: Number, default: 0 },
+      lastCigarette: { type: Date, default: null },
+      lastEvent: { type: String, trim: true, default: '' },
+      lastEventTime: { type: Date, default: null },
     },
 
     // Subscription & Role
@@ -142,8 +182,24 @@ const userSchema = new mongoose.Schema(
       select: false,
       default: null,
     },
+    passwordResetRequestedAt: {
+      type: Date,
+      select: false,
+      default: null,
+    },
+
+    authProvider: {
+      type: String,
+      enum: ['local', 'google', 'google+password'],
+      default: 'local',
+    },
 
     // Firebase ID (optional, for Firebase Authentication)
+    firebaseUid: {
+      type: String,
+      unique: true,
+      sparse: true,
+    },
     firebaseUID: {
       type: String,
       unique: true,
@@ -185,7 +241,7 @@ const userSchema = new mongoose.Schema(
  */
 userSchema.pre('save', async function (next) {
   // Skip if password hasn't been modified
-  if (!this.isModified('password')) {
+  if (!this.isModified('password') || !this.password) {
     return next();
   }
 
@@ -210,6 +266,7 @@ userSchema.methods.comparePassword = async function (enteredPassword) {
  */
 userSchema.methods.getProfile = function () {
   const user = this.toObject();
+  user.smokingProfile = normalizeSmokingProfile(user.smokingProfile);
   user.passwordSet = Boolean(user.password);
   delete user.password;
   delete user.verificationToken;
@@ -232,3 +289,19 @@ userSchema.index({ isActive: 1 });
 const User = mongoose.model('User', userSchema);
 
 export default User;
+
+function normalizeSmokingProfile(profile = {}) {
+  const smoker = Boolean(profile?.smoker);
+  return {
+    smoker,
+    smokingFrequency: smoker ? profile?.smokingFrequency || 'sometimes' : null,
+    smokingStartedAt: smoker ? profile?.smokingStartedAt || null : null,
+    smokingStreak: Number(profile?.smokingStreak || 0),
+    cigarettesToday: Number(profile?.cigarettesToday || 0),
+    totalCigarettesSmoked: Number(profile?.totalCigarettesSmoked || 0),
+    cravingsResisted: Number(profile?.cravingsResisted || 0),
+    lastCigarette: profile?.lastCigarette || null,
+    lastEvent: profile?.lastEvent || '',
+    lastEventTime: profile?.lastEventTime || null,
+  };
+}

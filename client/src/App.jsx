@@ -59,6 +59,8 @@ axios.interceptors.response.use(
   }
 );
 
+import ErrorBoundary from './components/ErrorBoundary';
+
 function App() {
   return (
     // ✅ The Provider MUST wrap everything!
@@ -81,7 +83,7 @@ function App() {
 
           <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
             <Route path="/dashboard" element={<Dashboard />} />
-            <Route path="/health" element={<Health />} />
+            <Route path="/health" element={<ErrorBoundary><Health /></ErrorBoundary>} />
             <Route path="/finance" element={<Finance />} />
             <Route path="/career" element={<Career />} />
             <Route path="/goals" element={<Goals />} />

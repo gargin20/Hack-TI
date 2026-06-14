@@ -9,12 +9,12 @@ Built with **Flask**, **scikit-learn**, **pandas**, and **numpy** — designed a
 ## 📐 Architecture
 
 ```
-Client (React)  →  Node.js Backend :5000  →  Flask AI Engine :5050
+Client (React)  →  Node.js Backend :5001  →  Flask AI Engine :5050
                         ↕                          ↕
                      MongoDB                   ML Models
 ```
 
-The Flask AI server runs independently on **port 5050**. The Node.js backend (port 5000) acts as a gateway — the client never calls Flask directly.
+The Flask AI server runs independently on **port 5050**. The Node.js backend (port 5001) acts as a gateway — the client never calls Flask directly.
 
 ---
 

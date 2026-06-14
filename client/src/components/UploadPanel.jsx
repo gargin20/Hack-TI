@@ -4,7 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { UploadCloud, FileText, CheckCircle2, AlertCircle, ChevronDown, ChevronUp, Sparkles, Clock } from 'lucide-react';
 import toast from 'react-hot-toast';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export default function UploadPanel({ isCollapsed }) {
   const [dragActive, setDragActive] = useState(false);

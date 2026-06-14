@@ -4,7 +4,7 @@ import axios from 'axios';
 import { useGamification } from '../context/GamificationContext';
 import { Moon, Wallet, Heart, Sparkles, X } from 'lucide-react';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 export default function DailySyncModal() {
   const [isOpen, setIsOpen] = useState(false);

@@ -1,6 +1,7 @@
 import crypto from 'crypto';
 import User from '../models/User.js';
 import { generateToken } from '../middleware/auth.js';
+import { verifyFirebaseToken } from '../config/firebase.js';
 
 /**
  * User Signup Controller
@@ -46,8 +47,11 @@ export const signup = async (req, res, next) => {
     const newUser = new User({
       firstName: firstName.trim(),
       lastName: lastName.trim(),
+      name: `${firstName.trim()} ${lastName.trim()}`.trim(),
       email: email.toLowerCase(),
       password,
+      authProvider: 'local',
+      smokingProfile: defaultSmokingProfile(),
     });
 
     await newUser.save();
@@ -92,6 +96,15 @@ export const login = async (req, res, next) => {
       return res.status(401).json({
         success: false,
         message: 'Invalid email or password',
+      });
+    }
+
+    if (isGoogleAccount(user) && !user.password) {
+      return res.status(401).json({
+        success: false,
+        code: 'GOOGLE_ACCOUNT',
+        email: user.email,
+        message: 'This account was created using Google.',
       });
     }
 
@@ -177,7 +190,7 @@ export const getProfile = async (req, res, next) => {
  */
 export const updateProfile = async (req, res, next) => {
   try {
-    const { firstName, lastName, email, bio, phone, dob, links, language, timezone, notifications } = req.body;
+    const { firstName, lastName, email, bio, phone, dob, gender, links, language, timezone, notifications, smokingProfile } = req.body;
 
     const user = await User.findById(req.user.userId);
 
@@ -207,6 +220,7 @@ export const updateProfile = async (req, res, next) => {
     if (bio) user.bio = bio.trim();
     if (phone !== undefined) user.phone = String(phone).trim();
     if (dob !== undefined) user.dob = String(dob).trim();
+    if (gender !== undefined) user.gender = sanitizeGender(gender);
     if (links && typeof links === 'object') {
       user.links = {
         ...user.links,
@@ -216,6 +230,9 @@ export const updateProfile = async (req, res, next) => {
         fitband: sanitizeProfileText(links.fitband ?? user.links?.fitband),
         banking: sanitizeProfileText(links.banking ?? user.links?.banking),
       };
+    }
+    if (smokingProfile && typeof smokingProfile === 'object') {
+      user.smokingProfile = mergeSmokingProfile(user.smokingProfile, smokingProfile);
     }
 
     // Update preferences
@@ -304,6 +321,95 @@ export const logout = async (req, res) => {
   });
 };
 
+export const googleAuth = async (req, res, next) => {
+  try {
+    const { firebaseToken, name, email, photoURL, uid } = req.body;
+
+    if (!firebaseToken || !email || !uid) {
+      return res.status(400).json({
+        success: false,
+        message: 'Firebase token, email, and uid are required',
+      });
+    }
+
+    const decodedToken = await verifyFirebaseToken(firebaseToken);
+
+    if (decodedToken.uid !== uid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Firebase uid does not match the authenticated token',
+        code: 'FIREBASE_UID_MISMATCH',
+      });
+    }
+
+    const tokenEmail = decodedToken.email?.toLowerCase();
+    const normalizedEmail = email.toLowerCase().trim();
+
+    if (tokenEmail && tokenEmail !== normalizedEmail) {
+      return res.status(401).json({
+        success: false,
+        message: 'Firebase email does not match the requested account',
+        code: 'FIREBASE_EMAIL_MISMATCH',
+      });
+    }
+
+    const displayName = sanitizeProfileText(name || decodedToken.name || normalizedEmail.split('@')[0]);
+    const [firstName, lastName] = splitDisplayName(displayName);
+
+    let user = await User.findOne({
+      $or: [
+        { email: normalizedEmail },
+        { firebaseUid: uid },
+        { firebaseUID: uid },
+      ],
+    }).select('+password');
+
+    if (user) {
+      user.firebaseUid = user.firebaseUid || uid;
+      user.firebaseUID = user.firebaseUID || uid;
+      user.name = user.name || displayName;
+      user.profilePhoto = user.profilePhoto || photoURL || decodedToken.picture || null;
+      user.photoURL = user.photoURL || photoURL || decodedToken.picture || null;
+      if (!user.firstName) user.firstName = firstName;
+      if (!user.lastName) user.lastName = lastName;
+      if (!user.authProvider || user.authProvider === 'local') user.authProvider = 'google+password';
+    } else {
+      user = new User({
+        firstName,
+        lastName,
+        name: displayName,
+        email: normalizedEmail,
+        profilePhoto: photoURL || decodedToken.picture || null,
+        photoURL: photoURL || decodedToken.picture || null,
+        firebaseUid: uid,
+        firebaseUID: uid,
+        authProvider: 'google',
+        isVerified: true,
+        smokingProfile: defaultSmokingProfile(),
+      });
+    }
+
+    user.lastLogin = new Date();
+    user.isVerified = true;
+    user.failedLoginAttempts = 0;
+    user.lockoutUntil = null;
+    await user.save();
+
+    const token = generateToken(user._id, user.email);
+
+    return res.status(user.createdAt?.getTime() === user.updatedAt?.getTime() ? 201 : 200).json({
+      success: true,
+      message: 'Google authentication successful',
+      data: {
+        user: user.getProfile(),
+        token,
+      },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
 export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -385,7 +491,143 @@ export const resetPassword = async (req, res, next) => {
   }
 };
 
-export default { signup, login, logout, getProfile, updateProfile, changePassword, forgotPassword, resetPassword };
+export const sendPasswordOtp = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ success: false, message: 'Email is required' });
+    }
+
+    const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+passwordResetRequestedAt');
+
+    if (!user) {
+      return res.status(404).json({ success: false, message: 'User not found', code: 'EMAIL_NOT_FOUND' });
+    }
+
+    if (!isGoogleAccount(user)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password access can only be generated for Google-created accounts.',
+        code: 'NOT_GOOGLE_ACCOUNT',
+      });
+    }
+
+    if (user.passwordResetRequestedAt && Date.now() - user.passwordResetRequestedAt.getTime() < 60 * 1000) {
+      return res.status(429).json({
+        success: false,
+        message: 'Please wait before requesting another OTP.',
+        code: 'OTP_RATE_LIMITED',
+      });
+    }
+
+    const otp = generateOtp();
+    user.passwordResetToken = hashOtp(otp);
+    user.passwordResetExpires = new Date(Date.now() + 10 * 60 * 1000);
+    user.passwordResetRequestedAt = new Date();
+    await user.save();
+
+    const emailResult = await sendPasswordResetOtpEmail(user.email, otp, 'Create Your Password');
+
+    if (!emailResult.sent) {
+      return res.status(500).json({
+        success: false,
+        message: 'Unable to send OTP email. Please check mail configuration and try again.',
+        code: 'OTP_EMAIL_FAILED',
+      });
+    }
+
+    return res.status(200).json({
+      success: true,
+      message: 'OTP sent to your registered email.',
+      data: { email: maskEmail(user.email), expiresInMinutes: 10 },
+    });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const verifyPasswordOtp = async (req, res, next) => {
+  try {
+    const { email, otp } = req.body;
+
+    if (!email || !otp) {
+      return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+    }
+
+    const user = await findUserByValidPasswordOtp(email, otp);
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    return res.status(200).json({ success: true, message: 'OTP verified successfully' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const setPassword = async (req, res, next) => {
+  try {
+    const { email, otp, newPassword, confirmPassword } = req.body;
+
+    if (!email || !otp || !newPassword || !confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Email, OTP, new password, and confirm password are required' });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ success: false, message: 'Passwords do not match' });
+    }
+
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      return res.status(400).json({ success: false, message: passwordError });
+    }
+
+    const user = await findUserByValidPasswordOtp(email, otp, '+password');
+
+    if (!user) {
+      return res.status(400).json({ success: false, message: 'Invalid or expired OTP' });
+    }
+
+    if (!isGoogleAccount(user)) {
+      return res.status(400).json({
+        success: false,
+        message: 'Password access can only be generated for Google-created accounts.',
+        code: 'NOT_GOOGLE_ACCOUNT',
+      });
+    }
+
+    user.password = newPassword;
+    user.authProvider = 'google+password';
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
+    user.passwordResetRequestedAt = undefined;
+    await user.save();
+
+    return res.status(200).json({ success: true, message: 'Password created successfully. You can now log in with email and password.' });
+  } catch (error) {
+    next(error);
+  }
+};
+
+export const createPassword = setPassword;
+
+export default {
+  signup,
+  login,
+  logout,
+  getProfile,
+  updateProfile,
+  changePassword,
+  forgotPassword,
+  resetPassword,
+  googleAuth,
+  sendPasswordOtp,
+  verifyPasswordOtp,
+  setPassword,
+  createPassword,
+};
 
 function generateOtp() {
   return String(crypto.randomInt(100000, 1000000));
@@ -395,13 +637,14 @@ function hashOtp(otp) {
   return crypto.createHash('sha256').update(String(otp).trim()).digest('hex');
 }
 
-async function sendPasswordResetOtpEmail(to, otp) {
-  const subject = '[DigitalTwin] Password reset OTP';
+async function sendPasswordResetOtpEmail(to, otp, heading = 'Reset your password') {
+  const subject = heading === 'Create Your Password' ? 'Create Your Password' : '[DigitalTwin] Password OTP';
   const text = [
-    'DigitalTwin password reset',
+    heading === 'Create Your Password' ? 'Your verification code is:' : `DigitalTwin ${heading.toLowerCase()}`,
     '',
-    `Your OTP is ${otp}.`,
-    'This OTP expires in 10 minutes.',
+    heading === 'Create Your Password' ? otp : `Your OTP is ${otp}.`,
+    '',
+    heading === 'Create Your Password' ? 'This code expires in 10 minutes.' : 'This OTP expires in 10 minutes.',
     '',
     'If you did not request this, you can ignore this email.',
   ].join('\n');
@@ -409,8 +652,8 @@ async function sendPasswordResetOtpEmail(to, otp) {
     <div style="font-family:Inter,Arial,sans-serif;background:#05070d;color:#f8fafc;padding:28px;">
       <div style="max-width:520px;margin:0 auto;border:1px solid rgba(255,255,255,0.12);border-radius:18px;background:#0b111a;padding:24px;">
         <p style="margin:0 0 10px;color:#7df3cc;font-size:12px;letter-spacing:2px;text-transform:uppercase;font-weight:800;">DigitalTwin Security</p>
-        <h1 style="margin:0 0 14px;font-size:24px;line-height:1.2;">Reset your password</h1>
-        <p style="margin:0;color:rgba(248,250,252,0.74);line-height:1.6;">Use this OTP to reset your DigitalTwin password.</p>
+        <h1 style="margin:0 0 14px;font-size:24px;line-height:1.2;">${heading}</h1>
+        <p style="margin:0;color:rgba(248,250,252,0.74);line-height:1.6;">Use this OTP to continue with your DigitalTwin password request.</p>
         <div style="margin:22px 0;border-radius:16px;background:rgba(123,97,255,0.16);border:1px solid rgba(123,97,255,0.34);padding:18px;text-align:center;">
           <div style="font-size:34px;letter-spacing:10px;font-weight:900;color:#ffffff;">${otp}</div>
         </div>
@@ -482,4 +725,69 @@ function maskEmail(email = '') {
 function sanitizeProfileText(value) {
   if (value === undefined || value === null) return '';
   return String(value).replace(/[<>]/g, '').trim().slice(0, 300);
+}
+
+function sanitizeGender(value) {
+  const gender = sanitizeProfileText(value).toLowerCase();
+  return ['male', 'female', 'other'].includes(gender) ? gender : null;
+}
+
+function splitDisplayName(displayName) {
+  const parts = sanitizeProfileText(displayName).split(/\s+/).filter(Boolean);
+  const firstName = parts.shift() || 'Google';
+  const lastName = parts.join(' ') || 'User';
+  return [firstName.slice(0, 50), lastName.slice(0, 50)];
+}
+
+function validatePassword(password) {
+  if (password.length < 6) return 'Password must be at least 6 characters';
+  return null;
+}
+
+function findUserByValidPasswordOtp(email, otp, extraSelect = '') {
+  return User.findOne({
+    email: email.toLowerCase().trim(),
+    passwordResetToken: hashOtp(otp),
+    passwordResetExpires: { $gt: new Date() },
+  }).select(`+passwordResetToken +passwordResetExpires ${extraSelect}`.trim());
+}
+
+function isGoogleAccount(user) {
+  return Boolean(
+    user?.authProvider?.includes('google') ||
+    user?.providers?.includes?.('google') ||
+    user?.firebaseUid ||
+    user?.firebaseUID
+  );
+}
+
+function defaultSmokingProfile() {
+  return {
+    smoker: false,
+    smokingFrequency: null,
+    smokingStartedAt: null,
+    smokingStreak: 0,
+    cigarettesToday: 0,
+    totalCigarettesSmoked: 0,
+  };
+}
+
+function mergeSmokingProfile(current = {}, incoming = {}) {
+  const smoker = Boolean(incoming.smoker);
+  return {
+    smoker,
+    smokingFrequency: smoker ? sanitizeSmokingFrequency(incoming.smokingFrequency || current?.smokingFrequency) : null,
+    smokingStartedAt: smoker ? incoming.smokingStartedAt ?? current?.smokingStartedAt ?? new Date() : null,
+    smokingStreak: Number(incoming.smokingStreak ?? current?.smokingStreak ?? 0),
+    cigarettesToday: Number(incoming.cigarettesToday ?? current?.cigarettesToday ?? 0),
+    totalCigarettesSmoked: Number(incoming.totalCigarettesSmoked ?? current?.totalCigarettesSmoked ?? 0),
+    cravingsResisted: Number(incoming.cravingsResisted ?? current?.cravingsResisted ?? 0),
+    lastCigarette: incoming.lastCigarette ?? current?.lastCigarette ?? null,
+    lastEvent: sanitizeProfileText(incoming.lastEvent ?? current?.lastEvent ?? ''),
+    lastEventTime: incoming.lastEventTime ?? current?.lastEventTime ?? null,
+  };
+}
+
+function sanitizeSmokingFrequency(value) {
+  return value === 'daily' ? 'daily' : 'sometimes';
 }

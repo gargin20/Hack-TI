@@ -6,8 +6,9 @@ import axios from 'axios';
 import toast, { Toaster } from 'react-hot-toast';
 import DigitalTwinLogo from '../components/DigitalTwinLogo';
 import { loginSuccess } from '../features/auth/authSlice';
+import { loginWithGoogle } from '../features/auth/authThunks';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 const activeSignals = [
   { emoji: '🧬', label: 'Health', title: 'Shape your energy profile', copy: 'See the health layer pulse through a calm neon frame that feels alive.', accent: 'from-[#ff4d7d] via-[#7b61ff] to-[#10c7a1]' },
@@ -103,6 +104,7 @@ function Signup() {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/auth/signup`, formData);
       toast.success('Account created!');
+      console.log('[AUTH WRITE]', response.data.data.token);
       localStorage.setItem('authToken', response.data.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.data.user));
       localStorage.removeItem('lifetwinOnboardingProfile');
@@ -114,6 +116,19 @@ function Signup() {
       navigate('/onboarding', { replace: true });
     } catch (error) {
       toast.error(error.response?.data?.message || 'Signup failed.');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleGoogleSignup = async () => {
+    setIsLoading(true);
+    try {
+      await dispatch(loginWithGoogle()).unwrap();
+      toast.success('Google sign-in successful!');
+      navigate('/onboarding', { replace: true });
+    } catch (error) {
+      toast.error(typeof error === 'string' ? error : 'Unable to continue with Google.');
     } finally {
       setIsLoading(false);
     }
@@ -215,7 +230,7 @@ function Signup() {
                   <div className="h-px flex-1 bg-gradient-to-r from-transparent via-white/15 to-transparent" />
                 </div>
 
-                <motion.button whileHover={{ y: -1, backgroundColor: "rgba(255,255,255,0.08)" }} type="button" className="flex w-full items-center justify-center gap-3 rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm font-semibold text-white/88 transition">
+                <motion.button whileHover={{ y: -1, backgroundColor: "rgba(255,255,255,0.08)" }} type="button" onClick={handleGoogleSignup} disabled={isLoading} className="flex w-full items-center justify-center gap-3 rounded-[1rem] border border-white/10 bg-white/[0.04] px-4 py-3.5 text-sm font-semibold text-white/88 transition disabled:opacity-60">
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-black">G</span> Continue with Google
                 </motion.button>
 

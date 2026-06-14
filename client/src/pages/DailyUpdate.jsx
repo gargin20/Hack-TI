@@ -12,6 +12,8 @@ const initialForm = {
     waterIntake: '',
     exercised: false,
     ateProperly: false,
+    smokedToday: false,
+    cigarettesCount: '',
     healthConcern: false,
     concernTypes: [],
     concernDescription: '',
@@ -41,6 +43,7 @@ const initialForm = {
 function DailyUpdate() {
   const dispatch = useDispatch();
   const { activeGoals, completed, dailyUpdateLastSubmittedAt, error, loading, success } = useSelector((state) => state.dailyUpdate);
+  const isSmoker = useSelector((state) => state.auth?.user?.smokingProfile?.smoker === true);
   const [form, setForm] = useState(initialForm);
   const [currentTime, setCurrentTime] = useState(() => Date.now());
 
@@ -83,7 +86,7 @@ function DailyUpdate() {
 
   const handleSubmit = async (event) => {
     event.preventDefault();
-    await dispatch(submitDailyUpdate(normalizeForm(form))).unwrap().catch(() => null);
+    await dispatch(submitDailyUpdate(normalizeForm(form, isSmoker))).unwrap().catch(() => null);
     dispatch(fetchTodayDailyUpdate());
   };
 
@@ -116,7 +119,13 @@ function DailyUpdate() {
             <NumberField label="Water intake today (liters)" value={form.health.waterIntake} onChange={(value) => update('health.waterIntake', value, setForm)} />
             <ToggleField label="Did you exercise today?" value={form.health.exercised} onChange={(value) => update('health.exercised', value, setForm)} />
             <ToggleField label="Did you eat properly today?" value={form.health.ateProperly} onChange={(value) => update('health.ateProperly', value, setForm)} />
+            {isSmoker && <ToggleField label="Did you smoke today?" value={form.health.smokedToday} onChange={(value) => update('health.smokedToday', value, setForm)} />}
           </div>
+          {isSmoker && form.health.smokedToday && (
+            <div className="mt-3">
+              <NumberField label="How many cigarettes did you smoke today?" value={form.health.cigarettesCount} onChange={(value) => update('health.cigarettesCount', value, setForm)} />
+            </div>
+          )}
           <ToggleField label="Any health concerns today?" value={form.health.healthConcern} onChange={(value) => update('health.healthConcern', value, setForm)} />
           {form.health.healthConcern && (
             <div className="space-y-4">
@@ -357,7 +366,7 @@ function toggleGoal(goalId, setForm) {
   });
 }
 
-function normalizeForm(form) {
+function normalizeForm(form, isSmoker = false) {
   const goalIds = Array.from(new Set([...(form.goal.goalIds || []), form.goal.goalId].filter(Boolean)));
   return {
     ...form,
@@ -365,6 +374,8 @@ function normalizeForm(form) {
       ...form.health,
       waterIntake: Number(form.health.waterIntake || 0),
       ateProperly: Boolean(form.health.ateProperly),
+      smokedToday: isSmoker ? Boolean(form.health.smokedToday) : false,
+      cigarettesCount: isSmoker ? Number(form.health.cigarettesCount || 0) : 0,
     },
     finance: {
       ...form.finance,

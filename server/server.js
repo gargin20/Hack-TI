@@ -24,6 +24,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import dailyUpdateRoutes, { streakRouter } from './routes/dailyUpdateRoutes.js';
 import integrationRoutes from './routes/integrationRoutes.js'; 
 import intelligenceRoutes from './routes/intelligenceRoutes.js';
+import googleFitRoutes from './routes/googleFitRoutes.js';
 
 import { startCaretakerJobs } from './cron/caretaker.js';
 import { initializeSocketServer } from './services/socketService.js';
@@ -36,7 +37,9 @@ const app = express();
 // ============================================
 
 // Security middleware
-app.use(helmet());
+app.use(helmet({
+  crossOriginOpenerPolicy: { policy: 'same-origin-allow-popups' },
+}));
 
 
 app.use(corsMiddleware);
@@ -51,7 +54,11 @@ app.use(express.urlencoded({ limit: '10mb', extended: true }));
 await connectDB();
 
 // Initialize Firebase Admin SDK
-initializeFirebase();
+try {
+  initializeFirebase();
+} catch (error) {
+  console.error('[Firebase Admin] Startup initialization skipped:', error.message);
+}
 
 
 app.get('/api/server-health', (req, res) => {
@@ -87,6 +94,7 @@ app.use('/api/streak', streakRouter);
 
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/health/google', googleFitRoutes);
 
 // ============================================
 // ERROR HANDLING MIDDLEWARE
@@ -104,6 +112,12 @@ app.use(errorHandler);
 
 const PORT = Number(process.env.PORT) || 5000;
 const NODE_ENV = process.env.NODE_ENV || 'development';
+
+// Temporary startup logs to help diagnose duplicate server starts / port usage
+console.log('Starting Express Server...');
+console.log('PORT =', process.env.PORT || PORT);
+console.log('PID =', process.pid);
+console.log('PORT (raw var) =', PORT);
 
 // Start the Autonomous Background Jobs before the server listens!
 startCaretakerJobs();
@@ -159,6 +173,19 @@ process.on('SIGTERM', async () => {
 process.on('SIGINT', async () => {
   console.log('SIGINT signal received: closing HTTP server');
   server.close(() => process.exit(0));
+});
+
+// Nodemon sends SIGUSR2 for restarts; handle it to gracefully close the server
+process.once('SIGUSR2', async () => {
+  console.log('SIGUSR2 received: graceful shutdown for restart');
+  if (server) {
+    server.close(() => {
+      // propagate the signal to allow nodemon to restart
+      process.kill(process.pid, 'SIGUSR2');
+    });
+  } else {
+    process.kill(process.pid, 'SIGUSR2');
+  }
 });
 
 export default app;

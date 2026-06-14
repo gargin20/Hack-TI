@@ -15,17 +15,106 @@ export const getHealthIntegration = async (req, res) => {
   });
 };
 
+// export const updateHealthIntegration = async (req, res) => {
+//   const user = await User.findById(req.user.userId);
+
+//   if (!user) {
+//     return res.status(404).json({ success: false, message: 'User not found' });
+//   }
+
+//   const integrationLink = sanitize(req.body?.integrationLink);
+
+//   if (!integrationLink) {
+//     return res.status(400).json({ success: false, message: 'Health integration link is required' });
+//   }
+
+//   user.healthIntegration = {
+//     connected: true,
+//     provider: sanitize(req.body?.provider) || DEFAULT_PROVIDER,
+//     integrationLink,
+//     lastSync: new Date(),
+//   };
+//   user.links = { ...(user.links || {}), fitband: integrationLink };
+
+//   await user.save();
+
+//   return res.status(200).json({
+//     success: true,
+//     data: buildHealthIntegration(user),
+//   });
+// };
+
+
+
+
+// export const updateHealthIntegration = async (req, res) => {
+//   const user = await User.findById(req.user.userId);
+
+//   if (!user) {
+//     return res.status(404).json({
+//       success: false,
+//       message: 'User not found'
+//     });
+//   }
+
+//   const integrationLink = sanitize(req.body?.integrationLink);
+//   const provider =
+//     sanitize(req.body?.provider) || DEFAULT_PROVIDER;
+
+//   if (!integrationLink) {
+//     return res.status(400).json({
+//       success: false,
+//       message: 'Health integration link is required'
+//     });
+//   }
+
+//   user.healthIntegration = {
+//     ...(user.healthIntegration || {}),
+//     connected: true,
+//     provider,
+//     integrationLink,
+//     lastSync: new Date()
+//   };
+
+//   user.links = {
+//     ...(user.links || {}),
+//     fitband: integrationLink
+//   };
+
+//   await user.save();
+
+//   return res.status(200).json({
+//     success: true,
+//     data: buildHealthIntegration(user)
+//   });
+// };
+
 export const updateHealthIntegration = async (req, res) => {
+  console.log("================================");
+  console.log("UPDATE HEALTH INTEGRATION CALLED");
+  console.log("BODY:", req.body);
+  console.log("USER ID:", req.user.userId);
+  console.log("================================");
+
   const user = await User.findById(req.user.userId);
 
   if (!user) {
-    return res.status(404).json({ success: false, message: 'User not found' });
+    return res.status(404).json({
+      success: false,
+      message: 'User not found'
+    });
   }
+
+  console.log("BEFORE UPDATE:");
+  console.log(JSON.stringify(user.healthIntegration, null, 2));
 
   const integrationLink = sanitize(req.body?.integrationLink);
 
   if (!integrationLink) {
-    return res.status(400).json({ success: false, message: 'Health integration link is required' });
+    return res.status(400).json({
+      success: false,
+      message: 'Health integration link is required'
+    });
   }
 
   user.healthIntegration = {
@@ -34,7 +123,9 @@ export const updateHealthIntegration = async (req, res) => {
     integrationLink,
     lastSync: new Date(),
   };
-  user.links = { ...(user.links || {}), fitband: integrationLink };
+
+  console.log("AFTER UPDATE:");
+  console.log(JSON.stringify(user.healthIntegration, null, 2));
 
   await user.save();
 
@@ -43,7 +134,6 @@ export const updateHealthIntegration = async (req, res) => {
     data: buildHealthIntegration(user),
   });
 };
-
 export const deleteHealthIntegration = async (req, res) => {
   const user = await User.findById(req.user.userId);
 

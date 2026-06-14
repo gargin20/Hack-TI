@@ -1,7 +1,8 @@
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
+import { loginSuccess } from '../auth/authSlice';
 
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 
 function authHeaders() {
   const token = localStorage.getItem('authToken');
@@ -30,7 +31,7 @@ export const fetchTodayDailyUpdate = createAsyncThunk(
 
 export const submitDailyUpdate = createAsyncThunk(
   'dailyUpdate/submit',
-  async (payload, { rejectWithValue }) => {
+  async (payload, { rejectWithValue, dispatch }) => {
     try {
       const response = await axios.post(
         `${API_BASE_URL}/api/daily-update`,
@@ -39,6 +40,15 @@ export const submitDailyUpdate = createAsyncThunk(
       );
       const dailyUpdateLastSubmittedAt = Date.now();
       localStorage.setItem('dailyUpdateLastSubmittedAt', String(dailyUpdateLastSubmittedAt));
+
+      // If server returned updated user profile, update auth store immediately
+      if (response.data && response.data.user) {
+        const token = localStorage.getItem('authToken');
+        console.log('submitDailyUpdate: server returned user:', response.data.user);
+        dispatch(loginSuccess({ user: response.data.user, token }));
+        console.log('submitDailyUpdate: dispatched loginSuccess with updated user smokingProfile:', response.data.user?.smokingProfile);
+      }
+
       window.dispatchEvent(new CustomEvent('daily-update-completed', {
         detail: {
           dailyUpdate: response.data.data,

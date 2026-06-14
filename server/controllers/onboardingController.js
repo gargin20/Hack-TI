@@ -1,4 +1,5 @@
 import OnboardingProfile from '../models/OnboardingProfile.js';
+import User from '../models/User.js';
 import { analyzeCorrelations, predictBurnout, predictProductivity } from '../services/aiService.js';
 import { fetchGithubProfile } from '../services/githubService.js';
 import { fetchLeetcodeProfile } from '../services/leetcodeService.js';
@@ -23,30 +24,41 @@ export const saveOnboardingProfile = async (req, res, next) => {
     const recommendations = generateRecommendations(normalized, aiResults, thresholdStates, integrationAnalytics);
     const aiInsights = generateAiInsights(normalized, aiResults, thresholdStates, integrationAnalytics);
 
-    const profile = await OnboardingProfile.findOneAndUpdate(
-      { userId: req.user.userId },
-      {
-        ...normalized,
-        ...aiResults.scores,
-        ...integrationAnalytics,
-        recommendations,
-        aiInsights,
-        thresholdStates,
-        correlationAnalysis: aiResults.correlationAnalysis,
-        aiSource: aiResults.aiSource,
-      },
-      {
-        new: true,
-        upsert: true,
-        runValidators: true,
-        setDefaultsOnInsert: true,
-      }
-    );
+    const [profile, user] = await Promise.all([
+      OnboardingProfile.findOneAndUpdate(
+        { userId: req.user.userId },
+        {
+          ...normalized,
+          ...aiResults.scores,
+          ...integrationAnalytics,
+          recommendations,
+          aiInsights,
+          thresholdStates,
+          correlationAnalysis: aiResults.correlationAnalysis,
+          aiSource: aiResults.aiSource,
+        },
+        {
+          new: true,
+          upsert: true,
+          runValidators: true,
+          setDefaultsOnInsert: true,
+        }
+      ),
+      User.findByIdAndUpdate(
+        req.user.userId,
+        {
+          gender: normalized.gender,
+          smokingProfile: buildSmokingProfileFromHabit(normalized.smokingHabit),
+        },
+        { new: true, runValidators: true }
+      ),
+    ]);
 
     return res.status(201).json({
       success: true,
       message: 'Onboarding profile processed successfully',
       data: buildDashboardResponse(profile),
+      user: user?.getProfile(),
     });
   } catch (error) {
     next(error);
@@ -127,7 +139,7 @@ function normalizeOnboardingPayload(body = {}) {
     studyHours: sanitizeNumber(body.studyHours ?? lifestyle.studyHours, 4),
     exerciseFrequency: sanitizeNumber(body.exerciseFrequency ?? lifestyle.exerciseFrequency, 2),
     spendingStyle: sanitizeString(body.spendingStyle ?? lifestyle.spendingStyle, 'balanced'),
-    smokingHabit: sanitizeString(body.smokingHabit ?? lifestyle.smokingHabits, 'no'),
+    smokingHabit: normalizeSmokingHabit(body.smokingHabit ?? lifestyle.smokingHabits),
     periodTracking: sanitizeString(body.periodTracking ?? lifestyle.periodTracking, 'not_now'),
     genderSpecificHealthContext: sanitizeString(
       body.genderSpecificHealthContext ?? lifestyle.genderSpecificHealthContext,
@@ -859,6 +871,43 @@ function buildSignals(profile) {
 function sanitizeString(value, fallback = '') {
   if (value === undefined || value === null) return fallback;
   return String(value).replace(/[<>]/g, '').trim().slice(0, 300);
+}
+
+function normalizeSmokingHabit(value) {
+  const habit = sanitizeString(value, 'no').toLowerCase();
+  if (habit === 'yes' || habit === 'daily') return 'yes';
+  if (habit === 'sometimes') return 'sometimes';
+  return 'no';
+}
+
+function buildSmokingProfileFromHabit(smokingHabit) {
+  if (smokingHabit === 'yes') {
+    return {
+      smoker: true,
+      smokingFrequency: 'daily',
+      smokingStartedAt: new Date(),
+      smokingStreak: 0,
+      cigarettesToday: 0,
+    };
+  }
+
+  if (smokingHabit === 'sometimes') {
+    return {
+      smoker: true,
+      smokingFrequency: 'sometimes',
+      smokingStartedAt: new Date(),
+      smokingStreak: 0,
+      cigarettesToday: 0,
+    };
+  }
+
+  return {
+    smoker: false,
+    smokingFrequency: null,
+    smokingStartedAt: null,
+    smokingStreak: 0,
+    cigarettesToday: 0,
+  };
 }
 
 function sanitizeGender(value) {
