@@ -100,6 +100,13 @@ const userSchema = new mongoose.Schema(
       provider: { type: String, trim: true, default: 'gargi_fitband' },
       integrationLink: { type: String, trim: true, default: '' },
       lastSync: { type: Date, default: null },
+      // Google Fit token storage
+      googleFit: {
+        accessToken: { type: String, select: false, default: '' },
+        refreshToken: { type: String, select: false, default: '' },
+        tokenExpiresAt: { type: Date, default: null },
+        scope: { type: String, default: '' },
+      },
     },
     smokingProfile: {
       smoker: { type: Boolean, default: false },

@@ -24,6 +24,7 @@ import notificationRoutes from './routes/notificationRoutes.js';
 import dailyUpdateRoutes, { streakRouter } from './routes/dailyUpdateRoutes.js';
 import integrationRoutes from './routes/integrationRoutes.js'; 
 import intelligenceRoutes from './routes/intelligenceRoutes.js';
+import googleFitRoutes from './routes/googleFitRoutes.js';
 
 import { startCaretakerJobs } from './cron/caretaker.js';
 import { initializeSocketServer } from './services/socketService.js';
@@ -93,6 +94,7 @@ app.use('/api/streak', streakRouter);
 
 app.use('/api/integrations', integrationRoutes);
 app.use('/api/intelligence', intelligenceRoutes);
+app.use('/api/health/google', googleFitRoutes);
 
 // ============================================
 // ERROR HANDLING MIDDLEWARE

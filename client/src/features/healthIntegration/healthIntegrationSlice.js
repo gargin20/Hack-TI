@@ -127,7 +127,9 @@ function applyHealthIntegration(state, payload = {}) {
 
 async function fetchMockDeviceData() {
   const response = await axios.get(`${API_BASE_URL}/api/integrations/health`, { headers: authHeaders() });
+  console.log('[healthIntegrationSlice] /api/integrations/health response:', response.data);
   const metrics = response.data?.data?.metrics || {};
+  console.log('[healthIntegrationSlice] extracted metrics:', metrics);
   return { ...metrics, sleepHours: metrics.sleepHours != null ? parseFloat(metrics.sleepHours) : metrics.sleepHours };
 }
 

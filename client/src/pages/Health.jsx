@@ -164,6 +164,36 @@ function NoDataCell({ label, icon: Icon, onConnect }) {
 // MAIN COMPONENT
 // ─────────────────────────────────────────────────────────────────────────────
 export default function Health() {
+  const authState = useSelector((state) => state.auth);
+  
+  useEffect(() => {
+    console.log('--- AUTHENTICATION / SESSION DEBUG LOGS ---');
+    console.log('window.location.href:', window.location.href);
+    console.log('localStorage authToken:', localStorage.getItem('authToken'));
+    console.log('localStorage user:', localStorage.getItem('user'));
+    console.log('Redux Auth State:', authState);
+    console.log('------------------------------------------');
+  }, []);
+
+  console.log('Health page mounted');
+  console.log('location.search', window.location.search);
+
+  // Global error listener to capture React/JS errors
+  useEffect(() => {
+    const handleError = (event) => {
+      console.error('Captured global error:', event.error || event.message);
+    };
+    const handleRejection = (event) => {
+      console.error('Captured unhandled rejection:', event.reason);
+    };
+    window.addEventListener('error', handleError);
+    window.addEventListener('unhandledrejection', handleRejection);
+    return () => {
+      window.removeEventListener('error', handleError);
+      window.removeEventListener('unhandledrejection', handleRejection);
+    };
+  }, []);
+
   const dispatch = useDispatch();
   const healthIntegration = useSelector((state) => state.healthIntegration);
   const authUser = useSelector((state) => state.auth?.user);
@@ -228,6 +258,8 @@ export default function Health() {
 
   useEffect(() => {
     if (healthIntegration.connected) {
+      console.log('[HEALTH] healthIntegration changed:', healthIntegration);
+      console.log('[HEALTH] healthIntegration.deviceData:', healthIntegration.deviceData);
       setSyncStatus('connected');
       if (Object.keys(healthIntegration.deviceData || {}).length > 0) {
         setWearable(healthIntegration.deviceData);
@@ -264,12 +296,16 @@ export default function Health() {
 
   async function fetchWearable() {
     setWearable({});
+    console.log('[HEALTH] fetchWearable called. healthIntegration:', healthIntegration);
+    console.log('[HEALTH] healthIntegration.deviceData BEFORE fetch:', healthIntegration.deviceData);
     try {
       const res = await axios.get(`${API}/api/integrations/health`, {
         headers: { Authorization: `Bearer ${token()}` },
       });
+      console.log('[HEALTH] /api/integrations/health response:', res.data);
       if (res.data?.success && res.data?.data?.metrics) {
         const m = res.data.data.metrics;
+        console.log('[HEALTH] metrics received:', m);
         m.sleepHours = parseFloat(m.sleepHours);
         setWearable(m);
         setSyncStatus('connected');
@@ -374,12 +410,36 @@ export default function Health() {
   }
 
   async function saveHealthFromPage() {
+      console.log("SAVE_HEALTH_FROM_PAGE EXECUTED");
+    console.log("healthLinkDraft =", healthLinkDraft);
     if (!healthLinkDraft.trim()) {
       setHealthPageError('Enter your health integration link.');
       return;
     }
 
     setHealthPageError('');
+
+    // Special-case: start Google Fit OAuth flow instead of saving as a simple provider
+    if (healthLinkDraft.trim() === 'anjali_googlefit') {
+      console.log('[HEALTH] Google Fit connect requested');
+      try {
+        const url = `${API}/api/health/google/connect?origin=${encodeURIComponent(window.location.origin)}`;
+        console.log('[HEALTH] Calling /api/health/google/connect with origin:', window.location.origin);
+        const res = await axios.get(url, { headers: { Authorization: `Bearer ${token()}`, Accept: 'application/json' } });
+        console.log('[HEALTH] Response:', res.data);
+        if (res.data?.url) {
+          console.log('[HEALTH] OAuth URL received');
+          window.location.href = res.data.url;
+          return;
+        }
+        setHealthPageError('Could not start Google OAuth flow');
+      } catch (err) {
+        console.error('[HEALTH] Google Fit connect error', err?.stack || err);
+        setHealthPageError(err?.response?.data?.message || 'Could not start Google OAuth flow');
+      }
+      return;
+    }
+
     try {
       const saved = await dispatch(saveHealthIntegration({ integrationLink: healthLinkDraft.trim() })).unwrap();
       localStorage.setItem(LS_DISMISSED, 'true');
@@ -394,13 +454,43 @@ export default function Health() {
   async function submitConnect() {
     if (!connectInput.trim()) { setConnectError('Enter your health integration link.'); return; }
     setConnectLoading(true); setConnectError('');
+    // Basic debug logs for connect flow
+    console.log('[HEALTH] Connect clicked');
+    console.log('[HEALTH] Provider:', connectInput);
+    console.log('[HEALTH] Current user id:', authUser?._id || authUser?.id || null);
+    console.log('[HEALTH] Has token:', !!token());
+
+    // If user provided the Google Fit provider key, start OAuth flow via backend
+    if (connectInput.trim() === 'anjali_googlefit') {
+      console.log('[HEALTH] Using Google Fit flow');
+      try {
+        const url = `${API}/api/health/google/connect?origin=${encodeURIComponent(window.location.origin)}`;
+        console.log('[HEALTH] Calling:', url);
+        const res = await axios.get(url, { headers: { Authorization: `Bearer ${token()}`, Accept: 'application/json' } });
+        console.log('[HEALTH] Response:', res.data);
+        if (res.data?.url) {
+          // Navigate browser to Google consent
+          window.location.href = res.data.url;
+          return;
+        }
+        setConnectError('Could not start Google OAuth flow');
+      } catch (err) {
+        console.error('[HEALTH] Connect error', err?.stack || err);
+        setConnectError(err?.response?.data?.message || 'Could not start Google OAuth flow');
+      } finally { setConnectLoading(false); }
+      return;
+    }
+
     try {
+      console.log('[HEALTH] Using Mock Provider flow');
+      console.log('[HEALTH] Calling saveHealthIntegration via Redux action');
       const saved = await dispatch(saveHealthIntegration({ integrationLink: connectInput.trim() })).unwrap();
       localStorage.setItem(LS_DISMISSED, 'true');
       setPromptDismissed(true);
       setSyncStatus('connected');
       setConnectModal(false);
       const m = saved.deviceData || {};
+      console.log('[HEALTH] Response from saveHealthIntegration:', saved);
       setWearable(m);
       const sg = dashProfile?.profile?.sleepHours || 7;
       if (m.steps >= 10000)                             triggerReward(50, 'Daily Step Goal Hit', '👟');

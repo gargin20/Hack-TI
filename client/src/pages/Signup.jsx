@@ -104,6 +104,7 @@ function Signup() {
     try {
       const response = await axios.post(`${API_BASE_URL}/api/auth/signup`, formData);
       toast.success('Account created!');
+      console.log('[AUTH WRITE]', response.data.data.token);
       localStorage.setItem('authToken', response.data.data.token);
       localStorage.setItem('user', JSON.stringify(response.data.data.user));
       localStorage.removeItem('lifetwinOnboardingProfile');

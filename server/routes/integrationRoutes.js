@@ -29,6 +29,39 @@ const simulateNetwork = (ms) => new Promise(resolve => setTimeout(resolve, ms));
 router.get('/health', authenticateToken, async (req, res) => {
   await simulateNetwork(800);
 
+  // If user has Google Fit connected, return live GoogleFit metrics instead of the mock data
+  try {
+    const userId = req.user.userId;
+    const User = (await import('../models/User.js')).default;
+    const user = await User.findById(userId).select('+healthIntegration.googleFit.accessToken +healthIntegration.googleFit.refreshToken +healthIntegration.googleFit.tokenExpiresAt');
+    if (user && user.healthIntegration?.provider === 'anjali_googlefit' && user.healthIntegration?.connected) {
+      try {
+        const { default: GoogleFitService } = await import('../services/GoogleFitService.js');
+        const metrics = await GoogleFitService.getLiveMetricsForUser(user);
+        console.log('[IntegrationRoutes] raw Google Fit metrics for user', userId, JSON.stringify(metrics));
+
+        // Normalize Google Fit service keys to the frontend expected schema
+        const mappedMetrics = {
+          steps: metrics.steps ?? 0,
+          avgHeartRate: (metrics.heartRate && metrics.heartRate > 0) ? metrics.heartRate : null,
+          hrv: metrics.hrv ?? null,
+          activeCalories: (metrics.calories && metrics.calories > 0) ? metrics.calories : null,
+          sleepHours: (metrics.sleepHours && metrics.sleepHours > 0) ? metrics.sleepHours : null,
+          restingHeartRate: metrics.restingHeartRate ?? null,
+        };
+
+        console.log('[IntegrationRoutes] mapped metrics to frontend schema for user', userId, JSON.stringify(mappedMetrics));
+        return res.status(200).json({ success: true, data: { source: 'Google Fit', lastSync: new Date().toISOString(), metrics: mappedMetrics } });
+      } catch (err) {
+        console.error('[IntegrationRoutes] Google Fit fetch failed, falling back to mock health:', err.message || err);
+        console.error(err.stack || err);
+        // fallthrough to mock below
+      }
+    }
+  } catch (err) {
+    console.error('[IntegrationRoutes] error checking google fit connection:', err.message || err);
+  }
+
   const today  = new Date().toISOString().slice(0, 10).replace(/-/g, '');
   const userId = String(req.user?.userId || 'default');
   const seed   = parseInt(today, 10) + userId.charCodeAt(0) + (userId.charCodeAt(1) || 0);

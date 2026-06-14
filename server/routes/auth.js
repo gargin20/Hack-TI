@@ -74,6 +74,14 @@ router.post('/reset-password', asyncHandler(resetPassword));
 router.post('/send-password-otp', asyncHandler(sendPasswordOtp));
 router.post('/verify-password-otp', asyncHandler(verifyPasswordOtp));
 router.post('/set-password', asyncHandler(setPassword));
-router.post('/create-password', asyncHandler(createPassword));
+router.post('/log-client-error', (req, res) => {
+  console.error('================ CLIENT-SIDE ERROR ================');
+  console.error('URL:', req.body.url);
+  console.error('Message:', req.body.message);
+  console.error('Stack:', req.body.stack);
+  console.error('Component Stack:', req.body.componentStack);
+  console.error('===================================================');
+  res.status(200).json({ success: true });
+});
 
 export default router;

@@ -72,9 +72,14 @@ export const setPasswordForGoogleAccount = createAsyncThunk(
 );
 
 export const restoreSession = createAsyncThunk('auth/restoreSession', async (_, { dispatch, rejectWithValue }) => {
+  console.log('[RESTORE START]');
+  console.log('URL:', window.location.href);
+  console.log('TOKEN:', localStorage.getItem('authToken'));
+  
   const token = localStorage.getItem('authToken');
 
   if (!token) {
+    console.log('[RESTORE] No token path');
     clearPersistedSession();
     dispatch({ type: 'auth/logout' });
     return rejectWithValue('No token found');
@@ -89,8 +94,10 @@ export const restoreSession = createAsyncThunk('auth/restoreSession', async (_, 
     persistSession({ token, user });
     dispatch({ type: 'auth/loginSuccess', payload: { token, user } });
 
+    console.log('[RESTORE] Success path');
     return { token, user };
   } catch (error) {
+    console.log('[RESTORE] Error path:', error.message || error);
     clearPersistedSession();
     dispatch({ type: 'auth/logout' });
     return rejectWithValue(error.response?.data?.message || 'Session expired.');
@@ -115,11 +122,15 @@ export const logoutUser = createAsyncThunk('auth/logoutUser', async (_, { dispat
 });
 
 function persistSession({ token, user }) {
+  console.log('[AUTH WRITE]', token);
   localStorage.setItem('authToken', token);
   localStorage.setItem('user', JSON.stringify(user));
 }
 
 function clearPersistedSession() {
+  console.log('[AUTH REMOVE]');
+  console.log('Token before removal:', localStorage.getItem('authToken'));
+  console.trace();
   localStorage.removeItem('authToken');
   localStorage.removeItem('user');
   localStorage.removeItem('lifetwinOnboardingProfile');
