@@ -3,10 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
-  Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis,
-  ResponsiveContainer, Tooltip as RechartsTooltip,
-} from 'recharts';
-import {
   BadgeDollarSign, Bell, Briefcase, CalendarDays, CheckCircle2,
   ChevronRight, HeartPulse, Search, Target,
   Flame, Brain, Activity, ArrowUpRight, Wallet,
@@ -894,6 +890,9 @@ function LifeBalanceRadar({ insights }) {
     { subject: 'Recovery', A: insights.recoveryScore, emoji: '💧', color: '#38bdf8', desc: 'Sleep + exercise + stress' },
     { subject: 'Resilience', A: 100 - insights.burnoutRisk, emoji: '🛡️', color: '#f472b6', desc: 'Inverse burnout index' },
   ];
+  const radarPoints = buildRadarPoints(data, 150, 128);
+  const axisPoints = data.map((_, index) => getRadarPoint(index, data.length, 100, 150, 128));
+  const ringRadii = [25, 50, 75, 100];
 
   return (
     <motion.article whileHover={{ y: -3 }} className={`flex flex-col rounded-[1.5rem] border ${theme === 'light' ? 'border-[#e2e8f0] bg-white shadow-sm' : 'border-white/10 bg-white/[0.02] backdrop-blur-xl'} p-5`}>
@@ -906,18 +905,64 @@ function LifeBalanceRadar({ insights }) {
       </div>
       <div className="grid flex-1 gap-4 xl:grid-cols-[1.2fr_0.8fr]">
         <div className="min-h-[300px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="70%" data={data}>
-              <PolarGrid stroke={theme === 'light' ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255,255,255,0.06)'} />
-              <PolarAngleAxis dataKey="subject" tick={({ x, y, payload }) => {
-                const entry = data.find(d => d.subject === payload.value);
-                return <text x={x} y={y} textAnchor="middle" dominantBaseline="central" fill={entry?.color || (theme === 'light' ? '#64748b' : 'rgba(255,255,255,0.45)')} fontSize={9.5} fontWeight={700} letterSpacing="0.08em">{payload.value}</text>;
-              }} />
-              <PolarRadiusAxis angle={30} domain={[0, 100]} tick={false} axisLine={false} />
-              <RechartsTooltip content={<LifeBalanceTooltip data={data} />} />
-              <Radar name="Score" dataKey="A" stroke="#7b61ff" strokeWidth={2} fill="rgba(123,97,255,0.13)" dot={{ r: 4, fill: '#7b61ff', stroke: 'rgba(123,97,255,0.35)', strokeWidth: 2 }} activeDot={{ r: 6, fill: '#7b61ff', stroke: 'white', strokeWidth: 2 }} />
-            </RadarChart>
-          </ResponsiveContainer>
+          <svg className="h-full min-h-[300px] w-full" viewBox="0 0 300 256" role="img" aria-label="Life balance radar chart">
+            <defs>
+              <radialGradient id="lifeBalanceGlow" cx="50%" cy="50%" r="60%">
+                <stop offset="0%" stopColor="#7b61ff" stopOpacity="0.28" />
+                <stop offset="100%" stopColor="#7b61ff" stopOpacity="0.04" />
+              </radialGradient>
+              <filter id="lifeBalanceShadow" x="-30%" y="-30%" width="160%" height="160%">
+                <feDropShadow dx="0" dy="0" stdDeviation="4" floodColor="#7b61ff" floodOpacity="0.35" />
+              </filter>
+            </defs>
+            {ringRadii.map((radius) => (
+              <polygon
+                key={radius}
+                points={data.map((_, index) => {
+                  const point = getRadarPoint(index, data.length, radius, 150, 128);
+                  return `${point.x},${point.y}`;
+                }).join(' ')}
+                fill="none"
+                stroke={theme === 'light' ? 'rgba(15, 23, 42, 0.08)' : 'rgba(255,255,255,0.08)'}
+                strokeWidth="1"
+              />
+            ))}
+            {axisPoints.map((point, index) => (
+              <line
+                key={data[index].subject}
+                x1="150"
+                y1="128"
+                x2={point.x}
+                y2={point.y}
+                stroke={theme === 'light' ? 'rgba(15, 23, 42, 0.07)' : 'rgba(255,255,255,0.07)'}
+                strokeWidth="1"
+              />
+            ))}
+            <motion.polygon
+              points={radarPoints}
+              fill="url(#lifeBalanceGlow)"
+              stroke="#7b61ff"
+              strokeWidth="2"
+              filter="url(#lifeBalanceShadow)"
+              initial={{ opacity: 0, scale: 0.88, transformOrigin: '150px 128px' }}
+              animate={{ opacity: 1, scale: 1 }}
+              transition={{ duration: 0.75, ease: 'easeOut' }}
+            />
+            {data.map((item, index) => {
+              const point = getRadarPoint(index, data.length, item.A, 150, 128);
+              const labelPoint = getRadarPoint(index, data.length, 118, 150, 128);
+              return (
+                <g key={item.subject}>
+                  <circle cx={point.x} cy={point.y} r="4.5" fill={item.color} stroke={theme === 'light' ? '#ffffff' : '#111827'} strokeWidth="2">
+                    <title>{`${item.subject}: ${item.A}% - ${item.desc}`}</title>
+                  </circle>
+                  <text x={labelPoint.x} y={labelPoint.y} textAnchor="middle" dominantBaseline="central" fill={item.color} fontSize="9.5" fontWeight="700">
+                    {item.subject}
+                  </text>
+                </g>
+              );
+            })}
+          </svg>
         </div>
         <div className="flex flex-col gap-2">
           {data.map((item, i) => (
@@ -943,21 +988,21 @@ function LifeBalanceRadar({ insights }) {
   );
 }
 
-function LifeBalanceTooltip({ active, payload, data }) {
-  const { theme } = useTheme();
-  if (!active || !payload?.length) return null;
-  const entry = data.find(d => d.subject === payload[0]?.payload?.subject);
-  if (!entry) return null;
-  return (
-    <div className={`rounded-xl border ${theme === 'light' ? 'border-[#e2e8f0] bg-white shadow-lg' : 'border-white/10 bg-[#0a0e17]/95 backdrop-blur-xl'} px-3.5 py-2.5 text-left`} style={{ boxShadow: theme === 'light' ? 'none' : `0 0 18px ${entry.color}30` }}>
-      <div className="flex items-center gap-1.5 mb-1">
-        <span>{entry.emoji}</span>
-        <span className="text-[10px] font-bold uppercase tracking-widest" style={{ color: entry.color }}>{entry.subject}</span>
-      </div>
-      <p className={`text-xl font-bold ${theme === 'light' ? 'text-[#0f172a]' : 'text-white'}`}>{entry.A}<span className={`text-sm font-normal ${theme === 'light' ? 'text-[#64748b]' : 'text-white/45'} ml-0.5`}>%</span></p>
-      <p className={`mt-0.5 text-[10px] ${theme === 'light' ? 'text-[#64748b]' : 'text-white/40'}`}>{entry.desc}</p>
-    </div>
-  );
+function getRadarPoint(index, total, value, centerX, centerY) {
+  const angle = (Math.PI * 2 * index) / total - Math.PI / 2;
+  return {
+    x: centerX + Math.cos(angle) * value,
+    y: centerY + Math.sin(angle) * value,
+  };
+}
+
+function buildRadarPoints(data, centerX, centerY) {
+  return data
+    .map((item, index) => {
+      const point = getRadarPoint(index, data.length, clamp(item.A, 0, 100), centerX, centerY);
+      return `${point.x},${point.y}`;
+    })
+    .join(' ');
 }
 
 function DailyCalendarStreak({ insights }) {
