@@ -74,5 +74,6 @@ router.post('/reset-password', asyncHandler(resetPassword));
 router.post('/send-password-otp', asyncHandler(sendPasswordOtp));
 router.post('/verify-password-otp', asyncHandler(verifyPasswordOtp));
 router.post('/set-password', asyncHandler(setPassword));
+router.post('/create-password', asyncHandler(createPassword));
 
 export default router;
