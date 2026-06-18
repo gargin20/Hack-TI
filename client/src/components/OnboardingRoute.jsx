@@ -8,37 +8,35 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 function OnboardingRoute({ children }) {
   const { isAuthenticated, loading, token } = useSelector((state) => state.auth);
   const activeToken = token || localStorage.getItem('authToken');
-  const [checkingOnboarding, setCheckingOnboarding] = useState(false);
+  const [checkingOnboarding, setCheckingOnboarding] = useState(Boolean(activeToken));
   const [onboardingCompleted, setOnboardingCompleted] = useState(null);
 
   useEffect(() => {
-    if (!isAuthenticated || !activeToken) {
+    if (!activeToken) {
+      setCheckingOnboarding(false);
       return;
     }
 
     let isMounted = true;
-    const timer = window.setTimeout(() => {
-      setCheckingOnboarding(true);
+    setCheckingOnboarding(true);
 
-      axios.get(`${API_BASE_URL}/api/onboarding`, {
-        headers: { Authorization: `Bearer ${activeToken}` },
+    axios.get(`${API_BASE_URL}/api/onboarding`, {
+      headers: { Authorization: `Bearer ${activeToken}` },
+    })
+      .then((response) => {
+        if (isMounted) setOnboardingCompleted(Boolean(response.data.completed));
       })
-        .then((response) => {
-          if (isMounted) setOnboardingCompleted(Boolean(response.data.completed));
-        })
-        .catch(() => {
-          if (isMounted) setOnboardingCompleted(false);
-        })
-        .finally(() => {
-          if (isMounted) setCheckingOnboarding(false);
-        });
-    }, 0);
+      .catch(() => {
+        if (isMounted) setOnboardingCompleted(false);
+      })
+      .finally(() => {
+        if (isMounted) setCheckingOnboarding(false);
+      });
 
     return () => {
       isMounted = false;
-      window.clearTimeout(timer);
     };
-  }, [activeToken, isAuthenticated]);
+  }, [activeToken]);
 
   if (loading || checkingOnboarding) {
     return null;
