@@ -83,11 +83,12 @@ import { Navigate, useLocation } from 'react-router-dom';
 import axios from 'axios';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const ROUTE_CHECK_TIMEOUT_MS = 15000;
 
 function ProtectedRoute({ children }) {
   const location = useLocation();
   const { isAuthenticated, loading, token } = useSelector((state) => state.auth);
-  const activeToken = token || localStorage.getItem('authToken');
+  const activeToken = token || readStoredToken();
   const [checkingOnboarding, setCheckingOnboarding] = useState(false);
   const [onboardingCompleted, setOnboardingCompleted] = useState(null);
 
@@ -102,6 +103,7 @@ function ProtectedRoute({ children }) {
 
       axios.get(`${API_BASE_URL}/api/onboarding`, {
         headers: { Authorization: `Bearer ${activeToken}` },
+        timeout: ROUTE_CHECK_TIMEOUT_MS,
       })
         .then((response) => {
           if (isMounted) setOnboardingCompleted(Boolean(response.data.completed));
@@ -121,7 +123,7 @@ function ProtectedRoute({ children }) {
   }, [activeToken, isAuthenticated]);
 
   if (loading || checkingOnboarding) {
-    return null;
+    return <RouteLoading label="Preparing your workspace..." />;
   }
 
   if (!isAuthenticated && !activeToken) {
@@ -136,3 +138,19 @@ function ProtectedRoute({ children }) {
 }
 
 export default ProtectedRoute;
+
+function readStoredToken() {
+  try {
+    return localStorage.getItem('authToken');
+  } catch {
+    return null;
+  }
+}
+
+function RouteLoading({ label }) {
+  return (
+    <div className="min-h-screen bg-[#050816] text-white grid place-items-center px-6">
+      <div className="text-sm text-white/70">{label}</div>
+    </div>
+  );
+}

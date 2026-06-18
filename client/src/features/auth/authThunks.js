@@ -127,14 +127,15 @@
 // }
 import { createAsyncThunk } from '@reduxjs/toolkit';
 import axios from 'axios';
-import { GoogleAuthProvider, signInWithPopup } from 'firebase/auth';
-import { auth } from '../../config/firebase';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
+const AUTH_REQUEST_TIMEOUT_MS = 15000;
 
 export const loginUser = createAsyncThunk('auth/loginUser', async (credentials, { dispatch, rejectWithValue }) => {
   try {
-    const response = await axios.post(`${API_BASE_URL}/api/auth/login`, credentials);
+    const response = await axios.post(`${API_BASE_URL}/api/auth/login`, credentials, {
+      timeout: AUTH_REQUEST_TIMEOUT_MS,
+    });
     const { token, user } = response.data.data;
 
     persistSession({ token, user });
@@ -154,6 +155,10 @@ export const loginUser = createAsyncThunk('auth/loginUser', async (credentials, 
 
 export const loginWithGoogle = createAsyncThunk('auth/loginWithGoogle', async (_, { dispatch, rejectWithValue }) => {
   try {
+    const [{ GoogleAuthProvider, signInWithPopup }, { auth }] = await Promise.all([
+      import('firebase/auth'),
+      import('../../config/firebase'),
+    ]);
     const provider = new GoogleAuthProvider();
     provider.setCustomParameters({
       prompt: 'select_account',
@@ -163,13 +168,17 @@ export const loginWithGoogle = createAsyncThunk('auth/loginWithGoogle', async (_
     const user = result.user;
     const firebaseToken = await user.getIdToken();
 
-    const response = await axios.post(`${API_BASE_URL}/api/auth/google`, {
-      firebaseToken,
-      name: user.displayName,
-      email: user.email,
-      photoURL: user.photoURL,
-      uid: user.uid,
-    });
+    const response = await axios.post(
+      `${API_BASE_URL}/api/auth/google`,
+      {
+        firebaseToken,
+        name: user.displayName,
+        email: user.email,
+        photoURL: user.photoURL,
+        uid: user.uid,
+      },
+      { timeout: AUTH_REQUEST_TIMEOUT_MS }
+    );
     const { token, user: appUser } = response.data.data;
 
     persistSession({ token, user: appUser });
@@ -190,7 +199,11 @@ export const setPasswordForGoogleAccount = createAsyncThunk(
   'auth/setPasswordForGoogleAccount',
   async ({ email, otp, newPassword }, { rejectWithValue }) => {
     try {
-      const response = await axios.post(`${API_BASE_URL}/api/auth/create-password`, { email, otp, newPassword, confirmPassword: newPassword });
+      const response = await axios.post(
+        `${API_BASE_URL}/api/auth/create-password`,
+        { email, otp, newPassword, confirmPassword: newPassword },
+        { timeout: AUTH_REQUEST_TIMEOUT_MS }
+      );
       return response.data;
     } catch (error) {
       return rejectWithValue(error.response?.data?.message || error.message || 'Unable to create password.');
@@ -199,7 +212,7 @@ export const setPasswordForGoogleAccount = createAsyncThunk(
 );
 
 export const restoreSession = createAsyncThunk('auth/restoreSession', async (_, { dispatch, rejectWithValue }) => {
-  const token = localStorage.getItem('authToken');
+  const token = readStoredToken();
 
   if (!token) {
     clearPersistedSession();
@@ -210,6 +223,7 @@ export const restoreSession = createAsyncThunk('auth/restoreSession', async (_, 
   try {
     const response = await axios.get(`${API_BASE_URL}/api/auth/me`, {
       headers: { Authorization: `Bearer ${token}` },
+      timeout: AUTH_REQUEST_TIMEOUT_MS,
     });
     const user = response.data.data;
 
@@ -225,12 +239,13 @@ export const restoreSession = createAsyncThunk('auth/restoreSession', async (_, 
 });
 
 export const logoutUser = createAsyncThunk('auth/logoutUser', async (_, { dispatch }) => {
-  const token = localStorage.getItem('authToken');
+  const token = readStoredToken();
 
   try {
     if (token) {
       await axios.post(`${API_BASE_URL}/api/auth/logout`, {}, {
         headers: { Authorization: `Bearer ${token}` },
+        timeout: AUTH_REQUEST_TIMEOUT_MS,
       });
     }
   } catch {
@@ -242,13 +257,29 @@ export const logoutUser = createAsyncThunk('auth/logoutUser', async (_, { dispat
 });
 
 function persistSession({ token, user }) {
-  localStorage.setItem('authToken', token);
-  localStorage.setItem('user', JSON.stringify(user));
+  try {
+    localStorage.setItem('authToken', token);
+    localStorage.setItem('user', JSON.stringify(user));
+  } catch {
+    // Session persistence can fail in restricted browser storage; Redux state still holds the session.
+  }
 }
 
 function clearPersistedSession() {
-  localStorage.removeItem('authToken');
-  localStorage.removeItem('user');
-  localStorage.removeItem('lifetwinOnboardingProfile');
-  localStorage.removeItem('digitalTwinDashboardData');
+  try {
+    localStorage.removeItem('authToken');
+    localStorage.removeItem('user');
+    localStorage.removeItem('lifetwinOnboardingProfile');
+    localStorage.removeItem('digitalTwinDashboardData');
+  } catch {
+    // Ignore storage cleanup failures; auth state is cleared by reducers.
+  }
+}
+
+function readStoredToken() {
+  try {
+    return localStorage.getItem('authToken');
+  } catch {
+    return null;
+  }
 }

@@ -1,7 +1,7 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { loginUser, loginWithGoogle, restoreSession } from './authThunks';
 
-const storedToken = localStorage.getItem('authToken');
+const storedToken = readStoredToken();
 const storedUser = readStoredUser();
 
 const initialState = {
@@ -90,6 +90,14 @@ const authSlice = createSlice({
 
 export const { loginStart, loginSuccess, loginFailure, logout } = authSlice.actions;
 export default authSlice.reducer;
+
+function readStoredToken() {
+  try {
+    return localStorage.getItem('authToken');
+  } catch {
+    return null;
+  }
+}
 
 function readStoredUser() {
   try {

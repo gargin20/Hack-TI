@@ -9,6 +9,10 @@ function AuthBootstrap() {
   const dispatch = useDispatch();
 
   useEffect(() => {
+    if (!readStoredToken()) {
+      return;
+    }
+
     dispatch(restoreSession())
       .unwrap()
       .then(() => {
@@ -22,6 +26,14 @@ function AuthBootstrap() {
 }
 
 export default AuthBootstrap;
+
+function readStoredToken() {
+  try {
+    return localStorage.getItem('authToken');
+  } catch {
+    return null;
+  }
+}
 
 // import { useEffect, useState } from 'react';
 // import { useDispatch } from 'react-redux';

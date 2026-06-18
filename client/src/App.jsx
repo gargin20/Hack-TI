@@ -1,24 +1,8 @@
+import { lazy, Suspense } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import OnboardingRoute from './components/OnboardingRoute';
-import MainLayout from './layouts/MainLayout';
-import Career from './pages/Career';
-import Copilot from './pages/Copilot';
-import Dashboard from './pages/Dashboard';
-import DailyUpdate from './pages/DailyUpdate';
-import Finance from './pages/Finance';
-import Goals from './pages/Goals';
-import Health from './pages/Health';
-import Intelligence from './pages/Intelligence';
-import Login from './pages/Login';
-import Notifications from './pages/Notifications';
-import Onboarding from './pages/Onboarding';
-import Settings from './pages/Settings';
-import Signup from './pages/Signup';
-import Simulation from './pages/Simulation';
-import Landing from './pages/Landing';
-import DocumentUpload from './pages/DocumentUpload';
 import { GamificationProvider } from './context/GamificationContext';
 import { IntegrationProvider } from './context/IntegrationContext';
 import { DashboardSyncProvider } from './context/DashboardSyncContext';
@@ -65,6 +49,26 @@ import ErrorBoundary from './components/ErrorBoundary';
 import { LanguageProvider } from './context/languageContext.js';
 import PageTranslationHost from './components/PageTranslationHost.jsx';
 
+const MainLayout = lazy(() => import('./layouts/MainLayout'));
+const Career = lazy(() => import('./pages/Career'));
+const Copilot = lazy(() => import('./pages/Copilot'));
+const Dashboard = lazy(() => import('./pages/Dashboard'));
+const DailyUpdate = lazy(() => import('./pages/DailyUpdate'));
+const Finance = lazy(() => import('./pages/Finance'));
+const Goals = lazy(() => import('./pages/Goals'));
+const Health = lazy(() => import('./pages/Health'));
+const Intelligence = lazy(() => import('./pages/Intelligence'));
+const Login = lazy(() => import('./pages/Login'));
+const Notifications = lazy(() => import('./pages/Notifications'));
+const Onboarding = lazy(() => import('./pages/Onboarding'));
+const Settings = lazy(() => import('./pages/Settings'));
+const Signup = lazy(() => import('./pages/Signup'));
+const Simulation = lazy(() => import('./pages/Simulation'));
+const Landing = lazy(() => import('./pages/Landing'));
+const DocumentUpload = lazy(() => import('./pages/DocumentUpload'));
+
+axios.defaults.timeout = 15000;
+
 function App() {
   return (
     // The Provider MUST wrap everything!
@@ -75,6 +79,7 @@ function App() {
             <LanguageProvider>
             <BrowserRouter>
           <PageTranslationHost />
+          <Suspense fallback={<AppLoading />}>
           <Routes>
             <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
             <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
@@ -104,6 +109,7 @@ function App() {
               <Route path="/document-upload" element={<DocumentUpload />} />
             </Route>
           </Routes>
+          </Suspense>
         </BrowserRouter>
             </LanguageProvider>
         
@@ -117,3 +123,10 @@ function App() {
 
 export default App;
 
+function AppLoading() {
+  return (
+    <div className="min-h-screen bg-[#050816] text-white grid place-items-center px-6">
+      <div className="text-sm text-white/70">Loading...</div>
+    </div>
+  );
+}
