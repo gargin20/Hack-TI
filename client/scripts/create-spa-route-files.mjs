@@ -31,7 +31,7 @@ if (!existsSync(indexPath)) {
 
 for (const route of routes) {
   const routeDir = join(distDir, route);
-  const outputPath = join(routeDir, 'index.html');
+  const outputPath = join(distDir, route);
 
   if (existsSync(routeDir)) {
     rmSync(routeDir, { recursive: true, force: true });
