@@ -292,7 +292,7 @@ function Onboarding() {
 
     if (!token) {
       toast.error('Please log in again before connecting integrations.');
-      navigate('/login', { replace: true });
+      navigate('/login/', { replace: true });
       return;
     }
 
@@ -440,7 +440,7 @@ function Onboarding() {
     const token = localStorage.getItem('authToken');
     if (!token) {
       toast.error('Please log in again to save onboarding.');
-      navigate('/login', { replace: true });
+      navigate('/login/', { replace: true });
       return;
     }
 
@@ -459,7 +459,7 @@ function Onboarding() {
         dispatch(loginSuccess({ token, user: response.data.user }));
       }
       toast.success('Dashboard personalized');
-      navigate('/dashboard', { replace: true });
+      navigate('/dashboard/', { replace: true });
     } catch (error) {
       console.error('Onboarding save error:', error);
       localStorage.removeItem('lifetwinOnboardingProfile');

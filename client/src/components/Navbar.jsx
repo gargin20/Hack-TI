@@ -4,15 +4,15 @@ import useNotificationCount from '../hooks/useNotificationCount';
 import LanguageSelector from './LanguageSelector';
 
 const pageTitles = {
-  '/dashboard': 'Your Digital Twin dashboard',
-  '/health': ' ',
-  '/finance': ' ',
-  '/career': ' ',
-  '/intelligence': 'Cross-domain intelligence',
-  '/simulation': ' ',
-  '/copilot': 'Twin Copilot',
-  '/notifications': 'Notifications',
-  '/settings': 'Settings',
+  '/dashboard/': 'Your Digital Twin dashboard',
+  '/health/': ' ',
+  '/finance/': ' ',
+  '/career/': ' ',
+  '/intelligence/': 'Cross-domain intelligence',
+  '/simulation/': ' ',
+  '/copilot/': 'Twin Copilot',
+  '/notifications/': 'Notifications',
+  '/settings/': 'Settings',
 };
 
 function Navbar({ setMobileMenuOpen }) {
@@ -75,7 +75,7 @@ function Navbar({ setMobileMenuOpen }) {
                 : 'border border-white/10 bg-white/5 text-white/70 hover:bg-white/10 hover:text-white'
               }`} type="button"
             aria-label="Notifications"
-            onClick={() => navigate('/notifications')}
+            onClick={() => navigate('/notifications/')}
           >
             <BellIcon className="h-4 w-4" />
             {unreadCount > 0 && (
@@ -88,7 +88,7 @@ function Navbar({ setMobileMenuOpen }) {
             className="grid h-10 w-10 place-items-center rounded-full border border-white/10 bg-gradient-to-br from-[#7b61ff] via-[#1d5fff] to-[#10c7a1] text-sm font-semibold text-white shadow-[0_0_20px_rgba(16,199,161,0.18)]"
             type="button"
             aria-label="Profile"
-            onClick={() => navigate('/settings')}
+            onClick={() => navigate('/settings/')}
           >
             {firstName.slice(0, 1).toUpperCase()}
           </button>

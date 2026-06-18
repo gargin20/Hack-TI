@@ -65,11 +65,11 @@
 //   }
 
 //   if (!activeToken) {
-//     return <Navigate to="/login" replace state={{ from: location }} />;
+//     return <Navigate to="/login/" replace state={{ from: location }} />;
 //   }
 
 //   if (onboardingCompleted === false) {
-//     return <Navigate to="/onboarding" replace />;
+//     return <Navigate to="/onboarding/" replace />;
 //   }
 
 //   return children;
@@ -127,11 +127,11 @@ function ProtectedRoute({ children }) {
   }
 
   if (!isAuthenticated && !activeToken) {
-    return <Navigate to="/login" replace state={{ from: location }} />;
+    return <Navigate to="/login/" replace state={{ from: location }} />;
   }
 
   if (onboardingCompleted === false) {
-    return <Navigate to="/onboarding" replace />;
+    return <Navigate to="/onboarding/" replace />;
   }
 
   return children;

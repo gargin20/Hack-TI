@@ -47,11 +47,11 @@ function OnboardingRoute({ children }) {
   }
 
   if (!isAuthenticated && !activeToken) {
-    return <Navigate to="/login" replace />;
+    return <Navigate to="/login/" replace />;
   }
 
   if (onboardingCompleted) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/dashboard/" replace />;
   }
 
   return children;

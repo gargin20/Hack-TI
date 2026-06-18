@@ -6,7 +6,7 @@ import TwinAssistantProvider from '../components/voice/TwinAssistantProvider';
 
 function MainLayout() {
   const location = useLocation();
-  const hasDashboardHeader = location.pathname === '/dashboard';
+  const hasDashboardHeader = location.pathname === '/dashboard/';
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // Close mobile menu on route change

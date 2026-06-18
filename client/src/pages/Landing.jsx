@@ -142,10 +142,10 @@ export default function Landing() {
           <span className="bg-gradient-to-r from-white to-white/70 bg-clip-text text-transparent">DigitalTwin</span>
         </div>
         <div className="flex items-center gap-4">
-          <Link to="/login" className="hidden text-sm font-semibold text-white/80 transition hover:text-white sm:block">
+          <Link to="/login/" className="hidden text-sm font-semibold text-white/80 transition hover:text-white sm:block">
             Log In
           </Link>
-          <Link to="/signup" className="rounded-full bg-gradient-to-r from-[#ff7a00] to-[#ff007f] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(255,0,127,0.3)] transition hover:opacity-90 hover:shadow-[0_0_30px_rgba(255,0,127,0.5)]">
+          <Link to="/signup/" className="rounded-full bg-gradient-to-r from-[#ff7a00] to-[#ff007f] px-6 py-2.5 text-sm font-semibold text-white shadow-[0_0_20px_rgba(255,0,127,0.3)] transition hover:opacity-90 hover:shadow-[0_0_30px_rgba(255,0,127,0.5)]">
             Get Started
           </Link>
         </div>
@@ -177,12 +177,12 @@ export default function Landing() {
           </p>
           
           <div className="mt-10 flex flex-wrap items-center gap-5">
-            <Link to="/signup" className="group relative overflow-hidden rounded-full bg-gradient-to-r from-[#ff7a00] to-[#ff007f] px-8 py-4 font-semibold text-white shadow-[0_0_30px_rgba(255,0,127,0.4)] transition hover:shadow-[0_0_50px_rgba(255,0,127,0.6)]">
+            <Link to="/signup/" className="group relative overflow-hidden rounded-full bg-gradient-to-r from-[#ff7a00] to-[#ff007f] px-8 py-4 font-semibold text-white shadow-[0_0_30px_rgba(255,0,127,0.4)] transition hover:shadow-[0_0_50px_rgba(255,0,127,0.6)]">
               <span className="relative z-10 flex items-center gap-2">
                 Launch Dashboard <ArrowRight size={18} className="transition-transform group-hover:translate-x-1" />
               </span>
             </Link>
-            <Link to="/login" className="px-8 py-4 font-semibold text-white/80 transition hover:text-white">
+            <Link to="/login/" className="px-8 py-4 font-semibold text-white/80 transition hover:text-white">
               View Demo
             </Link>
           </div>

@@ -278,7 +278,7 @@ export default function TwinAssistantProvider({ children }) {
     if (action.action === 'refresh_dashboard') {
       try {
         console.log('[VOICE] Refresh Dashboard');
-        navigate('/dashboard', { state: { assistantRefreshAt: Date.now() } });
+        navigate('/dashboard/', { state: { assistantRefreshAt: Date.now() } });
         window.dispatchEvent(new Event('dashboard-refresh-requested'));
         voiceToast('Navigation Complete');
         console.log('[VOICE] Navigation complete');
@@ -300,7 +300,7 @@ export default function TwinAssistantProvider({ children }) {
         lastAssistantResponseRef.current = normalizeCommandText(createdResponse);
         window.dispatchEvent(new Event('goals-updated'));
         window.dispatchEvent(new Event('gamification-updated'));
-        navigate('/goals');
+        navigate('/goals/');
         voiceToast.success('Goal Created');
         console.log('[VOICE] Navigation complete');
         await speakAssistantResponse(createdResponse, { force: true });
@@ -320,7 +320,7 @@ export default function TwinAssistantProvider({ children }) {
       setAssistantMessage(simulationResponse);
       addMessage('assistant', simulationResponse);
       lastAssistantResponseRef.current = normalizeCommandText(simulationResponse);
-      navigate('/simulation', { state: { assistantSimulation: action.payload || {} } });
+      navigate('/simulation/', { state: { assistantSimulation: action.payload || {} } });
       console.log('[VOICE] Navigation complete');
       await speakAssistantResponse(simulationResponse, { force: true });
       return;
@@ -331,7 +331,7 @@ export default function TwinAssistantProvider({ children }) {
       setAssistantMessage(deleteResponse);
       addMessage('assistant', deleteResponse);
       lastAssistantResponseRef.current = normalizeCommandText(deleteResponse);
-      if (deleteResponse.startsWith('Deleted goal')) navigate('/goals');
+      if (deleteResponse.startsWith('Deleted goal')) navigate('/goals/');
       console.log('[VOICE] Navigation complete');
       await speakAssistantResponse(deleteResponse, { force: true });
       return;
@@ -812,16 +812,16 @@ function parseLocalAssistantCommand(rawCommand = '') {
   if (!command) return null;
 
   const navigationTargets = [
-    { intent: 'NAVIGATE_DASHBOARD', label: 'Dashboard', target: '/dashboard', patterns: ['dashboard', 'home'] },
-    { intent: 'NAVIGATE_HEALTH', label: 'Health', target: '/health', patterns: ['health'] },
-    { intent: 'NAVIGATE_FINANCE', label: 'Finance', target: '/finance', patterns: ['finance', 'financial', 'money'] },
-    { intent: 'NAVIGATE_CAREER', label: 'Career', target: '/career', patterns: ['career', 'job', 'work'] },
-    { intent: 'NAVIGATE_GOALS', label: 'Goals', target: '/goals', patterns: ['goals', 'goal'] },
-    { intent: 'NAVIGATE_INTELLIGENCE', label: 'Intelligence', target: '/intelligence', patterns: ['intelligence', 'ai intelligence', 'insights'] },
-    { intent: 'NAVIGATE_TWIN_COPILOT', label: 'Twin Copilot', target: '/copilot', patterns: ['copilot', 'co pilot', 'twin copilot', 'twin co pilot', 'twin assistant'] },
-    { intent: 'NAVIGATE_SIMULATION', label: 'Simulation', target: '/simulation', patterns: ['simulation', 'simulator'] },
-    { intent: 'NAVIGATE_NOTIFICATIONS', label: 'Notifications', target: '/notifications', patterns: ['notifications', 'notification', 'alerts'] },
-    { intent: 'NAVIGATE_SETTINGS', label: 'Settings', target: '/settings', patterns: ['settings', 'setting', 'preferences'] },
+    { intent: 'NAVIGATE_DASHBOARD', label: 'Dashboard', target: '/dashboard/', patterns: ['dashboard', 'home'] },
+    { intent: 'NAVIGATE_HEALTH', label: 'Health', target: '/health/', patterns: ['health'] },
+    { intent: 'NAVIGATE_FINANCE', label: 'Finance', target: '/finance/', patterns: ['finance', 'financial', 'money'] },
+    { intent: 'NAVIGATE_CAREER', label: 'Career', target: '/career/', patterns: ['career', 'job', 'work'] },
+    { intent: 'NAVIGATE_GOALS', label: 'Goals', target: '/goals/', patterns: ['goals', 'goal'] },
+    { intent: 'NAVIGATE_INTELLIGENCE', label: 'Intelligence', target: '/intelligence/', patterns: ['intelligence', 'ai intelligence', 'insights'] },
+    { intent: 'NAVIGATE_TWIN_COPILOT', label: 'Twin Copilot', target: '/copilot/', patterns: ['copilot', 'co pilot', 'twin copilot', 'twin co pilot', 'twin assistant'] },
+    { intent: 'NAVIGATE_SIMULATION', label: 'Simulation', target: '/simulation/', patterns: ['simulation', 'simulator'] },
+    { intent: 'NAVIGATE_NOTIFICATIONS', label: 'Notifications', target: '/notifications/', patterns: ['notifications', 'notification', 'alerts'] },
+    { intent: 'NAVIGATE_SETTINGS', label: 'Settings', target: '/settings/', patterns: ['settings', 'setting', 'preferences'] },
   ];
 
   if (/\b(log out|logout|sign out)\b/.test(command)) {
@@ -836,7 +836,7 @@ function parseLocalAssistantCommand(rawCommand = '') {
     return {
       action: 'navigate',
       intent: 'GENERATE_DAILY_UPDATE',
-      target: '/daily-update',
+      target: '/daily-update/',
       response: 'Opening Daily Update...',
     };
   }
@@ -845,7 +845,7 @@ function parseLocalAssistantCommand(rawCommand = '') {
     return {
       action: 'navigate',
       intent: 'START_SIMULATION',
-      target: '/simulation',
+      target: '/simulation/',
       response: 'Opening Simulation...',
     };
   }

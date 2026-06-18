@@ -10,7 +10,7 @@ function PublicRoute({ children }) {
   }
 
   if (isAuthenticated || hasPersistedToken) {
-    return <Navigate to="/dashboard" replace />;
+    return <Navigate to="/dashboard/" replace />;
   }
 
   return children;

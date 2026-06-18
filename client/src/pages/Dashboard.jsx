@@ -124,8 +124,8 @@ function Dashboard() {
         <DashboardHeader
           today={today}
           firstName={firstName}
-          onSearchClick={() => navigate('/copilot')}
-          onNotificationClick={() => navigate('/notifications')}
+          onSearchClick={() => navigate('/copilot/')}
+          onNotificationClick={() => navigate('/notifications/')}
         />
 
         <main className="flex-1 overflow-y-auto px-4 pb-10 pt-5 sm:px-6 lg:px-8" style={{ scrollbarWidth: 'thin', scrollbarColor: theme === 'light' ? 'rgba(0,0,0,0.1) transparent' : 'rgba(255,255,255,0.1) transparent' }}>
@@ -145,7 +145,7 @@ function Dashboard() {
                 emoji="🧬"
                 colorState={insights.healthState.colorState}
                 subtitle={`${insights.burnoutRisk}% burnout risk`}
-                onClick={() => navigate('/health')}
+                onClick={() => navigate('/health/')}
               />
               <ScoreCard
                 title="Finance Score"
@@ -154,7 +154,7 @@ function Dashboard() {
                 emoji="💎"
                 colorState={insights.thresholds.financial.colorState}
                 subtitle={insights.monthlyBuffer}
-                onClick={() => navigate('/finance')}
+                onClick={() => navigate('/finance/')}
               />
               <ScoreCard
                 title="Career Score"
@@ -163,7 +163,7 @@ function Dashboard() {
                 emoji="🎯"
                 colorState={insights.thresholds.productivity.colorState}
                 subtitle={`${insights.recoveryScore}% recovery`}
-                onClick={() => navigate('/career')}
+                onClick={() => navigate('/career/')}
               />
             </motion.div>
 
@@ -189,7 +189,7 @@ function Dashboard() {
 
             {/* ── ROW 4: Finance Chart + AI Insights ── */}
             <motion.div variants={itemVariants} className="grid grid-cols-1 gap-4 xl:grid-cols-[1.3fr_1fr]">
-              <FinanceChart insights={insights} onOpen={() => navigate('/finance')} />
+              <FinanceChart insights={insights} onOpen={() => navigate('/finance/')} />
               <AIInsightsPanel insights={insights} navigate={navigate} />
             </motion.div>
 
@@ -583,10 +583,10 @@ function HeroSection({ firstName, insights, isLoading, navigate }) {
           </div>
 
           <div className="flex flex-wrap gap-2.5">
-            <HeroButton label="Open Health" onClick={() => navigate('/health')} primary />
-            <HeroButton label="Open Finance" onClick={() => navigate('/finance')} />
-            <HeroButton label="Open Career" onClick={() => navigate('/career')} />
-            <HeroButton label="AI Insights" onClick={() => navigate('/intelligence')} accent />
+            <HeroButton label="Open Health" onClick={() => navigate('/health/')} primary />
+            <HeroButton label="Open Finance" onClick={() => navigate('/finance/')} />
+            <HeroButton label="Open Career" onClick={() => navigate('/career/')} />
+            <HeroButton label="AI Insights" onClick={() => navigate('/intelligence/')} accent />
           </div>
         </div>
 
@@ -1165,7 +1165,7 @@ function AIInsightsPanel({ insights, navigate }) {
           <h3 className={`text-base font-semibold ${theme === 'light' ? 'text-[#0f172a]' : 'text-white'}`}>AI Insights</h3>
           <p className={`text-[10px] font-medium uppercase tracking-widest ${theme === 'light' ? 'text-[#94a3b8]' : 'text-white/35'} mt-0.5`}>Live signal feed</p>
         </div>
-        <button type="button" onClick={() => navigate('/intelligence')} className="flex items-center gap-1.5 rounded-xl border border-[#7b61ff]/25 bg-[#7b61ff]/10 px-3 py-1.5 text-[11px] font-bold text-[#7b61ff] transition hover:bg-[#7b61ff]/20">
+        <button type="button" onClick={() => navigate('/intelligence/')} className="flex items-center gap-1.5 rounded-xl border border-[#7b61ff]/25 bg-[#7b61ff]/10 px-3 py-1.5 text-[11px] font-bold text-[#7b61ff] transition hover:bg-[#7b61ff]/20">
           <Brain className="h-3.5 w-3.5" /> Full Intelligence <ArrowUpRight className="h-3 w-3" />
         </button>
       </div>
@@ -1203,9 +1203,9 @@ function AIInsightsPanel({ insights, navigate }) {
 function CommandPortals({ navigate }) {
   const { theme } = useTheme();
   const portals = [
-    { title: 'Vitality Chamber', desc: 'Biometrics & Recovery', path: '/health', icon: '🧬', color: '#ff4d7d', particles: ['💊', '🏃', '💤'] },
-    { title: 'Wealth Nexus', desc: 'Cashflow & Assets', path: '/finance', icon: '💎', color: '#10c7a1', particles: ['📈', '💳', '🏦'] },
-    { title: 'Trajectory Forge', desc: 'Focus & Momentum', path: '/career', icon: '🎯', color: '#7b61ff', particles: ['⚡', '🧠', '🚀'] },
+    { title: 'Vitality Chamber', desc: 'Biometrics & Recovery', path: '/health/', icon: '🧬', color: '#ff4d7d', particles: ['💊', '🏃', '💤'] },
+    { title: 'Wealth Nexus', desc: 'Cashflow & Assets', path: '/finance/', icon: '💎', color: '#10c7a1', particles: ['📈', '💳', '🏦'] },
+    { title: 'Trajectory Forge', desc: 'Focus & Momentum', path: '/career/', icon: '🎯', color: '#7b61ff', particles: ['⚡', '🧠', '🚀'] },
   ];
   return (
     <section>

@@ -33,12 +33,12 @@ const FILTERS = [
 ];
 
 const CATEGORY_META = {
-  health: { label: 'Health', icon: HeartPulse, color: '#10c7a1', route: '/health' },
-  finance: { label: 'Finance', icon: Wallet, color: '#c8a84b', route: '/finance' },
-  career: { label: 'Career', icon: Briefcase, color: '#7b61ff', route: '/career' },
-  goal: { label: 'Goal', icon: Target, color: '#38bdf8', route: '/goals' },
-  'daily-update': { label: 'Daily Update', icon: CalendarCheck, color: '#fb923c', route: '/daily-update' },
-  system: { label: 'System', icon: Bell, color: '#94a3b8', route: '/dashboard' },
+  health: { label: 'Health', icon: HeartPulse, color: '#10c7a1', route: '/health/' },
+  finance: { label: 'Finance', icon: Wallet, color: '#c8a84b', route: '/finance/' },
+  career: { label: 'Career', icon: Briefcase, color: '#7b61ff', route: '/career/' },
+  goal: { label: 'Goal', icon: Target, color: '#38bdf8', route: '/goals/' },
+  'daily-update': { label: 'Daily Update', icon: CalendarCheck, color: '#fb923c', route: '/daily-update/' },
+  system: { label: 'System', icon: Bell, color: '#94a3b8', route: '/dashboard/' },
 };
 
 const PRIORITY_META = {

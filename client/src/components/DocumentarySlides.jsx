@@ -102,7 +102,7 @@ export default function DocumentarySlides({ isOpen, onClose }) {
     if (!data?.slides || data.slides.length < 4) return;
     const blueprintText = `My 2027 Evolution Blueprint: ${data.slides[3].narrative}`;
     localStorage.setItem('copilotPresetPrompt', blueprintText);
-    navigate('/copilot');
+    navigate('/copilot/');
     onClose();
   };
 

@@ -10,24 +10,24 @@ import useNotificationCount from '../hooks/useNotificationCount';
 const navItems = [
   {
     label: 'Dashboard',
-    href: '/dashboard',
+    href: '/dashboard/',
     icon: HomeIcon,
     subItems: [
-      { label: 'Health', href: '/health', icon: HeartIcon },
-      { label: 'Finance', href: '/finance', icon: WalletIcon },
-      { label: 'Career', href: '/career', icon: BriefIcon },
+      { label: 'Health', href: '/health/', icon: HeartIcon },
+      { label: 'Finance', href: '/finance/', icon: WalletIcon },
+      { label: 'Career', href: '/career/', icon: BriefIcon },
     ]
   },
-  { label: 'Goals', href: '/goals', icon: TargetIcon },
-  { label: 'Intelligence', href: '/intelligence', icon: SparkIcon },
-  { label: 'Simulation', href: '/simulation', icon: BranchIcon },
-  { label: 'Twin Copilot', href: '/copilot', icon: ChatIcon },
-  { label: 'Daily Update', href: '/daily-update', icon: CalendarIcon, dailyUpdate: true },
-  { label: 'Document Upload', href: '/document-upload', icon: DocumentUploadIcon },
-  { label: 'Notifications', href: '/notifications', icon: BellIcon },
+  { label: 'Goals', href: '/goals/', icon: TargetIcon },
+  { label: 'Intelligence', href: '/intelligence/', icon: SparkIcon },
+  { label: 'Simulation', href: '/simulation/', icon: BranchIcon },
+  { label: 'Twin Copilot', href: '/copilot/', icon: ChatIcon },
+  { label: 'Daily Update', href: '/daily-update/', icon: CalendarIcon, dailyUpdate: true },
+  { label: 'Document Upload', href: '/document-upload/', icon: DocumentUploadIcon },
+  { label: 'Notifications', href: '/notifications/', icon: BellIcon },
 ];
 
-const settingsItem = { label: 'Settings', href: '/settings', icon: SettingsIcon };
+const settingsItem = { label: 'Settings', href: '/settings/', icon: SettingsIcon };
 
 function Sidebar({ mobileMenuOpen, setMobileMenuOpen }) {
   const [isCollapsed, setIsCollapsed] = useState(false);
@@ -53,7 +53,7 @@ function Sidebar({ mobileMenuOpen, setMobileMenuOpen }) {
 
       <div className="flex h-full flex-col">
         <div className={`relative flex items-center ${isCollapsed ? 'justify-center' : 'justify-between gap-3'}`}>
-          <NavLink to="/dashboard" className="flex min-w-0 items-center gap-3">
+          <NavLink to="/dashboard/" className="flex min-w-0 items-center gap-3">
             <div className="grid h-12 w-12 place-items-center rounded-2xl border border-white/10 bg-gradient-to-br from-[#ff7a00] via-[#ff007f] to-[#7b61ff] p-[1px] shadow-[0_0_24px_rgba(255,0,127,0.18)]">
               <div
                 className={`grid h-full w-full place-items-center rounded-[calc(1rem-1px)] ${theme === 'light' ? 'bg-white' : 'bg-[#160d22]'
@@ -141,7 +141,7 @@ function SidebarNavItem({ item, isCollapsed, setIsCollapsed, unreadNotificationC
   // Check if any sub-item is the current active route
   const isSubItemActive = hasSubItems && item.subItems.some((sub) => location.pathname === sub.href);
   const pendingDailyUpdate = item.dailyUpdate && !dailyUpdateCompleted;
-  const hasUnreadNotifications = item.href === '/notifications' && unreadNotificationCount > 0;
+  const hasUnreadNotifications = item.href === '/notifications/' && unreadNotificationCount > 0;
 
   // State to manage dropdown visibility
   const [isOpen, setIsOpen] = useState(isSubItemActive);

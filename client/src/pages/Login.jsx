@@ -246,7 +246,7 @@ function Login() {
       setForgotOpen(false);
       if (forgotMode === 'create') {
         setPasswordCreatedOpen(true);
-        navigate('/login', { replace: true });
+        navigate('/login/', { replace: true });
       }
     } catch (error) {
       const message = getForgotErrorMessage(error, 'Invalid or expired OTP');
@@ -266,7 +266,7 @@ function Login() {
     try {
       await dispatch(loginUser(formData)).unwrap();
       toast.success('Login successful!');
-      navigate('/dashboard', { replace: true });
+      navigate('/dashboard/', { replace: true });
     } catch (error) {
       const code = typeof error === 'object' ? error?.code : undefined;
       const message = typeof error === 'string' ? error : error?.message || 'Login failed.';
@@ -287,7 +287,7 @@ function Login() {
       setGoogleAccountDialogOpen(false);
       await dispatch(loginWithGoogle()).unwrap();
       toast.success('Google sign-in successful!');
-      navigate('/dashboard', { replace: true });
+      navigate('/dashboard/', { replace: true });
     } catch (error) {
       toast.error(typeof error === 'string' ? error : 'Unable to continue with Google.');
     } finally {
@@ -383,7 +383,7 @@ function Login() {
                   <span className="flex h-5 w-5 items-center justify-center rounded-full bg-white text-xs font-bold text-black">G</span> Continue with Google
                 </motion.button>
 
-                <p className="mt-6 text-center text-sm text-white/62">New to DigitalTwin? <Link to="/signup" className="font-semibold text-[#9db7ff] hover:text-[#7df3cc]">Create an account</Link></p>
+                <p className="mt-6 text-center text-sm text-white/62">New to DigitalTwin? <Link to="/signup/" className="font-semibold text-[#9db7ff] hover:text-[#7df3cc]">Create an account</Link></p>
               </div>
             </div>
           </div>

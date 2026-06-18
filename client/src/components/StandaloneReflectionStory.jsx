@@ -134,7 +134,7 @@ export default function StandaloneReflectionStory({ isOpen, onClose }) {
     const identitySlide = data.slides[5];
     const blueprintText = `I completed my standalone digital twin review as ${identitySlide.themeTitle || 'THE BUILDER'}. Blueprint details: ${identitySlide.messageFromTwin || 'optimize career velocity'}`;
     localStorage.setItem('copilotPresetPrompt', blueprintText);
-    navigate('/copilot');
+    navigate('/copilot/');
     onClose();
   };
 

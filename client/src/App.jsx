@@ -1,5 +1,5 @@
 import { lazy, Suspense } from 'react';
-import { BrowserRouter, Route, Routes } from 'react-router-dom';
+import { BrowserRouter, Navigate, Route, Routes } from 'react-router-dom';
 import ProtectedRoute from './components/ProtectedRoute';
 import PublicRoute from './components/PublicRoute';
 import OnboardingRoute from './components/OnboardingRoute';
@@ -83,10 +83,13 @@ function App() {
           <ErrorBoundary>
           <Routes>
             <Route path="/" element={<PublicRoute><Landing /></PublicRoute>} />
-            <Route path="/login" element={<PublicRoute><Login /></PublicRoute>} />
-            <Route path="/signup" element={<PublicRoute><Signup /></PublicRoute>} />
+            <Route path="/login" element={<Navigate to="/login/" replace />} />
+            <Route path="/login/" element={<PublicRoute><Login /></PublicRoute>} />
+            <Route path="/signup" element={<Navigate to="/signup/" replace />} />
+            <Route path="/signup/" element={<PublicRoute><Signup /></PublicRoute>} />
+            <Route path="/onboarding" element={<Navigate to="/onboarding/" replace />} />
             <Route
-              path="/onboarding"
+              path="/onboarding/"
               element={
                 <OnboardingRoute>
                   <Onboarding />
@@ -95,19 +98,32 @@ function App() {
             />
 
             <Route element={<ProtectedRoute><MainLayout /></ProtectedRoute>}>
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/health" element={<ErrorBoundary><Health /></ErrorBoundary>} />
-              <Route path="/finance" element={<Finance />} />
-              <Route path="/career" element={<Career />} />
-              <Route path="/goals" element={<Goals />} />
-              <Route path="/intelligence" element={<Intelligence />} />
-              <Route path="/ai-intelligence" element={<Intelligence />} />
-              <Route path="/notifications" element={<Notifications />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="/copilot" element={<Copilot />} />
-              <Route path="/simulation" element={<Simulation />} />
-              <Route path="/daily-update" element={<DailyUpdate />} />
-              <Route path="/document-upload" element={<DocumentUpload />} />
+              <Route path="/dashboard" element={<Navigate to="/dashboard/" replace />} />
+              <Route path="/dashboard/" element={<Dashboard />} />
+              <Route path="/health" element={<Navigate to="/health/" replace />} />
+              <Route path="/health/" element={<ErrorBoundary><Health /></ErrorBoundary>} />
+              <Route path="/finance" element={<Navigate to="/finance/" replace />} />
+              <Route path="/finance/" element={<Finance />} />
+              <Route path="/career" element={<Navigate to="/career/" replace />} />
+              <Route path="/career/" element={<Career />} />
+              <Route path="/goals" element={<Navigate to="/goals/" replace />} />
+              <Route path="/goals/" element={<Goals />} />
+              <Route path="/intelligence" element={<Navigate to="/intelligence/" replace />} />
+              <Route path="/intelligence/" element={<Intelligence />} />
+              <Route path="/ai-intelligence" element={<Navigate to="/ai-intelligence/" replace />} />
+              <Route path="/ai-intelligence/" element={<Intelligence />} />
+              <Route path="/notifications" element={<Navigate to="/notifications/" replace />} />
+              <Route path="/notifications/" element={<Notifications />} />
+              <Route path="/settings" element={<Navigate to="/settings/" replace />} />
+              <Route path="/settings/" element={<Settings />} />
+              <Route path="/copilot" element={<Navigate to="/copilot/" replace />} />
+              <Route path="/copilot/" element={<Copilot />} />
+              <Route path="/simulation" element={<Navigate to="/simulation/" replace />} />
+              <Route path="/simulation/" element={<Simulation />} />
+              <Route path="/daily-update" element={<Navigate to="/daily-update/" replace />} />
+              <Route path="/daily-update/" element={<DailyUpdate />} />
+              <Route path="/document-upload" element={<Navigate to="/document-upload/" replace />} />
+              <Route path="/document-upload/" element={<DocumentUpload />} />
             </Route>
           </Routes>
           </ErrorBoundary>
