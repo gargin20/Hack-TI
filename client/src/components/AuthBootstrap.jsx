@@ -36,42 +36,18 @@ function AuthBootstrap() {
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    // async function init() {
-    //   try {
-    //     await dispatch(restoreSession()).unwrap();
-
-    //     dispatch(fetchCareerIntegrations());
-    //     dispatch(fetchHealthIntegration());
-    //   } catch (e) {
-    //     console.log('restoreSession failed', e);
-    //   } finally {
-    //     setReady(true);
-    //   }
-    // }
     async function init() {
-    try {
-    console.log('1. Starting restoreSession');
+      try {
+        await dispatch(restoreSession()).unwrap();
 
-    await dispatch(restoreSession()).unwrap();
-
-    console.log('2. restoreSession success');
-
-    await dispatch(fetchCareerIntegrations()).unwrap();
-
-    console.log('3. career fetched');
-
-    await dispatch(fetchHealthIntegration()).unwrap();
-
-    console.log('4. health fetched');
-
-  } catch (e) {
-    console.log('AuthBootstrap error', e);
-  } finally {
-    console.log('5. App ready');
-
-    setReady(true);
-  }
-}
+        dispatch(fetchCareerIntegrations());
+        dispatch(fetchHealthIntegration());
+      } catch (e) {
+        console.log('restoreSession failed', e);
+      } finally {
+        setReady(true);
+      }
+    }
 
     init();
   }, [dispatch]);

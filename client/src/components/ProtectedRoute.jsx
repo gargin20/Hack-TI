@@ -9,13 +9,6 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5001';
 function ProtectedRoute({ children }) {
   const location = useLocation();
 
-  useEffect(() => {
-    console.log('MOUNTED: ProtectedRoute');
-    return () => {
-      console.log('UNMOUNTED: ProtectedRoute');
-    };
-  }, []);
-
   const { loading, token } = useSelector((state) => state.auth);
 
   const activeToken = token || localStorage.getItem('authToken');

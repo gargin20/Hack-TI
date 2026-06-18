@@ -2,23 +2,12 @@ import { useState, useEffect } from 'react';
 import { Outlet, useLocation } from 'react-router-dom';
 import Navbar from '../components/Navbar';
 import Sidebar from '../components/Sidebar';
-
-// Stub TwinAssistantProvider for Stage 5 isolation
-function DummyTwinAssistantProvider({ children }) {
-  return children;
-}
+import TwinAssistantProvider from '../components/voice/TwinAssistantProvider';
 
 function MainLayout() {
   const location = useLocation();
   const hasDashboardHeader = location.pathname === '/dashboard';
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-
-  useEffect(() => {
-    console.log('MOUNTED: MainLayout');
-    return () => {
-      console.log('UNMOUNTED: MainLayout');
-    };
-  }, []);
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -37,12 +26,12 @@ function MainLayout() {
         />
       )}
 
-      <DummyTwinAssistantProvider>
+      <TwinAssistantProvider>
         <section className="flex-1 min-w-0 overflow-y-auto overflow-x-hidden">
           {!hasDashboardHeader && <Navbar setMobileMenuOpen={setMobileMenuOpen} />}
           <Outlet />
         </section>
-      </DummyTwinAssistantProvider>
+      </TwinAssistantProvider>
     </main>
   );
 }
