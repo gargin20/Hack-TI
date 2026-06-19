@@ -116,22 +116,47 @@ function DailyUpdate() {
     fetchActiveMealPlanAndTodayProgress();
 
     // Fetch weather details
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        async (pos) => {
+    const fetchWeatherWithAdvice = async (lat, lon) => {
+      try {
+        let city = null, state = null, country = null;
+        if (lat !== null && lon !== null) {
           try {
-            const res = await axios.post(`${API_BASE_URL}/api/health/weather-advice`, {
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude
-            }, authHeaders);
-            if (res.data?.success) {
-              setWeather(res.data.data);
+            const geoRes = await axios.get(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { timeout: 4000 });
+            if (geoRes.data) {
+              city = geoRes.data.city || geoRes.data.locality || null;
+              state = geoRes.data.principalSubdivision || null;
+              country = geoRes.data.countryName || null;
             }
-          } catch (e) {
-            console.error('Failed to fetch weather in DailyUpdate', e);
+          } catch (geoErr) {
+            console.warn('Client reverse geocoding failed:', geoErr.message);
           }
         }
+        const res = await axios.post(`${API_BASE_URL}/api/health/weather-advice`, {
+          latitude: lat,
+          longitude: lon,
+          city,
+          state,
+          country
+        }, authHeaders);
+        if (res.data?.success) {
+          setWeather(res.data.data);
+        }
+      } catch (e) {
+        console.error('Failed to fetch weather in DailyUpdate', e);
+      }
+    };
+
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (pos) => {
+          fetchWeatherWithAdvice(pos.coords.latitude, pos.coords.longitude);
+        },
+        () => {
+          fetchWeatherWithAdvice(null, null);
+        }
       );
+    } else {
+      fetchWeatherWithAdvice(null, null);
     }
   }, []);
 

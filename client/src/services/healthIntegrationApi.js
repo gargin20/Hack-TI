@@ -87,10 +87,10 @@ export const disconnect = async () => {
   return response.data;
 };
 
-export const fetchWeatherAdvice = async (latitude, longitude) => {
+export const fetchWeatherAdvice = async (latitude, longitude, city, state, country) => {
   const response = await axios.post(
     `${API_BASE_URL}/api/health/weather-advice`,
-    { latitude, longitude },
+    { latitude, longitude, city, state, country },
     getHeaders()
   );
   return response.data;

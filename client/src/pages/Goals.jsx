@@ -802,31 +802,51 @@ export default function Goals() {
   useEffect(() => {
     fetchMealPlans();
     
+    const fetchWeatherAndAdvice = async (lat, lon) => {
+      try {
+        let city = null, state = null, country = null;
+        if (lat !== null && lon !== null) {
+          try {
+            const geoRes = await axios.get(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { timeout: 4000 });
+            if (geoRes.data) {
+              city = geoRes.data.city || geoRes.data.locality || null;
+              state = geoRes.data.principalSubdivision || null;
+              country = geoRes.data.countryName || null;
+            }
+          } catch (geoErr) {
+            console.warn('Client reverse geocoding failed:', geoErr.message);
+          }
+        }
+        const res = await axios.post(`${API_BASE_URL}/api/health/weather-advice`, {
+          latitude: lat,
+          longitude: lon,
+          city,
+          state,
+          country
+        }, authHeaders);
+        if (res.data?.success) {
+          setWeather(res.data.data);
+          fetchCoachAdvice(res.data.data);
+        } else {
+          fetchCoachAdvice(null);
+        }
+      } catch (e) {
+        console.error('Failed to get weather advice on Goals page', e);
+        fetchCoachAdvice(null);
+      }
+    };
+
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
-        async (pos) => {
-          try {
-            const res = await axios.post(`${API_BASE_URL}/api/health/weather-advice`, {
-              latitude: pos.coords.latitude,
-              longitude: pos.coords.longitude
-            }, authHeaders);
-            if (res.data?.success) {
-              setWeather(res.data.data);
-              fetchCoachAdvice(res.data.data);
-            } else {
-              fetchCoachAdvice(null);
-            }
-          } catch (e) {
-            console.error('Failed to get weather advice on Goals page', e);
-            fetchCoachAdvice(null);
-          }
+        (pos) => {
+          fetchWeatherAndAdvice(pos.coords.latitude, pos.coords.longitude);
         },
         () => {
-          fetchCoachAdvice(null);
+          fetchWeatherAndAdvice(null, null);
         }
       );
     } else {
-      fetchCoachAdvice(null);
+      fetchWeatherAndAdvice(null, null);
     }
   }, [fetchMealPlans, fetchCoachAdvice]);
 

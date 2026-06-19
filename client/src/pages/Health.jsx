@@ -339,7 +339,20 @@ export default function Health() {
   async function fetchWeather(lat, lon) {
     setWeatherLoading(true); setWeatherError(false);
     try {
-      const res = await healthApi.fetchWeatherAdvice(lat, lon);
+      let city = null, state = null, country = null;
+      if (lat !== null && lon !== null) {
+        try {
+          const geoRes = await axios.get(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${lat}&longitude=${lon}&localityLanguage=en`, { timeout: 4000 });
+          if (geoRes.data) {
+            city = geoRes.data.city || geoRes.data.locality || null;
+            state = geoRes.data.principalSubdivision || null;
+            country = geoRes.data.countryName || null;
+          }
+        } catch (geoErr) {
+          console.warn('Client-side reverse geocoding failed:', geoErr.message);
+        }
+      }
+      const res = await healthApi.fetchWeatherAdvice(lat, lon, city, state, country);
       if (res?.success && res?.data) {
         const d = { ...res.data };
         // Map UI-compatible variables

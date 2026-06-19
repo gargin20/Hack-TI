@@ -220,10 +220,61 @@ function average(values) {
   return Number((numbers.reduce((s, v) => s + v, 0) / numbers.length).toFixed(1));
 }
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const getGenAI = () => {
+  const key = (process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_INTELLIGENCE || '').trim();
+  return new GoogleGenerativeAI(key);
+};
 const weatherCache = new Map();
 
+async function getCoordsAndCityFromIP(ip) {
+  if (!ip || ip === '127.0.0.1' || ip === '::1' || ip.startsWith('10.') || ip.startsWith('192.168.') || ip.startsWith('172.16.')) {
+    return {
+      latitude: 28.6139,
+      longitude: 77.209,
+      city: 'New Delhi',
+      state: 'Delhi',
+      country: 'India'
+    };
+  }
+  try {
+    const response = await axios.get(`http://ip-api.com/json/${ip}`, { timeout: 4000 });
+    if (response.data && response.data.status === 'success') {
+      return {
+        latitude: response.data.lat,
+        longitude: response.data.lon,
+        city: response.data.city || 'Unknown',
+        state: response.data.regionName || '',
+        country: response.data.country || ''
+      };
+    }
+  } catch (err) {
+    console.error('[WEATHER] IP Geolocation lookup failed:', err.message);
+  }
+  return null;
+}
+
 async function getCityFromCoordinates(lat, lon) {
+  // Try BigDataCloud first as it is extremely reliable and does not block cloud IPs
+  try {
+    const response = await axios.get(`https://api.bigdatacloud.net/data/reverse-geocode-client`, {
+      params: {
+        latitude: lat,
+        longitude: lon,
+        localityLanguage: 'en'
+      },
+      timeout: 5000
+    });
+    const city = response.data?.city || response.data?.locality || 'Unknown';
+    const state = response.data?.principalSubdivision || '';
+    const country = response.data?.countryName || '';
+    if (city !== 'Unknown') {
+      return { city, state, country };
+    }
+  } catch (err) {
+    console.error('[WEATHER] BigDataCloud geocoding failed, falling back:', err.message);
+  }
+
+  // Fallback to Nominatim
   try {
     const response = await axios.get(`https://nominatim.openstreetmap.org/reverse`, {
       params: {
@@ -256,10 +307,10 @@ function getUvLabel(uvIndex) {
 }
 
 export const getWeatherAdvice = async (req, res) => {
-  let { latitude, longitude } = req.body;
+  let { latitude, longitude, city, state, country } = req.body;
   const userId = req.user.userId;
 
-  console.log('[WEATHER] Location received:', { latitude, longitude });
+  console.log('[WEATHER] Location received:', { latitude, longitude, city, state, country });
 
   // 1. Fallback to Google Fit location if coords are missing and user has Google Fit
   if ((latitude === undefined || latitude === null || longitude === undefined || longitude === null) && userId) {
@@ -282,30 +333,34 @@ export const getWeatherAdvice = async (req, res) => {
     }
   }
 
-  // 2. Coords Fallback Check
+  // 2. IP Geolocation Fallback if coords are still missing
+  let ipGeo = null;
   if (latitude === undefined || latitude === null || longitude === undefined || longitude === null) {
-    console.log('[WEATHER] Location unavailable, returning base fallback advice');
-    return res.status(200).json({
-      success: true,
-      data: {
-        city: 'Unknown',
-        state: '',
-        country: '',
-        temperature: null,
-        feelsLike: null,
-        humidity: null,
-        windSpeed: null,
-        uvIndex: null,
-        uvLabel: 'Low',
-        condition: 'Unknown',
-        hydrationTarget: '2.5L',
-        hydrationReason: 'Standard baseline fluid intake to maintain optimal hydration.',
-        clothingAdvice: 'Comfortable clothing',
-        clothingReason: 'Wear comfortable clothing suitable for your current environment.',
-        activityWindow: 'Morning or Evening',
-        activityReason: 'Avoid direct midday heat and peak UV hours.'
-      }
-    });
+    console.log('[WEATHER] Geolocation coordinates missing. Attempting IP Geolocation...');
+    let ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+    if (ip && ip.includes(',')) {
+      ip = ip.split(',')[0].trim();
+    }
+    if (ip && ip.startsWith('::ffff:')) {
+      ip = ip.substring(7);
+    }
+    ipGeo = await getCoordsAndCityFromIP(ip);
+    if (ipGeo) {
+      latitude = ipGeo.latitude;
+      longitude = ipGeo.longitude;
+      if (!city) city = ipGeo.city;
+      if (!state) state = ipGeo.state;
+      if (!country) country = ipGeo.country;
+      console.log('[WEATHER] IP Geolocation resolved to:', ipGeo);
+    } else {
+      // Hard fallback if IP geolocation failed and no coords available
+      latitude = 28.6139;
+      longitude = 77.209;
+      if (!city) city = 'New Delhi';
+      if (!state) state = 'Delhi';
+      if (!country) country = 'India';
+      console.log('[WEATHER] IP Geolocation failed. Using default fallback (New Delhi).');
+    }
   }
 
   const cacheKey = `${Number(latitude).toFixed(2)},${Number(longitude).toFixed(2)}`;
@@ -325,13 +380,15 @@ export const getWeatherAdvice = async (req, res) => {
 
   console.log('[WEATHER] Cache miss');
 
-  let geoData = { city: 'Unknown', state: '', country: '' };
+  let geoData = { city: city || 'Unknown', state: state || '', country: country || '' };
   let weatherData = null;
   let adviceData = null;
 
   try {
-    // 4. Reverse Geocode
-    geoData = await getCityFromCoordinates(latitude, longitude);
+    // 4. Reverse Geocode only if the city is not already resolved
+    if (geoData.city === 'Unknown') {
+      geoData = await getCityFromCoordinates(latitude, longitude);
+    }
 
     // 5. Open-Meteo Fetch
     const weatherRes = await axios.get(`https://api.open-meteo.com/v1/forecast`, {
@@ -403,7 +460,27 @@ export const getWeatherAdvice = async (req, res) => {
 
   // 6. Gemini Generation
   try {
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    const genAI = getGenAI();
+    // Enable JSON format using responseMimeType and responseSchema for absolute reliability
+    const model = genAI.getGenerativeModel({ 
+      model: 'gemini-2.5-flash',
+      generationConfig: {
+        responseMimeType: 'application/json',
+        responseSchema: {
+          type: 'object',
+          properties: {
+            hydrationTarget: { type: 'string' },
+            hydrationReason: { type: 'string' },
+            clothingAdvice: { type: 'string' },
+            clothingReason: { type: 'string' },
+            activityWindow: { type: 'string' },
+            activityReason: { type: 'string' }
+          },
+          required: ['hydrationTarget', 'hydrationReason', 'clothingAdvice', 'clothingReason', 'activityWindow', 'activityReason']
+        }
+      }
+    });
+
     const prompt = `You are a health and wellness advisor.
 
 Based on:
@@ -414,31 +491,16 @@ Wind Speed: ${weatherData.windSpeed} km/h
 UV Index: ${weatherData.uvIndex}
 Condition: ${weatherData.condition}
 
-Generate JSON only (do not include any markdown styling, no backticks, no \`\`\`json):
-{
-  "hydrationTarget": "e.g., 3.8L today",
-  "hydrationReason": "e.g., High temperature increases sweat loss.",
-  "clothingAdvice": "e.g., Loose Linen / Cotton",
-  "clothingReason": "e.g., Breathable fabrics reduce heat retention.",
-  "activityWindow": "e.g., Before 8 AM · After 7 PM",
-  "activityReason": "e.g., Avoid peak UV exposure during midday."
-}
-
-Rules:
-- Hydration target should be realistic (2L–5L).
-- Recommend clothing based on temperature and humidity.
-- Recommend safest activity window.
-- Avoid medical claims.
-- Return valid JSON only.`;
+Provide personalized advice for hydration, clothing choice, and the safest activity window.
+Return a valid JSON object matching the requested schema.`;
 
     const result = await Promise.race([
       model.generateContent(prompt),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 10000))
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Timeout')), 25000)) // Increased timeout to 25s for slow production env
     ]);
 
     const responseText = result.response.text();
-    const cleanedText = responseText.replace(/```json/g, '').replace(/```/g, '').trim();
-    adviceData = JSON.parse(cleanedText);
+    adviceData = JSON.parse(responseText.trim());
     console.log('[WEATHER] Gemini success');
   } catch (err) {
     console.warn('[WEATHER] Gemini failed, using fallback:', err.message);
