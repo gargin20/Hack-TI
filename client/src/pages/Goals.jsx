@@ -933,6 +933,9 @@ export default function Goals() {
     streaks:   goals.filter(g => g.streak > 0).length,
   };
 
+  const mealDaysFollowed = activePlan ? Math.round((activePlan.stats?.totalCompletedTasks || 0) / 4) : 0;
+  const mealProgressPercent = activePlan ? Math.min(Math.round((mealDaysFollowed / activePlan.duration) * 100), 100) : 0;
+
   return (
     <div className={`min-h-screen px-5 py-8 sm:px-8 font-sans transition-colors duration-300 ${
       theme === 'light' ? 'bg-[#f8fafc] text-slate-900' : 'bg-[#05070d] text-white'
@@ -1691,16 +1694,16 @@ export default function Goals() {
                     <div className="flex justify-between text-sm">
                       <span className={theme === 'light' ? 'text-slate-500' : 'text-white/50'}>Progress</span>
                       <span className="font-bold text-[#10c7a1]">
-                        {Math.round((activePlan.stats?.totalCompletedTasks || 0) / 4)} / {activePlan.duration} Days
+                        {mealDaysFollowed} / {activePlan.duration} Days
                       </span>
                     </div>
                     <div className={`h-2.5 w-full overflow-hidden rounded-full ${theme === 'light' ? 'bg-slate-100' : 'bg-white/8'}`}>
                       <div className="h-full rounded-full bg-gradient-to-r from-[#10c7a1]/70 to-[#10c7a1]"
-                        style={{ width: `${activePlan.stats?.adherence ?? 0}%` }} />
+                        style={{ width: `${mealProgressPercent}%` }} />
                     </div>
                     <div className={`flex justify-between text-xs ${theme === 'light' ? 'text-slate-400' : 'text-white/40'}`}>
-                      <span>{activePlan.stats?.adherence ?? 0}% complete</span>
-                      <span>{100 - (activePlan.stats?.adherence ?? 0)}% remaining</span>
+                      <span>{mealProgressPercent}% complete</span>
+                      <span>{100 - mealProgressPercent}% remaining</span>
                     </div>
                   </div>
                 </div>
