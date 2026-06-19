@@ -1689,8 +1689,10 @@ export default function Goals() {
                   {/* Single progress bar */}
                   <div className="mt-5 space-y-2 max-w-md">
                     <div className="flex justify-between text-sm">
-                      <span className={theme === 'light' ? 'text-slate-500' : 'text-white/50'}>Dietary Adherence</span>
-                      <span className="font-bold text-[#10c7a1]">{activePlan.stats?.adherence ?? 0}%</span>
+                      <span className={theme === 'light' ? 'text-slate-500' : 'text-white/50'}>Progress</span>
+                      <span className="font-bold text-[#10c7a1]">
+                        {Math.round((activePlan.stats?.totalCompletedTasks || 0) / 4)} / {activePlan.duration} Days
+                      </span>
                     </div>
                     <div className={`h-2.5 w-full overflow-hidden rounded-full ${theme === 'light' ? 'bg-slate-100' : 'bg-white/8'}`}>
                       <div className="h-full rounded-full bg-gradient-to-r from-[#10c7a1]/70 to-[#10c7a1]"
