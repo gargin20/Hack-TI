@@ -189,8 +189,32 @@ export default function Health() {
   const [syncStatus, setSyncStatus]         = useState('idle'); // idle|syncing|connected|error
   const [syncError, setSyncError]           = useState('');
   const [wearable, setWearable]             = useState(null);
-  const [weather, setWeather]               = useState(null);
-  const [weatherLoading, setWeatherLoading] = useState(true);
+  const [weather, setWeather]               = useState(() => {
+    try {
+      const cached = localStorage.getItem('dt_weather_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 15 * 60 * 1000) {
+          return parsed.data;
+        }
+      }
+    } catch (e) {
+      console.warn('Failed to load cached weather:', e);
+    }
+    return null;
+  });
+  const [weatherLoading, setWeatherLoading] = useState(() => {
+    try {
+      const cached = localStorage.getItem('dt_weather_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 15 * 60 * 1000) {
+          return false;
+        }
+      }
+    } catch (e) {}
+    return true;
+  });
   const [weatherError, setWeatherError]     = useState(false);
   const [dashProfile, setDashProfile]       = useState(null);
   const [profileLoading, setProfileLoading] = useState(true);
@@ -239,19 +263,32 @@ export default function Health() {
     dispatch(fetchHealthIntegration());
     fetchDashProfile();
 
-    if (navigator.geolocation) {
-      navigator.geolocation.getCurrentPosition(
-        (pos) => {
-          fetchWeather(pos.coords.latitude, pos.coords.longitude);
-        },
-        (err) => {
-          console.warn('Geolocation denied or failed, requesting fallback:', err.message);
-          fetchWeather(null, null);
+    let isFresh = false;
+    try {
+      const cached = localStorage.getItem('dt_weather_cache');
+      if (cached) {
+        const parsed = JSON.parse(cached);
+        if (Date.now() - parsed.timestamp < 15 * 60 * 1000) {
+          isFresh = true;
         }
-      );
-    } else {
-      console.warn('Geolocation not supported by browser, requesting fallback');
-      fetchWeather(null, null);
+      }
+    } catch (e) {}
+
+    if (!isFresh) {
+      if (navigator.geolocation) {
+        navigator.geolocation.getCurrentPosition(
+          (pos) => {
+            fetchWeather(pos.coords.latitude, pos.coords.longitude);
+          },
+          (err) => {
+            console.warn('Geolocation denied or failed, requesting fallback:', err.message);
+            fetchWeather(null, null);
+          }
+        );
+      } else {
+        console.warn('Geolocation not supported by browser, requesting fallback');
+        fetchWeather(null, null);
+      }
     }
   }, []);
 
@@ -365,6 +402,14 @@ export default function Health() {
         d.hydrationL = d.hydrationTarget ? parseFloat(d.hydrationTarget) : 2.5;
         
         setWeather(d);
+        try {
+          localStorage.setItem('dt_weather_cache', JSON.stringify({
+            data: d,
+            timestamp: Date.now()
+          }));
+        } catch (cacheErr) {
+          console.warn('Failed to cache weather data:', cacheErr);
+        }
       } else {
         setWeatherError(true);
       }

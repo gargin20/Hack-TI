@@ -467,14 +467,14 @@ export const getWeatherAdvice = async (req, res) => {
       generationConfig: {
         responseMimeType: 'application/json',
         responseSchema: {
-          type: 'object',
+          type: 'OBJECT',
           properties: {
-            hydrationTarget: { type: 'string' },
-            hydrationReason: { type: 'string' },
-            clothingAdvice: { type: 'string' },
-            clothingReason: { type: 'string' },
-            activityWindow: { type: 'string' },
-            activityReason: { type: 'string' }
+            hydrationTarget: { type: 'STRING' },
+            hydrationReason: { type: 'STRING' },
+            clothingAdvice: { type: 'STRING' },
+            clothingReason: { type: 'STRING' },
+            activityWindow: { type: 'STRING' },
+            activityReason: { type: 'STRING' }
           },
           required: ['hydrationTarget', 'hydrationReason', 'clothingAdvice', 'clothingReason', 'activityWindow', 'activityReason']
         }
@@ -503,7 +503,7 @@ Return a valid JSON object matching the requested schema.`;
     adviceData = JSON.parse(responseText.trim());
     console.log('[WEATHER] Gemini success');
   } catch (err) {
-    console.warn('[WEATHER] Gemini failed, using fallback:', err.message);
+    console.error('[WEATHER] Gemini failed, using fallback:', err);
     adviceData = {
       hydrationTarget: weatherData.temperature >= 35 ? '3.8L today' : weatherData.temperature >= 28 ? '3.2L today' : '2.5L today',
       hydrationReason: weatherData.temperature >= 30 ? 'Warm weather increases sweat rate and fluid requirements.' : 'Standard baseline fluid intake to maintain optimal hydration.',
