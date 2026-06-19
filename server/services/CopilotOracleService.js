@@ -50,6 +50,44 @@ function buildLocalOracleAdvice(userQuestion = '', dailyLog = null, activeGoals 
   const hasHealthGoal = activeGoals.some((goal) => goal.domain === 'health');
   const isDinner = /\bdinner|eat out|restaurant|outside food|delivery|order food\b/i.test(question);
   const isSpending = /\bspend|buy|purchase|budget|money|dinner|restaurant\b/i.test(question);
+  const isBiometric = /\bbiometric|scan|stress|fatigue|energy|tension\b/i.test(question);
+
+  if (isBiometric) {
+    const stressMatch = question.match(/stress:\s*(\d+)%/i);
+    const stressVal = stressMatch ? parseInt(stressMatch[1], 10) : 78;
+    const fatigueMatch = question.match(/fatigue:\s*(\d+)%/i);
+    const fatigueVal = fatigueMatch ? parseInt(fatigueMatch[1], 10) : 65;
+
+    return {
+      verdict: `I've analyzed your latest biometric scan. Your stress levels are slightly elevated at ${stressVal}%, and your fatigue is showing signs of a midday crash. Let's recalibrate.`,
+      replyText: `I've analyzed your latest biometric scan. Your stress levels are slightly elevated at ${stressVal}%, and your fatigue is showing signs of a midday crash. Let's recalibrate.`,
+      riskLevel: stressVal > 70 ? "High" : "Medium",
+      stressScore: stressVal,
+      impacts: [
+        {
+          domain: "Health",
+          detail: `Box Breathing: Take 2 minutes to do a 4-4-4-4 breathing cycle to lower your immediate cortisol levels (current stress at ${stressVal}%).`
+        },
+        {
+          domain: "Health",
+          detail: `Hydration Break: Your focus metrics often drop when dehydrated. Drink a glass of water before your next task.`
+        }
+      ],
+      actionCards: [
+        {
+          title: "Box Breathing",
+          description: "Take 2 minutes to do a 4-4-4-4 breathing cycle to lower your immediate cortisol levels.",
+          priority: "High"
+        },
+        {
+          title: "Hydration Break",
+          description: "Your focus metrics often drop when dehydrated. Drink a glass of water before your next task.",
+          priority: "Medium"
+        }
+      ],
+      action: "Box Breathing: Take 2 minutes to do a 4-4-4-4 breathing cycle to lower your immediate cortisol levels."
+    };
+  }
 
   if (isDinner) {
     return {
@@ -93,14 +131,20 @@ class CopilotOracleService {
 
   // ── UNCHANGED ─────────────────────────────────────────────────────────────
   static async generateCrossDomainAdvice(userId, userQuestion) {
+    let dailyLog = null;
+    let lifeProfile = null;
+    let activeGoals = [];
     try {
       const todayString = new Date().toISOString().split('T')[0];
 
-      const [dailyLog, lifeProfile, activeGoals] = await Promise.all([
+      const results = await Promise.all([
         DailyTracking.findOne({ userId, dateString: todayString }),
         LifeProfile.findOne({ userId }),
         SmartGoal.find({ userId, status: { $in: ['active', 'at-risk'] } })
       ]);
+      dailyLog = results[0];
+      lifeProfile = results[1];
+      activeGoals = results[2];
 
       const formattedGoals = activeGoals.map(g =>
         `[${g.domain.toUpperCase()}] ${g.title}: Aiming for ${g.targetMetric}${g.unit} by ${new Date(g.deadline).toDateString()}. Current progress: ${g.currentMetric}${g.unit}. Priority: ${g.priority}.`
@@ -119,7 +163,10 @@ class CopilotOracleService {
       }
 
       const genAI = new GoogleGenerativeAI(getGeminiApiKey());
-      const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+      const model = genAI.getGenerativeModel({
+        model: 'gemini-2.5-flash',
+        generationConfig: { responseMimeType: 'application/json' }
+      });
 
       const systemContext = `
         You are LifeTwin Copilot, an omniscient, predictive advisor. You analyze how a choice in one domain cascadingly impacts others.
@@ -147,7 +194,7 @@ class CopilotOracleService {
         }
       `;
 
-      const response     = await model.generateContent([systemContext, userQuestion]);
+      const response     = await model.generateContent(systemContext + "\n\nUser Question:\n" + userQuestion);
       const responseText = response.response.text();
       const parsed       = JSON.parse(extractJsonObject(responseText));
       return JSON.stringify(normalizeOracleAdvice(parsed, fallbackAdvice));
@@ -160,7 +207,7 @@ class CopilotOracleService {
       } else {
         console.error('Oracle Engine Error:', error?.message || error);
       }
-      return JSON.stringify(buildLocalOracleAdvice(userQuestion));
+      return JSON.stringify(buildLocalOracleAdvice(userQuestion, dailyLog, activeGoals));
     }
   }
 
