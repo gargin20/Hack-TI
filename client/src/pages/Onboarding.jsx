@@ -234,7 +234,7 @@ function Onboarding() {
 
       // 3. Send to the full document extraction route. It supports resumes, PDFs, Word files, images, and statements.
       const response = await axios.post(`${API_BASE_URL}/api/ai/upload`, formData, {
-        timeout: 50000,
+        timeout: 120000,
         withCredentials: true,
         headers: { 
           Authorization: `Bearer ${token}`,
@@ -261,6 +261,8 @@ function Onboarding() {
         }));
         
         toast.success(`${file.name} successfully parsed by DigitalTwin AI.`, { id: toastId });
+      } else {
+        throw new Error(response.data.message || 'Document extraction failed');
       }
 
     } catch (error) {

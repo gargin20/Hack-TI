@@ -62,7 +62,7 @@ export default function UploadPanel({ isCollapsed }) {
     try {
       const token = localStorage.getItem('authToken');
       const res = await axios.post(`${API_BASE_URL}/api/ai/upload`, formData, {
-        timeout: 50000,
+        timeout: 120000,
         headers: {
           'Content-Type': 'multipart/form-data',
           Authorization: `Bearer ${token}`

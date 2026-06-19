@@ -8,7 +8,11 @@ const require = createRequire(import.meta.url);
 const pdfParse = require('pdf-parse');
 dotenv.config();
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
+const getGeminiApiKey = () => (
+  process.env.GEMINI_API_KEY ||
+  process.env.GEMINI_API_KEY_INTELLIGENCE ||
+  ''
+).trim();
 
 class DocumentExtractionService {
   static delay(ms) {
@@ -249,6 +253,12 @@ class DocumentExtractionService {
 
   static async extractDocumentData(fileBuffer, fileName, mimeType, retries = 2) {
     try {
+      const apiKey = getGeminiApiKey();
+      if (!apiKey) {
+        throw new Error('GEMINI_API_KEY is missing');
+      }
+
+      const genAI = new GoogleGenerativeAI(apiKey);
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       // Determine if we can send it directly to Gemini as inlineData (images and PDF)

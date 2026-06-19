@@ -505,37 +505,9 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
       extractedData,
     });
 
-    // Run Gamification Event
-    let gamificationResult = null;
-    if (xpEvent) {
-      console.log(`[aiRoutes] /upload: calling GamificationService.evaluateRules`);
-      const { default: GamificationService } = await import('../services/GamificationService.js');
-      gamificationResult = await GamificationService.evaluateRules(userId);
-    }
-
-    // Create Notification based on domain
-    try {
-      await createNotification({
-        userId,
-        category: domain,
-        subType: 'document-processed',
-        title: `${domain.charAt(0).toUpperCase() + domain.slice(1)} Document Sync'd`,
-        message: `Your Digital Twin has processed "${fileName}" and extracted structured ${domain} signals.`,
-        priority: 'medium',
-        actionLink: `/${domain}`,
-      });
-    } catch (err) {
-      console.error('[aiRoutes] Failed to trigger upload notification:', err.message);
-    }
-
-    // Push live update to frontend via WebSockets
-    if (updatedProfile) {
-      const dashboardPayload = buildDashboardResponse(updatedProfile);
-      emitDashboardSync(userId, dashboardPayload);
-    }
-
     const profile = await GamificationProfile.findOne({ userId });
     const totalXP = profile ? profile.totalXP : 0;
+
     res.status(200).json({
       success: true,
       message: 'Document processed and Digital Twin synchronized.',
@@ -545,10 +517,38 @@ router.post('/upload', authenticateToken, upload.single('file'), async (req, res
         domain,
         extractedData,
         uploadRecord,
-        gamification: gamificationResult,
+        gamification: null,
         updatedGoals,
       }
     });
+
+    try {
+      // Run non-critical side effects after the upload response is already sent.
+      if (xpEvent) {
+        console.log(`[aiRoutes] /upload: calling GamificationService.evaluateRules`);
+        const { default: GamificationService } = await import('../services/GamificationService.js');
+        await GamificationService.evaluateRules(userId);
+      }
+
+      // Create Notification based on domain
+      await createNotification({
+        userId,
+        category: domain,
+        subType: 'document-processed',
+        title: `${domain.charAt(0).toUpperCase() + domain.slice(1)} Document Sync'd`,
+        message: `Your Digital Twin has processed "${fileName}" and extracted structured ${domain} signals.`,
+        priority: 'medium',
+        actionLink: `/${domain}`,
+      });
+
+      // Push live update to frontend via WebSockets
+      if (updatedProfile) {
+        const dashboardPayload = buildDashboardResponse(updatedProfile);
+        emitDashboardSync(userId, dashboardPayload);
+      }
+    } catch (err) {
+      console.error('[aiRoutes] Upload post-response side effect failed:', err.message);
+    }
 
   } catch (error) {
     console.error('[aiRoutes] Upload Endpoint Error:', error);

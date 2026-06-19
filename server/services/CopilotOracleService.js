@@ -3,11 +3,14 @@ import DailyTracking from '../models/DailyTracking.js';
 import LifeProfile from '../models/LifeProfile.js';
 import SmartGoal from '../models/SmartGoal.js';
 
-const genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
 let geminiQuotaBlockedUntil = 0;
 
+function getGeminiApiKey() {
+  return String(process.env.GEMINI_API_KEY || process.env.GEMINI_API_KEY_INTELLIGENCE || '').trim();
+}
+
 function hasUsableGeminiKey() {
-  const key = String(process.env.GEMINI_API_KEY || '').trim();
+  const key = getGeminiApiKey();
   return key.length > 30 && !key.includes('your_') && !key.toLowerCase().includes('placeholder');
 }
 
@@ -115,6 +118,7 @@ class CopilotOracleService {
         return JSON.stringify(fallbackAdvice);
       }
 
+      const genAI = new GoogleGenerativeAI(getGeminiApiKey());
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       const systemContext = `
@@ -167,6 +171,7 @@ class CopilotOracleService {
         throw new Error('Gemini unavailable; using roadmap fallback.');
       }
 
+      const genAI = new GoogleGenerativeAI(getGeminiApiKey());
       const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
       // Pull today's log for extra context
