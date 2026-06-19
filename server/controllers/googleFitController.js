@@ -114,7 +114,7 @@ export const callback = async (req, res) => {
       targetOrigin = process.env.FRONTEND_URL || 'http://localhost:5173';
     }
 
-    const redirectUrl = `${targetOrigin}/health?connected=googlefit`;
+    const redirectUrl = `${targetOrigin}/health/?connected=googlefit`;
     return res.redirect(redirectUrl);
   } catch (err) {
     console.error('[2] OAuth Callback - Token exchange failed:', err.response?.data || err.message);
