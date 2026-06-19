@@ -112,6 +112,14 @@ function Finance() {
       }
     };
     fetchFinanceData();
+
+    const refreshFinanceData = () => fetchFinanceData();
+    window.addEventListener('daily-update-completed', refreshFinanceData);
+    window.addEventListener('dashboard-data-updated', refreshFinanceData);
+    return () => {
+      window.removeEventListener('daily-update-completed', refreshFinanceData);
+      window.removeEventListener('dashboard-data-updated', refreshFinanceData);
+    };
   }, []);
 
   // ═════════════════════════════════════════════

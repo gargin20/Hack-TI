@@ -39,7 +39,6 @@ export const submitDailyUpdate = createAsyncThunk(
         { headers: authHeaders() },
       );
       const dailyUpdateLastSubmittedAt = Date.now();
-      localStorage.setItem('dailyUpdateLastSubmittedAt', String(dailyUpdateLastSubmittedAt));
 
       // If server returned updated user profile, update auth store immediately
       if (response.data && response.data.user) {

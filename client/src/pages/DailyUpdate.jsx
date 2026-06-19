@@ -294,14 +294,7 @@ function DailyUpdate() {
     : 'Daily update available now';
 
   useEffect(() => {
-    if (dailyUpdateLastSubmittedAt) {
-      localStorage.setItem('dailyUpdateLastSubmittedAt', String(dailyUpdateLastSubmittedAt));
-    }
-  }, [dailyUpdateLastSubmittedAt]);
-
-  useEffect(() => {
     if ((completed || success) && remaining <= 0) {
-      localStorage.removeItem('dailyUpdateLastSubmittedAt');
       dispatch(clearDailyUpdateCooldown());
     }
   }, [completed, dispatch, remaining, success]);

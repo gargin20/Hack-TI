@@ -25,7 +25,12 @@ export default store;
 function loadPersistedState() {
   try {
     const serializedState = localStorage.getItem(PERSISTED_STATE_KEY);
-    return serializedState ? JSON.parse(serializedState) : undefined;
+    if (!serializedState) return undefined;
+    const state = JSON.parse(serializedState);
+    if (state && typeof state === 'object') {
+      delete state.dailyUpdate;
+    }
+    return state;
   } catch {
     return undefined;
   }
@@ -33,7 +38,7 @@ function loadPersistedState() {
 
 function persistState(state) {
   try {
-    const { auth, careerIntegrations, dailyUpdate, healthIntegration } = state;
+    const { auth, careerIntegrations, healthIntegration } = state;
     const persistedAuth = auth
       ? {
           ...auth,
@@ -43,7 +48,7 @@ function persistState(state) {
 
     localStorage.setItem(
       PERSISTED_STATE_KEY,
-      JSON.stringify({ auth: persistedAuth, careerIntegrations, dailyUpdate, healthIntegration })
+      JSON.stringify({ auth: persistedAuth, careerIntegrations, healthIntegration })
     );
   } catch {
     // Storage may be unavailable or full; the in-memory store should keep running.

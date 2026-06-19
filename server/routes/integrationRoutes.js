@@ -150,11 +150,12 @@ router.get('/finance', authenticateToken, async (req, res) => {
     startOfMonth.setDate(1);
     const dateStringPrefix = `${startOfMonth.getFullYear()}-${String(startOfMonth.getMonth() + 1).padStart(2, '0')}`;
 
-    const [dailyUpdatesThisMonth, financeUploadsThisMonth] = await Promise.all([
+    const [dailyUpdatesThisMonth, allDailyUpdates, financeUploadsThisMonth] = await Promise.all([
       DailyUpdate.find({
         userId,
         date: { $regex: new RegExp('^' + dateStringPrefix) }
       }).lean(),
+      DailyUpdate.find({ userId }).sort({ date: 1 }).lean(),
       Upload.find({
         userId,
         domain: 'finance',
@@ -173,7 +174,9 @@ router.get('/finance', authenticateToken, async (req, res) => {
       'finance.holdings.0': { $exists: true }
     }).sort({ dateString: -1 }).lean();
 
-    const holdings = latestLogWithHoldings?.finance?.holdings || [];
+    const holdingsFromDailyUpdates = buildHoldingsFromDailyUpdates(allDailyUpdates);
+    const storedHoldings = latestLogWithHoldings?.finance?.holdings || [];
+    const holdings = holdingsFromDailyUpdates.length ? holdingsFromDailyUpdates : storedHoldings;
     const portfolioValue = holdings.reduce((sum, h) => sum + (h.value || 0), 0);
 
     // 4. Calculate total salary & monthly expenses
@@ -302,6 +305,58 @@ function extractUploadIncomeTotal(upload) {
   return extractUploadTransactions(upload)
     .filter(transaction => transaction.type === 'income' || transaction.type === 'credit')
     .reduce((sum, transaction) => sum + positiveNumber(transaction.amount), 0);
+}
+
+function buildHoldingsFromDailyUpdates(updates = []) {
+  const holdings = [];
+  const findHoldingIndex = (assetName) => holdings.findIndex(
+    holding => String(holding.assetName || '').toLowerCase() === String(assetName || '').toLowerCase()
+  );
+
+  updates
+    .slice()
+    .sort((a, b) => String(a.date || '').localeCompare(String(b.date || '')))
+    .forEach((update) => {
+      const finance = update.finance || {};
+
+      if (finance.boughtShares && positiveNumber(finance.boughtShareDetails?.amount) > 0) {
+        const assetName = finance.boughtShareDetails?.stockName || 'Shares';
+        const shares = positiveNumber(finance.boughtShareDetails?.quantity) || 1;
+        const value = positiveNumber(finance.boughtShareDetails?.amount);
+        const existingIdx = findHoldingIndex(assetName);
+        if (existingIdx >= 0) {
+          holdings[existingIdx].shares += shares;
+          holdings[existingIdx].value += value;
+        } else {
+          holdings.push({ assetName, shares, value });
+        }
+      }
+
+      if (finance.insurancePurchased && positiveNumber(finance.insuranceDetails?.amount) > 0) {
+        const assetName = finance.insuranceDetails?.providerName || 'LIC Insurance';
+        const value = positiveNumber(finance.insuranceDetails?.amount);
+        const existingIdx = findHoldingIndex(assetName);
+        if (existingIdx >= 0) {
+          holdings[existingIdx].value += value;
+        } else {
+          holdings.push({ assetName, shares: 1, value });
+        }
+      }
+
+      if (finance.soldShares && positiveNumber(finance.soldShareDetails?.quantity) > 0) {
+        const assetName = finance.soldShareDetails?.stockName || 'Shares';
+        const shares = positiveNumber(finance.soldShareDetails?.quantity);
+        const value = positiveNumber(finance.soldShareDetails?.amount);
+        const existingIdx = findHoldingIndex(assetName);
+        if (existingIdx >= 0) {
+          holdings[existingIdx].shares = Math.max(0, holdings[existingIdx].shares - shares);
+          holdings[existingIdx].value = Math.max(0, holdings[existingIdx].value - value);
+          if (holdings[existingIdx].shares === 0) holdings.splice(existingIdx, 1);
+        }
+      }
+    });
+
+  return holdings;
 }
 
 function extractUploadTransactions(upload) {

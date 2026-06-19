@@ -1,13 +1,11 @@
 import { createSlice } from '@reduxjs/toolkit';
 import { fetchTodayDailyUpdate, submitDailyUpdate } from './dailyUpdateThunks';
 
-const dailyUpdateLastSubmittedAt = Number(localStorage.getItem('dailyUpdateLastSubmittedAt')) || null;
-
 const initialState = {
   todayUpdate: null,
   activeGoals: [],
   completed: false,
-  dailyUpdateLastSubmittedAt,
+  dailyUpdateLastSubmittedAt: null,
   loading: false,
   error: '',
   success: false,
@@ -38,6 +36,9 @@ const dailyUpdateSlice = createSlice({
         state.todayUpdate = action.payload.data || null;
         state.activeGoals = action.payload.activeGoals || [];
         state.completed = Boolean(action.payload.completed);
+        if (!state.completed) {
+          state.dailyUpdateLastSubmittedAt = null;
+        }
         if (state.completed && !state.dailyUpdateLastSubmittedAt && action.payload.data?.createdAt) {
           const submittedAt = new Date(action.payload.data.createdAt).getTime();
           state.dailyUpdateLastSubmittedAt = Number.isNaN(submittedAt) ? null : submittedAt;
