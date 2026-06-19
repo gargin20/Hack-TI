@@ -184,11 +184,17 @@ async function sendEmailNotification(userId, notification) {
 
     await markEmailResult(notification, { status: 'sent', provider: 'gmail-api' });
   } catch (error) {
-    console.warn('Notification email failed:', error.message);
+    console.error('Notification email failed details:');
+    console.error('- Message:', error.message);
+    console.error('- URL called:', error.config?.url);
+    console.error('- Method:', error.config?.method);
+    console.error('- Response Data:', JSON.stringify(error.response?.data || {}));
+    
+    const detailedError = `${error.message}. URL: ${error.config?.url || 'N/A'}. Response: ${JSON.stringify(error.response?.data || {})}`;
     await markEmailResult(notification, {
       status: 'failed',
       provider: 'gmail-api',
-      error: error.message,
+      error: detailedError.slice(0, 240),
     });
   }
 }

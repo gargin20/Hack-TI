@@ -54,7 +54,7 @@ export async function sendGmailWithAPI({ to, subject, text, html }) {
     .replace(/=+$/, '');
 
   const result = await axios.post(
-    'https://gmail.googleapis.com/v1/users/me/messages/send',
+    'https://gmail.googleapis.com/gmail/v1/users/me/messages/send',
     { raw: base64UrlEncoded },
     {
       headers: {
